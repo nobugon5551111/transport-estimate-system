@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>見積フローテスト</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-2xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6">見積フローテスト</h1>
+        
+        <div class="bg-white p-6 rounded-lg shadow mb-6">
+            <h2 class="text-lg font-bold mb-4">Step 6テスト用データ設定</h2>
+            <button onclick="setupTestData()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                テストデータを設定してSTEP6へ遷移
+            </button>
+        </div>
+        
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h2 class="text-lg font-bold mb-4">セッションデータ確認</h2>
+            <pre id="sessionData" class="bg-gray-100 p-4 rounded text-sm overflow-auto"></pre>
+        </div>
+    </div>
+
+    <script>
+        function setupTestData() {
+            const estimateFlow = {
+                step: 6,
+                customer: {
+                    id: 1,
+                    name: "株式会社サンプル商事"
+                },
+                project: {
+                    id: 2,
+                    name: "工場設備搬送案件"
+                },
+                delivery: {
+                    address: "東京都渋谷区神宮前1-1-1",
+                    postal_code: "150-0001",
+                    area: "A",
+                    area_name: "都心部"
+                },
+                vehicle: {
+                    type: "4t車",
+                    operation: "終日",
+                    area: "A",
+                    cost: 30000
+                },
+                staff: {
+                    supervisor_count: 1,
+                    leader_count: 1,
+                    m2_staff_half_day: 0,
+                    m2_staff_full_day: 2,
+                    temp_staff_half_day: 0,
+                    temp_staff_full_day: 0,
+                    total_cost: 39000
+                },
+                services: {
+                    parking_officer_hours: 4,
+                    parking_officer_cost: 10000,
+                    transport_vehicles: 2,
+                    transport_within_20km: true,
+                    transport_distance: 0,
+                    transport_fuel_cost: 0,
+                    transport_cost: 30000,
+                    waste_disposal_size: "medium",
+                    waste_disposal_cost: 15000,
+                    protection_work: true,
+                    protection_floors: 3,
+                    protection_cost: 14000,
+                    material_collection_size: "few",
+                    material_collection_cost: 6000,
+                    construction_m2_staff: 2,
+                    construction_partner: "協力会社A",
+                    construction_cost: 20000,
+                    work_time_type: "early",
+                    work_time_multiplier: 1.2,
+                    parking_fee: 2000,
+                    highway_fee: 5000,
+                    total_cost: 102200,
+                    notes: "全サービス項目テスト"
+                }
+            };
+            
+            sessionStorage.setItem('estimateFlow', JSON.stringify(estimateFlow));
+            alert('テストデータを設定しました。STEP6に遷移します。');
+            window.location.href = '/estimate/step6';
+        }
+        
+        function updateSessionData() {
+            const data = sessionStorage.getItem('estimateFlow');
+            document.getElementById('sessionData').textContent = data ? JSON.stringify(JSON.parse(data), null, 2) : '設定されていません';
+        }
+        
+        updateSessionData();
+        setInterval(updateSessionData, 1000);
+    </script>
+</body>
+</html>

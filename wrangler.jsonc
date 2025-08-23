@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "transport-estimate-system",
+  "compatibility_date": "2025-08-18",
+  "compatibility_flags": ["nodejs_compat"],
+  "pages_build_output_dir": "./dist",
+
+  // D1 Database for transport estimate system
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "webapp-production",
+      "database_id": "to-be-updated-after-creation"
+    }
+  ],
+
+  // AI binding for staff optimization and email generation
+  "ai": {
+    "binding": "AI"
+  }
+}
