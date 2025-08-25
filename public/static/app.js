@@ -2256,6 +2256,21 @@ const Step5Implementation = {
     Step5Implementation.updateServicesCost();
   },
 
+  // 養生作業チェック変更
+  handleProtectionWorkChange: () => {
+    const protectionWork = document.getElementById('protection_work');
+    const protectionFloors = document.getElementById('protectionFloors');
+    
+    if (protectionWork.checked) {
+      protectionFloors.classList.remove('hidden');
+    } else {
+      protectionFloors.classList.add('hidden');
+      document.getElementById('protection_floors').value = '1';
+    }
+    
+    Step5Implementation.updateServicesCost();
+  },
+
   // サービス費用の更新
   updateServicesCost: () => {
     if (!Step5Implementation.serviceRates) {
@@ -2445,6 +2460,13 @@ window.requestAIOptimization = Step4Implementation.requestAIOptimization;
 window.applyAISuggestion = Step4Implementation.applyAISuggestion;
 window.goBackToStep3 = Step4Implementation.goBackToStep3;
 window.proceedToStep5 = Step4Implementation.proceedToStep5;
+
+// STEP5用関数
+window.updateServicesCost = Step5Implementation.updateServicesCost;
+window.handleTransportDistanceChange = Step5Implementation.handleTransportDistanceChange;
+window.handleProtectionWorkChange = Step5Implementation.handleProtectionWorkChange;
+window.goBackToStep4 = Step5Implementation.goBackToStep4;
+window.proceedToStep6 = Step5Implementation.proceedToStep6;
 
 // STEP6: 内容確認・見積書作成の実装
 const Step6Implementation = {

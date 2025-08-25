@@ -4577,7 +4577,7 @@ app.get('/estimate/step5', (c) => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="flex items-center mb-3">
-                      <input type="checkbox" id="protection_work" className="mr-2" onChange="updateServicesCost()" />
+                      <input type="checkbox" id="protection_work" className="mr-2" onChange="handleProtectionWorkChange()" />
                       <span className="text-sm font-medium">養生作業を実施する（基本料金¥5,000）</span>
                     </label>
                   </div>
