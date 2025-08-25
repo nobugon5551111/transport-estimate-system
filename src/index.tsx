@@ -2,9 +2,9 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
 import { renderer } from './renderer'
-import type { Bindings } from './types'
+// import type { Bindings } from './types' // 一時的にコメントアウト
 
-const app = new Hono<{ Bindings: Bindings }>()
+const app = new Hono()
 
 // CORS設定（API用）
 app.use('/api/*', cors())

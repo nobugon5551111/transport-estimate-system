@@ -1,8 +1,7 @@
 // 輸送見積もりシステム 型定義
 
 export interface Bindings {
-  DB: D1Database;
-  AI: Ai;
+  // D1Database と AI は本番デプロイ後に設定
 }
 
 export interface Customer {
