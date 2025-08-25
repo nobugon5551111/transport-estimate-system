@@ -1348,44 +1348,42 @@ const Step3Implementation = {
     }
   },
 
+  // 稼働形態変更時の処理
+  handleOperationChange: () => {
+    console.log('🔧 稼働形態が変更されました');
+    Step3Implementation.handleVehicleCountChange();
+    Step3Implementation.updatePricing();
+  },
+
   // 次へボタンの有効化状態を更新
   updateNextButtonState: () => {
     const vehicle2tCount = parseInt(document.getElementById('vehicle2tCount')?.value) || 0;
     const vehicle4tCount = parseInt(document.getElementById('vehicle4tCount')?.value) || 0;
-    const selectedOperation = document.querySelector('input[name="operation_type"]:checked');
+    
+    // セレクトボックスとラジオボタン両方をチェック
+    const selectedOperationSelect = document.getElementById('operationType')?.value;
+    const selectedOperationRadio = document.querySelector('input[name="operation_type"]:checked');
+    const selectedOperation = selectedOperationSelect || selectedOperationRadio?.value;
+    
     const nextBtn = document.getElementById('nextStepBtn');
     
     console.log('STEP3 ボタン状態確認:', {
       vehicle2tCount,
       vehicle4tCount,
-      hasOperation: !!selectedOperation,
+      hasOperationSelect: !!selectedOperationSelect,
+      hasOperationRadio: !!selectedOperationRadio,
+      selectedOperation,
       nextBtnExists: !!nextBtn,
       currentArea: Step3Implementation.currentArea
     });
     
     if (nextBtn) {
       const hasVehicles = (vehicle2tCount + vehicle4tCount) > 0;
-      const hasOperation = selectedOperation !== null;
+      const hasOperation = !!selectedOperation && selectedOperation !== '';
       const shouldEnable = hasVehicles && hasOperation;
       
       nextBtn.disabled = !shouldEnable;
       console.log('STEP3 次へボタン状態:', { hasVehicles, hasOperation, shouldEnable, disabled: nextBtn.disabled });
-      
-      // デバッグ用: ボタンを強制的に有効にするテスト機能
-      if (!shouldEnable && (hasVehicles || hasOperation)) {
-        console.warn('STEP3 デバッグ: 条件が部分的に満たされている - 強制的に有効化');
-        nextBtn.disabled = false;
-        // 最低限のデータで車両情報を作成
-        Step3Implementation.currentVehicleInfo = {
-          vehicle_2t_count: vehicle2tCount,
-          vehicle_4t_count: vehicle4tCount,
-          operation: selectedOperation ? selectedOperation.value : '共配',
-          area: Step3Implementation.currentArea || 'D',
-          cost: 0,
-          external_contractor_cost: parseFloat(document.getElementById('externalCost')?.value) || 0,
-          uses_multiple_vehicles: true
-        };
-      }
       
       // 次へボタンが有効になったら車両情報を保存
       if (shouldEnable) {
@@ -1393,7 +1391,7 @@ const Step3Implementation = {
         Step3Implementation.currentVehicleInfo = {
           vehicle_2t_count: vehicle2tCount,
           vehicle_4t_count: vehicle4tCount,
-          operation: selectedOperation.value,
+          operation: selectedOperation,
           area: Step3Implementation.currentArea,
           cost: 0, // 料金はupdateIndividualVehiclePricingで計算される
           external_contractor_cost: externalCost,
