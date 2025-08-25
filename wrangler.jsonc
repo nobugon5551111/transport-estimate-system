@@ -1,7 +1,17 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "transport-estimate-system",
-  "compatibility_date": "2025-08-18",
+  "compatibility_date": "2025-08-13",
   "compatibility_flags": ["nodejs_compat"],
-  "pages_build_output_dir": "./dist"
+  "pages_build_output_dir": "./dist",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "transport-estimate-production",
+      "database_id": "7f1910de-adb4-4233-a87e-86a36975d538"
+    }
+  ],
+  "ai": {
+    "binding": "AI"
+  }
 }

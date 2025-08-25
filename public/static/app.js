@@ -171,14 +171,41 @@ const PostalCode = {
   }
 };
 
+// デバッグ用テスト関数
+window.testModalFunction = function() {
+  console.log('=== Modal Test Function Called ===');
+  console.log('Modal object:', typeof Modal);
+  console.log('Modal.open function:', typeof Modal.open);
+  
+  const modal = document.getElementById('customerModal');
+  console.log('customerModal element:', modal);
+  
+  if (modal) {
+    console.log('Modal classes before:', modal.className);
+    console.log('Modal style before:', modal.style.display);
+    
+    Modal.open('customerModal');
+    
+    console.log('Modal classes after:', modal.className);
+    console.log('Modal style after:', modal.style.display);
+  }
+  
+  return 'Test completed - check console for details';
+};
+
 // モーダル制御
 const Modal = {
   // モーダルを開く
   open: (modalId) => {
+    console.log('Modal.open called for:', modalId);
     const modal = document.getElementById(modalId);
+    console.log('Modal element found:', modal);
     if (modal) {
+      modal.classList.remove('hidden');
+      modal.classList.add('show');
       modal.style.display = 'flex';
       document.body.style.overflow = 'hidden';
+      console.log('Modal should now be visible');
       
       // ESCキーでモーダルを閉じる
       const handleEscape = (e) => {
@@ -188,13 +215,18 @@ const Modal = {
         }
       };
       document.addEventListener('keydown', handleEscape);
+    } else {
+      console.error('Modal element not found:', modalId);
     }
   },
 
   // モーダルを閉じる
   close: (modalId) => {
+    console.log('Modal.close called for:', modalId);
     const modal = document.getElementById(modalId);
     if (modal) {
+      modal.classList.add('hidden');
+      modal.classList.remove('show');
       modal.style.display = 'none';
       document.body.style.overflow = 'auto';
     }

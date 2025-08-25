@@ -2,9 +2,9 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
 import { renderer } from './renderer'
-// import type { Bindings } from './types' // 一時的にコメントアウト
+import type { Bindings } from './types'
 
-const app = new Hono()
+const app = new Hono<{ Bindings: Bindings }>()
 
 // CORS設定（API用）
 app.use('/api/*', cors())
@@ -968,32 +968,41 @@ app.get('/api/dashboard/stats', async (c) => {
     const { env } = c
     const currentMonth = new Date().toISOString().substring(0, 7) // YYYY-MM形式
     
-    // 今月の見積数
+    // 今月の見積数（見積もりがない場合は案件数で代替）
     const monthlyEstimates = await env.DB.prepare(`
       SELECT COUNT(*) as count 
       FROM estimates 
       WHERE strftime('%Y-%m', created_at) = ?
     `).bind(currentMonth).first()
     
-    // 受注済み（今月）
-    const orderedEstimates = await env.DB.prepare(`
+    // 見積もりがない場合は案件数で表示
+    let monthlyEstimatesCount = monthlyEstimates?.count || 0
+    if (monthlyEstimatesCount === 0) {
+      const monthlyProjects = await env.DB.prepare(`
+        SELECT COUNT(*) as count 
+        FROM projects 
+        WHERE strftime('%Y-%m', created_at) = ?
+      `).bind(currentMonth).first()
+      monthlyEstimatesCount = monthlyProjects?.count || 0
+    }
+    
+    // 受注済み案件数（今月）
+    const orderedProjects = await env.DB.prepare(`
       SELECT COUNT(*) as count 
-      FROM estimates e
-      LEFT JOIN projects p ON e.project_id = p.id
-      WHERE strftime('%Y-%m', e.created_at) = ? 
-      AND p.status = 'order'
+      FROM projects
+      WHERE strftime('%Y-%m', created_at) = ? 
+      AND status = 'order'
     `).bind(currentMonth).first()
     
-    // 検討中（今月）
-    const consideringEstimates = await env.DB.prepare(`
+    // 検討中案件数（今月）
+    const consideringProjects = await env.DB.prepare(`
       SELECT COUNT(*) as count 
-      FROM estimates e
-      LEFT JOIN projects p ON e.project_id = p.id
-      WHERE strftime('%Y-%m', e.created_at) = ? 
-      AND p.status IN ('quote_sent', 'under_consideration')
+      FROM projects
+      WHERE strftime('%Y-%m', created_at) = ? 
+      AND status IN ('quote_sent', 'under_consideration')
     `).bind(currentMonth).first()
     
-    // 今月売上（受注済みの見積の合計金額）
+    // 今月売上（見積もりがある場合は見積額、ない場合は0）
     const monthlySales = await env.DB.prepare(`
       SELECT COALESCE(SUM(e.total_amount), 0) as total 
       FROM estimates e
@@ -1003,9 +1012,9 @@ app.get('/api/dashboard/stats', async (c) => {
     `).bind(currentMonth).first()
     
     return c.json({
-      monthlyEstimates: monthlyEstimates?.count || 0,
-      orderedEstimates: orderedEstimates?.count || 0,
-      consideringEstimates: consideringEstimates?.count || 0,
+      monthlyEstimates: monthlyEstimatesCount,
+      orderedEstimates: orderedProjects?.count || 0,
+      consideringEstimates: consideringProjects?.count || 0,
       monthlySales: monthlySales?.total || 0
     })
   } catch (error) {
@@ -1555,10 +1564,9 @@ app.get('/api/customers/list', async (c) => {
   try {
     const { env } = c
     const { results } = await env.DB.prepare(`
-      SELECT DISTINCT c.id, c.name, c.company
-      FROM customers c
-      INNER JOIN estimates e ON c.id = e.customer_id
-      ORDER BY c.name
+      SELECT id, name, contact_person, email, phone, address
+      FROM customers
+      ORDER BY name
     `).all()
 
     return c.json({ customers: results })
@@ -11814,16 +11822,32 @@ app.post('/api/backups/:id/restore', async (c) => {
     const restoreTables = tables.length > 0 ? tables : Object.keys(backupData.data)
     let restoredRecords = 0
     
-    // トランザクション開始（D1では簡易実装）
-    for (const table of restoreTables) {
-      if (!backupData.data[table]) continue
+    // 外部キー制約を無効化して安全に復元
+    await env.DB.prepare('PRAGMA foreign_keys = OFF').run()
+    
+    // 削除順序（外部キー制約を考慮）
+    const deleteOrder = ['estimates', 'status_history', 'projects', 'customers', 'master_settings', 'area_settings']
+    
+    // データ削除
+    for (const table of deleteOrder) {
+      if (restoreTables.includes(table) && backupData.data[table]) {
+        try {
+          await env.DB.prepare(`DELETE FROM ${table}`).run()
+          console.log(`🗑️ ${table}テーブルの既存データ削除完了`)
+        } catch (error) {
+          console.warn(`⚠️ ${table}テーブルの削除でエラー:`, error)
+        }
+      }
+    }
+    
+    // 復元順序（外部キー制約を考慮）
+    const restoreOrder = ['customers', 'projects', 'estimates', 'master_settings', 'area_settings', 'status_history']
+    
+    // データ復元
+    for (const table of restoreOrder) {
+      if (!restoreTables.includes(table) || !backupData.data[table]) continue
       
       try {
-        // 既存データを削除（注意：本番環境では慎重に）
-        await env.DB.prepare(`DELETE FROM ${table}`).run()
-        console.log(`🗑️ ${table}テーブルの既存データ削除完了`)
-        
-        // バックアップデータを復元
         const records = backupData.data[table]
         
         if (records.length > 0) {
@@ -11848,6 +11872,9 @@ app.post('/api/backups/:id/restore', async (c) => {
         throw new Error(`${table}テーブルの復元に失敗しました: ${tableError.message}`)
       }
     }
+    
+    // 外部キー制約を再有効化
+    await env.DB.prepare('PRAGMA foreign_keys = ON').run()
     
     console.log('✅ データ復元完了:', { restoredRecords })
     
@@ -12040,7 +12067,7 @@ app.get('/api/backup-schedule/check', async (c) => {
 
 // バックアップデータ生成用ヘルパー関数
 async function generateBackupData(db, backupName) {
-  const tables = ['customers', 'projects', 'estimates', 'vehicle_pricing', 'staff_rates']
+  const tables = ['customers', 'projects', 'estimates', 'master_settings', 'area_settings', 'status_history']
   const backupData = {
     metadata: {
       backup_name: backupName,
@@ -12055,8 +12082,9 @@ async function generateBackupData(db, backupName) {
     try {
       const result = await db.prepare(`SELECT * FROM ${table}`).all()
       backupData.data[table] = result.results || []
+      console.log(`✅ テーブル ${table}: ${backupData.data[table].length}件のレコードを取得`)
     } catch (error) {
-      console.warn(`テーブル ${table} の読み込みに失敗:`, error)
+      console.warn(`⚠️ テーブル ${table} の読み込みに失敗:`, error)
       backupData.data[table] = []
     }
   }
