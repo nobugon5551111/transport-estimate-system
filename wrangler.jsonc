@@ -11,6 +11,12 @@
       "database_id": "7f1910de-adb4-4233-a87e-86a36975d538"
     }
   ],
+  "kv_namespaces": [
+    {
+      "binding": "KV",
+      "id": "transport_estimate_kv"
+    }
+  ],
   "ai": {
     "binding": "AI"
   }

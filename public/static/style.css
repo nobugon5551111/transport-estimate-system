@@ -165,11 +165,13 @@
   justify-content: center;
 }
 
-.modal.show {
+.modal.show,
+.modal-backdrop.show {
   display: flex !important;
 }
 
-.modal.hidden {
+.modal.hidden,
+.modal-backdrop.hidden {
   display: none !important;
 }
 

@@ -414,7 +414,7 @@ app.get('/admin/backup', (c) => {
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/app.js"></script>
+        <script src="/static/app.js?v=20250918002"></script>
         <script>
             // バックアップ管理機能の実装
             const BackupManager = {
@@ -1023,6 +1023,134 @@ app.get('/api/dashboard/stats', async (c) => {
   }
 })
 
+// API: スタッフ単価取得
+app.get('/api/staff-rates', async (c) => {
+  try {
+    const { env } = c
+    
+    // スタッフ単価をデータベースから取得
+    const rates = await env.DB.prepare(`
+      SELECT key, value 
+      FROM master_settings 
+      WHERE category = 'staff' AND subcategory = 'pricing'
+    `).all()
+    
+    // オブジェクト形式に変換
+    const staffRates = {}
+    rates.results.forEach((row: any) => {
+      staffRates[row.key] = parseInt(row.value)
+    })
+    
+    return c.json({ 
+      success: true,
+      data: { staffRates }
+    })
+  } catch (error) {
+    console.error('スタッフ単価取得エラー:', error)
+    return c.json({ error: 'スタッフ単価の取得に失敗しました' }, 500)
+  }
+})
+
+// API: サービス単価取得
+app.get('/api/service-rates', async (c) => {
+  try {
+    const { env } = c
+    const userId = c.req.header('X-User-ID')
+
+    if (!userId) {
+      return c.json({ error: 'ユーザーIDが必要です' }, 400)
+    }
+
+    console.log('サービス単価マスター取得開始:', userId)
+
+    // master_settingsからサービス単価を取得
+    const serviceRates = await env.DB.prepare(`
+      SELECT key, value, data_type, description 
+      FROM master_settings 
+      WHERE category = 'service'
+      ORDER BY subcategory, key
+    `).all()
+
+    const rates = {}
+    if (serviceRates.results && serviceRates.results.length > 0) {
+      serviceRates.results.forEach(rate => {
+        rates[rate.key] = parseFloat(rate.value)
+      })
+      console.log('サービス単価raw results:', serviceRates.results.length, '件')
+    } else {
+      console.log('サービス単価結果なし')
+    }
+
+    console.log('サービス単価マスター取得完了:', rates)
+
+    return c.json({
+      success: true,
+      data: rates,
+      count: serviceRates.results ? serviceRates.results.length : 0
+    })
+
+  } catch (error) {
+    console.error('サービス単価取得エラー:', error)
+    return c.json({ error: 'サービス単価の取得に失敗しました' }, 500)
+  }
+})
+
+// API: スタッフ単価保存・更新
+app.post('/api/master-staff-rates', async (c) => {
+  try {
+    const { env } = c
+    const data = await c.req.json()
+    const userId = c.req.header('X-User-ID') || 'test-user-001'
+    
+    console.log('💾 スタッフ単価保存データ:', data)
+    
+    // 各スタッフ単価を更新または挿入
+    const staffRateUpdates = [
+      { key: 'supervisor_rate', value: data.supervisor_rate, description: 'スタッフ主任単価（円/日）' },
+      { key: 'leader_rate', value: data.leader_rate, description: 'スタッフリーダー単価（円/日）' },
+      { key: 'm2_half_day_rate', value: data.m2_half_day_rate, description: 'M2作業員半日単価（円/半日）' },
+      { key: 'm2_full_day_rate', value: data.m2_full_day_rate, description: 'M2作業員終日単価（円/日）' },
+      { key: 'temp_half_day_rate', value: data.temp_half_day_rate, description: '臨時作業員半日単価（円/半日）' },
+      { key: 'temp_full_day_rate', value: data.temp_full_day_rate, description: '臨時作業員終日単価（円/日）' }
+    ]
+    
+    for (const update of staffRateUpdates) {
+      // 既存レコードをチェック
+      const existing = await env.DB.prepare(`
+        SELECT id FROM master_settings 
+        WHERE category = 'staff' AND subcategory = 'pricing' AND key = ? AND user_id = ?
+      `).bind(update.key, userId).first()
+      
+      if (existing) {
+        // 更新
+        await env.DB.prepare(`
+          UPDATE master_settings 
+          SET value = ?, updated_at = datetime('now')
+          WHERE id = ?
+        `).bind(update.value.toString(), existing.id).run()
+      } else {
+        // 新規挿入
+        await env.DB.prepare(`
+          INSERT INTO master_settings (category, subcategory, key, value, data_type, description, user_id, created_at, updated_at)
+          VALUES ('staff', 'pricing', ?, ?, 'number', ?, ?, datetime('now'), datetime('now'))
+        `).bind(update.key, update.value.toString(), update.description, userId).run()
+      }
+    }
+    
+    console.log('✅ スタッフ単価保存完了')
+    return c.json({ 
+      success: true, 
+      message: 'スタッフ単価を保存しました' 
+    })
+  } catch (error) {
+    console.error('スタッフ単価保存エラー:', error)
+    return c.json({ 
+      success: false, 
+      error: 'スタッフ単価の保存に失敗しました' 
+    }, 500)
+  }
+})
+
 // API: データリセット
 app.post('/api/reset-data', async (c) => {
   try {
@@ -1031,33 +1159,36 @@ app.post('/api/reset-data', async (c) => {
     // 外部キー制約を無効にして削除を実行
     await env.DB.prepare('PRAGMA foreign_keys = OFF').run()
     
-    // 見積データを削除（最初に削除）
-    await env.DB.prepare('DELETE FROM estimates').run()
+    // 存在するテーブルのみ削除する関数
+    const safeDeleteTable = async (tableName: string) => {
+      try {
+        await env.DB.prepare(`DELETE FROM ${tableName}`).run()
+        console.log(`✅ ${tableName}テーブルをクリアしました`)
+      } catch (error) {
+        console.log(`ℹ️ ${tableName}テーブルは存在しません（スキップ）`)
+      }
+    }
     
-    // AI学習データをリセット（予測データのみ）
-    await env.DB.prepare('DELETE FROM ai_predictions').run()
-    
-    // ステータス履歴を削除
-    await env.DB.prepare('DELETE FROM status_history').run()
-    
-    // 案件データを削除
-    await env.DB.prepare('DELETE FROM projects').run()
-    
-    // 顧客データを削除
-    await env.DB.prepare('DELETE FROM customers').run()
+    // 関連テーブルを依存関係順に削除
+    await safeDeleteTable('free_estimate_items')  // 自由見積項目
+    await safeDeleteTable('estimates')            // 見積データ
+    await safeDeleteTable('ai_predictions')       // AI予測データ（存在する場合のみ）
+    await safeDeleteTable('status_history')       // ステータス履歴（存在する場合のみ）
+    await safeDeleteTable('projects')             // 案件データ
+    await safeDeleteTable('customers')            // 顧客データ
     
     // 外部キー制約を再有効化
     await env.DB.prepare('PRAGMA foreign_keys = ON').run()
     
-    console.log('データリセット完了 - すべてのテーブルをクリア')
+    console.log('✅ データリセット完了 - 全テーブルをクリアしました')
     return c.json({ success: true, message: 'データを正常にリセットしました' })
   } catch (error) {
-    console.error('データリセットエラー:', error)
+    console.error('❌ データリセットエラー:', error)
     // 外部キー制約を再有効化（エラー時も確実に）
     try {
       await env.DB.prepare('PRAGMA foreign_keys = ON').run()
     } catch (pragmaError) {
-      console.error('PRAGMA設定エラー:', pragmaError)
+      console.error('❌ PRAGMA設定エラー:', pragmaError)
     }
     return c.json({ 
       error: 'データのリセットに失敗しました', 
@@ -1092,10 +1223,10 @@ app.get('/api/estimates', async (c) => {
     `
     const params = [userId]
     
-    // 検索条件
+    // 検索条件（見積番号、顧客名、案件名、担当者名で検索可能）
     if (search) {
-      query += ` AND (e.estimate_number LIKE ? OR c.name LIKE ? OR p.name LIKE ?)`
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`)
+      query += ` AND (e.estimate_number LIKE ? OR c.name LIKE ? OR p.name LIKE ? OR p.contact_person LIKE ?)`
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`)
     }
     
     if (status) {
@@ -1113,8 +1244,8 @@ app.get('/api/estimates', async (c) => {
     const countParams = [userId]
     
     if (search) {
-      countQuery += ` AND (e.estimate_number LIKE ? OR EXISTS (SELECT 1 FROM customers c WHERE c.id = e.customer_id AND c.name LIKE ?) OR p.name LIKE ?)`
-      countParams.push(`%${search}%`, `%${search}%`, `%${search}%`)
+      countQuery += ` AND (e.estimate_number LIKE ? OR EXISTS (SELECT 1 FROM customers c WHERE c.id = e.customer_id AND c.name LIKE ?) OR p.name LIKE ? OR p.contact_person LIKE ?)`
+      countParams.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`)
     }
     
     if (status) {
@@ -1207,6 +1338,7 @@ app.get('/api/estimates/:id', async (c) => {
         c.phone as customer_phone,
         c.email as customer_email,
         p.name as project_name,
+        p.contact_person as project_contact_person,
         p.status as project_status
       FROM estimates e
       LEFT JOIN customers c ON e.customer_id = c.id
@@ -1596,35 +1728,42 @@ app.get('/api/vehicle-pricing', async (c) => {
     
     switch (operation_type) {
       case '終日':
+      case 'full_day':
         operationTypeKey = 'full_day'
         break
       case '半日':
+      case 'half_day':
         operationTypeKey = 'half_day'
         break
       case '共配':
+      case 'shared':
         operationTypeKey = 'shared'
         break
       default:
         operationTypeKey = 'full_day'
     }
     
-    const searchKey = `vehicle_${vehicleTypeKey}_${operationTypeKey}_${delivery_area}`
+    // データベース構造に合わせてsubcategoryで検索
+    const subcategoryKey = `${vehicleTypeKey}_${operationTypeKey}_${delivery_area}`
     
-    console.log('車両料金検索:', { vehicle_type, operation_type, delivery_area, searchKey })
+    console.log('車両料金検索:', { vehicle_type, operation_type, delivery_area, subcategoryKey })
     
-    // データベースから料金を取得（keyフィールドで検索）
+    // データベースから料金を取得（subcategoryフィールドで検索、最新データを優先）
     const priceData = await env.DB.prepare(`
       SELECT value 
       FROM master_settings 
       WHERE category = 'vehicle' 
-        AND key = ?
-    `).bind(searchKey).first()
+        AND subcategory = ?
+        AND key = 'price'
+      ORDER BY updated_at DESC
+      LIMIT 1
+    `).bind(subcategoryKey).first()
     
     if (!priceData) {
-      console.log('料金データが見つかりません:', searchKey)
+      console.log('料金データが見つかりません:', subcategoryKey)
       return c.json({ 
         error: '指定された車両・稼働形態・エリアの料金が見つかりません',
-        requested: { vehicle_type, operation_type, delivery_area, searchKey }
+        requested: { vehicle_type, operation_type, delivery_area, subcategoryKey }
       }, 404)
     }
     
@@ -2365,20 +2504,21 @@ app.post('/api/projects', async (c) => {
     const data = await c.req.json()
     
     // バリデーション
-    if (!data.name || !data.customer_id) {
+    if (!data.name || !data.customer_id || !data.contact_person) {
       return c.json({ 
         success: false, 
-        error: '案件名と顧客IDは必須です' 
+        error: '案件名、顧客ID、担当者名は必須です' 
       }, 400)
     }
     
     // データベースに挿入
     const result = await env.DB.prepare(`
-      INSERT INTO projects (customer_id, name, description, status, user_id)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO projects (customer_id, name, contact_person, description, status, user_id)
+      VALUES (?, ?, ?, ?, ?, ?)
     `).bind(
       data.customer_id,
       data.name,
+      data.contact_person.trim(),
       data.description || '',
       data.status || 'initial',
       data.user_id || 'test-user-001'
@@ -2414,7 +2554,7 @@ app.get('/estimate/step1', (c) => {
               </a>
             </div>
             <div className="text-white">
-              <span className="text-sm">新規見積作成 - STEP 1</span>
+              <span className="text-sm">標準見積作成 - STEP 1</span>
             </div>
           </div>
         </div>
@@ -2514,9 +2654,8 @@ app.get('/estimate/step1', (c) => {
               </label>
               <button 
                 id="addProjectBtn"
-                onclick="Modal.open('projectModal')" 
-                className="bg-green-500 hover:bg-green-700 text-white text-sm px-3 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed" 
-                disabled
+                type="button"
+                className="bg-green-500 hover:bg-green-700 text-white text-sm px-3 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <i className="fas fa-plus mr-1"></i>
                 新規案件追加
@@ -2587,14 +2726,7 @@ app.get('/estimate/step1', (c) => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">担当者名</label>
-                <input 
-                  type="text" 
-                  name="contact_person" 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">電話番号</label>
                 <input 
@@ -2641,48 +2773,48 @@ app.get('/estimate/step1', (c) => {
         </div>
       </div>
 
-      {/* 新規案件追加モーダル */}
-      <div id="projectModal" className="modal hidden">
+      {/* 案件追加・編集モーダル */}
+      <div id="projectModal" className="modal-backdrop" style="display: none;">
         <div className="modal-content">
-          <div className="modal-header">
-            <h3>新規案件追加</h3>
-            <button onclick="Modal.close('projectModal')" className="modal-close">&times;</button>
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 id="projectModalTitle" className="text-lg font-medium text-gray-900">新規案件追加</h3>
           </div>
-          <form onsubmit="addNewProject(event)">
-            <div className="modal-body space-y-4">
+          <form id="projectForm" className="p-6">
+            <input type="hidden" id="projectId" name="id" />
+            <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  案件名 <span className="text-red-500">*</span>
-                </label>
-                <input 
-                  type="text" 
-                  name="name" 
-                  required 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1">顧客選択 *</label>
+                <select id="projectCustomerId" name="customer_id" className="form-select" required>
+                  <option value="">顧客を選択してください</option>
+                </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">案件概要</label>
-                <textarea 
-                  name="description" 
-                  rows="3" 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                ></textarea>
+                <label className="block text-sm font-medium text-gray-700 mb-1">案件名 *</label>
+                <input type="text" id="projectName" name="name" className="form-input" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">担当者名 *</label>
+                <input type="text" id="projectContactPerson" name="contact_person" className="form-input" required placeholder="例: 田中太郎" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">案件説明</label>
+                <textarea id="projectDescription" name="description" rows="3" className="form-textarea" placeholder="案件の詳細説明を入力してください"></textarea>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">ステータス</label>
-                <select 
-                  name="status" 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="active">進行中</option>
-                  <option value="planning">企画中</option>
-                  <option value="on_hold">保留中</option>
+                <select id="projectStatus" name="status" className="form-select">
+                  <option value="initial">初回コンタクト</option>
+                  <option value="quote_sent">見積書送信済み</option>
+                  <option value="under_consideration">受注検討中</option>
+                  <option value="order">受注</option>
+                  <option value="completed">完了</option>
+                  <option value="failed">失注</option>
+                  <option value="cancelled">キャンセル</option>
                 </select>
               </div>
             </div>
-            <div className="modal-footer">
-              <button type="button" onclick="Modal.close('projectModal')" className="btn-secondary mr-2">
+            <div className="mt-6 flex justify-end space-x-3">
+              <button type="button" onclick="Modal.close('projectModal')" className="btn-secondary">
                 キャンセル
               </button>
               <button type="submit" className="btn-primary">
@@ -2843,6 +2975,7 @@ app.get('/estimate/step2', (c) => {
               rows="3"
               placeholder="住所を入力してください"
               onInput="handleAddressChange()"
+              onChange="handleAddressChange()"
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             ></textarea>
           </div>
@@ -2867,7 +3000,7 @@ app.get('/estimate/step2', (c) => {
             </label>
             <select 
               id="areaSelect" 
-              onChange="handleManualAreaChange()"
+              onChange="handleAreaSelectChange()"
               className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">エリアを選択してください</option>
@@ -3689,19 +3822,7 @@ app.get('/estimate/step3', (c) => {
             </div>
           </div>
 
-          {/* 外注費用 */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              外注費用（オプション）
-            </label>
-            <input 
-              type="number" 
-              id="externalCost" 
-              placeholder="0"
-              onChange="handleExternalContractorCostChange()"
-              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
+
 
           {/* ナビゲーションボタン */}
           <div className="flex justify-between">
@@ -4636,18 +4757,86 @@ app.get('/estimate/step5', (c) => {
                   <i className="fas fa-tools text-purple-500 text-xl mr-3"></i>
                   <h4 className="text-lg font-medium text-gray-900">施工</h4>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">M2スタッフ数</label>
-                    <div className="flex items-center space-x-3">
-                      <input type="number" id="construction_m2_staff" className="form-input w-20" min="0" max="20" value="0" onChange="updateServicesCost()" />
-                      <span className="text-sm text-gray-600">人</span>
-                      <span className="text-xs text-gray-500">（¥10,000/人）</span>
-                    </div>
+                
+                {/* 施工方法選択 */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-3">施工方法を選択してください</label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <label className="flex items-center p-4 border rounded-lg cursor-pointer hover:bg-gray-50">
+                      <input 
+                        type="radio" 
+                        name="construction_type" 
+                        value="m2_staff" 
+                        className="mr-3" 
+                        checked 
+                        onChange="handleConstructionTypeChange()" 
+                      />
+                      <div>
+                        <div className="font-medium text-gray-900">M2スタッフ</div>
+                        <div className="text-xs text-gray-500">自社スタッフによる施工</div>
+                      </div>
+                    </label>
+                    <label className="flex items-center p-4 border rounded-lg cursor-pointer hover:bg-gray-50">
+                      <input 
+                        type="radio" 
+                        name="construction_type" 
+                        value="partner_company" 
+                        className="mr-3" 
+                        onChange="handleConstructionTypeChange()" 
+                      />
+                      <div>
+                        <div className="font-medium text-gray-900">協力会社</div>
+                        <div className="text-xs text-gray-500">外部協力会社による施工</div>
+                      </div>
+                    </label>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">協力会社名</label>
-                    <input type="text" id="construction_partner" className="form-input" placeholder="協力会社名を入力（任意）" />
+                </div>
+                
+                {/* M2スタッフ選択時の詳細 */}
+                <div id="m2StaffDetails" className="">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">M2スタッフ数</label>
+                  <div className="flex items-center space-x-3">
+                    <input 
+                      type="number" 
+                      id="construction_m2_staff" 
+                      className="form-input w-20" 
+                      min="0" 
+                      max="20" 
+                      value="0" 
+                      onChange="updateServicesCost()" 
+                    />
+                    <span className="text-sm text-gray-600">人</span>
+                    <span className="text-xs text-gray-500">（¥12,500/人）</span>
+                  </div>
+                </div>
+                
+                {/* 協力会社選択時の詳細 */}
+                <div id="partnerCompanyDetails" className="hidden">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">協力会社名</label>
+                      <input 
+                        type="text" 
+                        id="construction_partner" 
+                        className="form-input" 
+                        placeholder="協力会社名を入力" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">施工費用</label>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm text-gray-600">¥</span>
+                        <input 
+                          type="number" 
+                          id="construction_cost" 
+                          className="form-input" 
+                          min="0" 
+                          step="1000" 
+                          placeholder="0" 
+                          onChange="updateServicesCost()" 
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -4825,6 +5014,30 @@ app.get('/api/service-rates', async (c) => {
     }
     
     // デフォルト値を設定（データがない場合）
+    if (!serviceRates.parking_officer_hourly) {
+      serviceRates.parking_officer_hourly = 2500
+    }
+    if (!serviceRates.transport_vehicle_20km) {
+      serviceRates.transport_vehicle_20km = 15000
+    }
+    if (!serviceRates.transport_vehicle_per_km) {
+      serviceRates.transport_vehicle_per_km = 150
+    }
+    if (!serviceRates.protection_work_base) {
+      serviceRates.protection_work_base = 5000
+    }
+    if (!serviceRates.protection_work_floor) {
+      serviceRates.protection_work_floor = 0
+    }
+    if (!serviceRates.construction_m2_staff) {
+      serviceRates.construction_m2_staff = 12500
+    }
+    if (Object.keys(serviceRates.waste_disposal).length === 0) {
+      serviceRates.waste_disposal = { small: 8000, medium: 15000, large: 25000 }
+    }
+    if (Object.keys(serviceRates.material_collection).length === 0) {
+      serviceRates.material_collection = { few: 6000, medium: 12000, many: 20000 }
+    }
     if (Object.keys(serviceRates.work_time_multiplier).length === 0) {
       serviceRates.work_time_multiplier = { normal: 1.0, early: 1.2, night: 1.5, midnight: 2.0 }
     }
@@ -5006,6 +5219,28 @@ app.get('/estimate/step6', (c) => {
                       <span>小計:</span>
                       <span id="subtotalAmount" className="font-bold">¥0</span>
                     </div>
+                    
+                    {/* 値引き入力欄 */}
+                    <div className="flex justify-between items-center text-lg border-t pt-2">
+                      <span>値引き:</span>
+                      <div className="flex items-center space-x-2">
+                        <span>¥</span>
+                        <input 
+                          type="number" 
+                          id="discountAmount" 
+                          className="form-input w-32 text-right text-lg font-bold" 
+                          min="0" 
+                          value="0" 
+                          onChange="handleDiscountChange()"
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-between text-lg text-red-600">
+                      <span>値引き後小計:</span>
+                      <span id="discountedSubtotal" className="font-bold">¥0</span>
+                    </div>
+                    
                     <div className="flex justify-between text-lg">
                       <span>消費税（10%）:</span>
                       <span id="taxAmount" className="font-bold">¥0</span>
@@ -5017,14 +5252,23 @@ app.get('/estimate/step6', (c) => {
                   </div>
                 </div>
 
-                {/* 備考 */}
-                <div id="notesSection" className="border rounded-lg p-4 hidden">
+                {/* 備考・メモ */}
+                <div id="notesSection" className="border rounded-lg p-4">
                   <h4 className="font-medium text-gray-900 mb-2">
-                    <i className="fas fa-comment-dots mr-2"></i>
-                    備考
+                    <i className="fas fa-sticky-note mr-2"></i>
+                    備考・メモ
                   </h4>
                   <div id="notesContent" className="text-sm text-gray-700">
-                    {/* 備考がJavaScriptで動的に生成される */}
+                    <textarea 
+                      id="estimateNotes" 
+                      name="notes" 
+                      rows="4" 
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      placeholder="見積もりに関する備考やメモを入力してください..."
+                    ></textarea>
+                    <p className="mt-1 text-sm text-gray-500">
+                      このメモは見積書PDFに反映されます。お客様への特記事項などをご記入ください。
+                    </p>
                   </div>
                 </div>
               </div>
@@ -5191,27 +5435,13 @@ app.post('/api/estimates', async (c) => {
     const data = await c.req.json()
     
     console.log('見積保存データ:', data)
-    console.log('👥 見積保存時のスタッフ詳細:', {
-      supervisor_count: data.supervisor_count,
-      leader_count: data.leader_count,
-      m2_staff_half_day: data.m2_staff_half_day,
-      m2_staff_full_day: data.m2_staff_full_day,
-      temp_staff_half_day: data.temp_staff_half_day,
-      temp_staff_full_day: data.temp_staff_full_day,
-      staff_cost: data.staff_cost,
-      total_cost: data.total_cost
-    })
     
-    // undefinedフィールドをチェック
-    const undefinedFields = [];
-    Object.keys(data).forEach(key => {
-      if (data[key] === undefined) {
-        undefinedFields.push(key);
-      }
-    });
-    
-    if (undefinedFields.length > 0) {
-      console.warn('⚠️ undefined値が含まれるフィールド:', undefinedFields);
+    // 必須フィールドチェック
+    if (!data.customer_id || !data.project_id) {
+      return c.json({ 
+        success: false, 
+        error: '顧客IDとプロジェクトIDは必須です' 
+      }, 400)
     }
     
     // 見積番号を生成（EST-YYYY-XXX形式）
@@ -5219,54 +5449,36 @@ app.post('/api/estimates', async (c) => {
     const year = now.getFullYear()
     const estimateNumber = `EST-${year}-${String(Date.now()).slice(-3)}`
     
-    // 複数車両対応のデータベース保存
+    // 簡略版見積データ保存 - 必須フィールドのみ使用
     const result = await env.DB.prepare(`
       INSERT INTO estimates (
         customer_id, project_id, estimate_number,
-        delivery_address, delivery_postal_code, delivery_area,
-        vehicle_type, operation_type, vehicle_cost,
-        supervisor_count, leader_count, m2_staff_half_day, m2_staff_full_day,
-        temp_staff_half_day, temp_staff_full_day, staff_cost,
-        parking_officer_hours, parking_officer_cost,
-        transport_vehicles, transport_within_20km, transport_distance,
-        transport_fuel_cost, transport_cost,
-        waste_disposal_size, waste_disposal_cost,
-        protection_work, protection_floors, protection_cost,
-        material_collection_size, material_collection_cost,
-        construction_m2_staff, construction_partner, construction_cost,
-        work_time_type, work_time_multiplier,
-        parking_fee, highway_fee,
-        subtotal, tax_rate, tax_amount, total_amount,
-        notes, ai_email_generated, pdf_generated, user_id,
-        vehicle_2t_count, vehicle_4t_count, external_contractor_cost, uses_multiple_vehicles
+        delivery_address, delivery_area, vehicle_type, operation_type,
+        vehicle_cost, staff_cost, subtotal, tax_rate, tax_amount, total_amount,
+        user_id, vehicle_2t_count, vehicle_4t_count, external_contractor_cost, 
+        uses_multiple_vehicles
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `).bind(
-      data.customer_id, data.project_id, estimateNumber,
-      data.delivery_address, data.delivery_postal_code, data.delivery_area,
-      // 従来形式との互換性を保つ
-      data.vehicle_type || (data.uses_multiple_vehicles ? 'multiple' : '未選択'),
-      data.operation_type, data.vehicle_cost,
-      data.supervisor_count || 0, data.leader_count || 0, 
-      data.m2_staff_half_day || 0, data.m2_staff_full_day || 0,
-      data.temp_staff_half_day || 0, data.temp_staff_full_day || 0, 
+      data.customer_id,
+      data.project_id, 
+      estimateNumber,
+      data.delivery_address || '',
+      data.delivery_area || 'other',
+      data.vehicle_type || '4t_truck',
+      data.operation_type || 'standard',
+      data.vehicle_cost || 0,
       data.staff_cost || 0,
-      data.parking_officer_hours || 0, data.parking_officer_cost || 0,
-      data.transport_vehicles || 0, data.transport_within_20km || true, 
-      data.transport_distance || 0, data.transport_fuel_cost || 0, data.transport_cost || 0,
-      data.waste_disposal_size || 'none', data.waste_disposal_cost || 0,
-      data.protection_work || false, data.protection_floors || 0, data.protection_cost || 0,
-      data.material_collection_size || 'none', data.material_collection_cost || 0,
-      data.construction_m2_staff || 0, data.construction_partner || null, data.construction_cost || 0,
-      data.work_time_type || 'normal', data.work_time_multiplier || 1.0,
-      data.parking_fee || 0, data.highway_fee || 0,
-      data.subtotal || 0, data.tax_rate || 0.1, data.tax_amount || 0, data.total_amount || 0,
-      data.notes || null, data.ai_email_generated || null, 
-      data.pdf_generated || false, data.user_id || 'test-user-001',
-      // 新しい複数車両フィールドを最後に追加
-      data.vehicle_2t_count || 0, data.vehicle_4t_count || 0, 
-      data.external_contractor_cost || 0, data.uses_multiple_vehicles || false
+      data.subtotal || 0,
+      data.tax_rate || 0.1,
+      data.tax_amount || 0,
+      data.total_amount || 0,
+      data.user_id || 'test-user-001',
+      data.vehicle_2t_count || 0,
+      data.vehicle_4t_count || 0,
+      data.external_contractor_cost || 0,
+      data.uses_multiple_vehicles || false
     ).run()
     
     console.log('見積保存結果:', result)
@@ -5276,16 +5488,166 @@ app.post('/api/estimates', async (c) => {
       data: {
         id: result.meta.last_row_id,
         estimate_number: estimateNumber,
-        ...data
+        customer_id: data.customer_id,
+        project_id: data.project_id,
+        delivery_address: data.delivery_address || ''
       },
       message: '見積を正常に保存しました'
     })
     
   } catch (error) {
     console.error('見積保存エラー:', error)
-    console.error('エラーが発生したデータ:', JSON.stringify(data, null, 2))
+    try {
+      const { data } = c.req
+      if (data) {
+        console.error('エラーが発生したデータ:', JSON.stringify(data, null, 2))
+      }
+    } catch (jsonError) {
+      console.error('データのJSON化に失敗:', jsonError)
+    }
     return c.json({ 
+      success: false,
       error: '見積の保存に失敗しました', 
+      detail: error instanceof Error ? error.message : String(error)
+    }, 500)
+  }
+})
+
+// フリー見積保存API
+app.post('/api/estimates/free', async (c) => {
+  try {
+    const { env } = c
+    const data = await c.req.json()
+    
+    console.log('フリー見積保存データ:', data)
+    
+    // 見積番号を生成（FREE-YYYY-XXX形式）
+    const now = new Date()
+    const year = now.getFullYear()
+    const estimateNumber = `FREE-${year}-${String(Date.now()).slice(-3)}`
+    
+    // 合計金額計算（値引きあり）
+    const subtotal = data.items.reduce((sum, item) => sum + (item.total || 0), 0)
+    const discountAmount = parseInt(data.discountAmount || 0) || 0  // 値引き金額
+    const discountedSubtotal = Math.max(0, subtotal - discountAmount)  // 値引き後小計
+    const tax = Math.floor(discountedSubtotal * 0.1)
+    const total = discountedSubtotal + tax
+    
+    // 基本見積データを保存（フリー見積用に必須フィールドを設定）
+    // 外部キー制約のため、デフォルト顧客・プロジェクトを作成または取得
+    let customerId = 1;
+    let projectId = 1;
+    
+    // デフォルト顧客が存在するかチェック
+    const existingCustomer = await env.DB.prepare(`
+      SELECT id FROM customers WHERE name = 'フリー見積顧客' LIMIT 1
+    `).first();
+    
+    if (!existingCustomer) {
+      // デフォルト顧客を作成
+      const customerResult = await env.DB.prepare(`
+        INSERT INTO customers (name, contact_person, phone, email, address, user_id, created_at, updated_at)
+        VALUES ('フリー見積顧客', '担当者', '', '', '', 'system', datetime('now'), datetime('now'))
+      `).run();
+      customerId = customerResult.meta.last_row_id;
+    } else {
+      customerId = existingCustomer.id;
+    }
+    
+    // デフォルトプロジェクトが存在するかチェック  
+    const existingProject = await env.DB.prepare(`
+      SELECT id FROM projects WHERE name = 'フリー見積プロジェクト' AND customer_id = ? LIMIT 1
+    `).bind(customerId).first();
+    
+    if (!existingProject) {
+      // デフォルトプロジェクトを作成
+      const projectResult = await env.DB.prepare(`
+        INSERT INTO projects (customer_id, name, contact_person, description, status, user_id, created_at, updated_at)
+        VALUES (?, 'フリー見積プロジェクト', '担当者', ?, 'active', 'system', datetime('now'), datetime('now'))
+      `).bind(customerId, `顧客: ${data.customer_name}\n案件: ${data.project_name}`).run();
+      projectId = projectResult.meta.last_row_id;
+    } else {
+      projectId = existingProject.id;
+    }
+
+    const estimateResult = await env.DB.prepare(`
+      INSERT INTO estimates (
+        customer_id, project_id, estimate_number, estimate_type,
+        delivery_address, delivery_postal_code, delivery_area,
+        vehicle_type, operation_type, vehicle_cost, staff_cost,
+        subtotal, tax_amount, total_amount,
+        notes, user_id, created_at, updated_at
+      ) VALUES (
+        ?, ?, ?, 'free',
+        ?, '', 'other',
+        'フリー', 'フリー', 0, 0,
+        ?, ?, ?,
+        ?, 'system', datetime('now'), datetime('now')
+      )
+    `).bind(
+      customerId,
+      projectId,
+      estimateNumber,
+      `顧客: ${data.customer_name}, 案件: ${data.project_name}, 値引: ${discountAmount}円`, // delivery_addressに顧客・案件・値引き情報を格納
+      subtotal,  // 値引き前の小計を保存
+      tax,
+      total,
+      `${data.notes || ''}
+
+[値引き明細]
+元の小計: ${subtotal.toLocaleString()}円
+値引き額: ${discountAmount.toLocaleString()}円
+値引き後: ${discountedSubtotal.toLocaleString()}円`.trim()
+    ).run()
+    
+    const estimateId = estimateResult.meta.last_row_id
+    console.log('フリー見積ID:', estimateId)
+    
+    // 見積項目を保存
+    if (data.items && data.items.length > 0) {
+      for (let i = 0; i < data.items.length; i++) {
+        const item = data.items[i]
+        
+        await env.DB.prepare(`
+          INSERT INTO free_estimate_items (
+            estimate_id, item_name, unit, quantity, 
+            unit_price, total_price, sort_order, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        `).bind(
+          estimateId,
+          item.name,
+          item.unit || '',
+          item.quantity || 1,
+          item.unitPrice || 0,
+          item.total || 0,
+          i
+        ).run()
+      }
+      
+      console.log(`フリー見積項目 ${data.items.length}件 保存完了`)
+    }
+    
+    return c.json({
+      success: true,
+      estimate: {
+        id: estimateId,
+        estimate_number: estimateNumber,
+        customer_name: data.customer_name,
+        project_name: data.project_name,
+        subtotal: subtotal,  // 値引き前小計
+        discount_amount: discountAmount,  // 値引き金額
+        discounted_subtotal: discountedSubtotal,  // 値引き後小計
+        tax: tax,
+        total: total,
+        items_count: data.items ? data.items.length : 0
+      },
+      message: 'フリー見積を正常に保存しました'
+    })
+    
+  } catch (error) {
+    console.error('フリー見積保存エラー:', error)
+    return c.json({ 
+      error: 'フリー見積の保存に失敗しました', 
       detail: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined
     }, 500)
@@ -5363,7 +5725,7 @@ app.get('/masters', (c) => {
             <nav className="flex space-x-8 px-6">
               <button 
                 id="staffAreaTab"
-                onclick="MasterManagement.switchTab('staff-area')" 
+                onclick="if(window.MasterManagement && window.MasterManagement.switchTab) { window.MasterManagement.switchTab('staff-area'); } else { console.error('MasterManagement not available'); }" 
                 className="py-4 px-1 border-b-2 border-blue-500 font-medium text-sm text-blue-600 master-tab active"
               >
                 <i className="fas fa-users mr-2"></i>
@@ -5371,7 +5733,7 @@ app.get('/masters', (c) => {
               </button>
               <button 
                 id="vehicleTab"
-                onclick="MasterManagement.switchTab('vehicle')" 
+                onclick="if(window.MasterManagement && window.MasterManagement.switchTab) { window.MasterManagement.switchTab('vehicle'); } else { console.error('MasterManagement not available'); }" 
                 className="py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300 master-tab"
               >
                 <i className="fas fa-truck mr-2"></i>
@@ -5379,7 +5741,7 @@ app.get('/masters', (c) => {
               </button>
               <button 
                 id="servicesTab"
-                onclick="MasterManagement.switchTab('services')" 
+                onclick="if(window.MasterManagement && window.MasterManagement.switchTab) { window.MasterManagement.switchTab('services'); } else { console.error('MasterManagement not available'); }" 
                 className="py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300 master-tab"
               >
                 <i className="fas fa-concierge-bell mr-2"></i>
@@ -5387,7 +5749,7 @@ app.get('/masters', (c) => {
               </button>
               <button 
                 id="customersTab"
-                onclick="MasterManagement.switchTab('customers')" 
+                onclick="if(window.MasterManagement && window.MasterManagement.switchTab) { window.MasterManagement.switchTab('customers'); } else { console.error('MasterManagement not available'); }" 
                 className="py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300 master-tab"
               >
                 <i className="fas fa-building mr-2"></i>
@@ -5395,7 +5757,7 @@ app.get('/masters', (c) => {
               </button>
               <button 
                 id="projectsTab"
-                onclick="MasterManagement.switchTab('projects')" 
+                onclick="if(window.MasterManagement && window.MasterManagement.switchTab) { window.MasterManagement.switchTab('projects'); } else { console.error('MasterManagement not available'); }" 
                 className="py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300 master-tab"
               >
                 <i className="fas fa-project-diagram mr-2"></i>
@@ -5460,6 +5822,14 @@ app.get('/masters', (c) => {
                       <input type="number" id="rate_temp_full_day" className="form-input" min="0" step="1000" />
                     </div>
                   </div>
+                  
+                  {/* スタッフ単価保存ボタン */}
+                  <div className="flex justify-end mt-4">
+                    <button onclick="saveStaffRates()" className="btn-success">
+                      <i className="fas fa-save mr-2"></i>
+                      スタッフ単価を保存
+                    </button>
+                  </div>
                 </div>
 
                 {/* エリア設定 */}
@@ -5514,7 +5884,7 @@ app.get('/masters', (c) => {
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="space-y-3">
-                      <h5 className="font-medium text-green-800">Aエリア（首都圏中心部）</h5>
+                      <h5 className="font-medium text-green-800">Aエリア（大阪市内・京都市内・神戸市内）</h5>
                       <div>
                         <label className="block text-xs text-green-700 mb-1">共配</label>
                         <input type="number" id="vehicle_2t_shared_A" className="form-input text-sm" min="0" step="1000" />
@@ -5530,7 +5900,7 @@ app.get('/masters', (c) => {
                     </div>
 
                     <div className="space-y-3">
-                      <h5 className="font-medium text-green-800">Bエリア（首都圏近郊・関西中心部）</h5>
+                      <h5 className="font-medium text-green-800">Bエリア（関西近郊主要都市）</h5>
                       <div>
                         <label className="block text-xs text-green-700 mb-1">共配</label>
                         <input type="number" id="vehicle_2t_shared_B" className="form-input text-sm" min="0" step="1000" />
@@ -5587,7 +5957,7 @@ app.get('/masters', (c) => {
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="space-y-3">
-                      <h5 className="font-medium text-blue-800">Aエリア（首都圏中心部）</h5>
+                      <h5 className="font-medium text-blue-800">Aエリア（大阪市内・京都市内・神戸市内）</h5>
                       <div>
                         <label className="block text-xs text-blue-700 mb-1">共配</label>
                         <input type="number" id="vehicle_4t_shared_A" className="form-input text-sm" min="0" step="1000" />
@@ -5603,7 +5973,7 @@ app.get('/masters', (c) => {
                     </div>
 
                     <div className="space-y-3">
-                      <h5 className="font-medium text-blue-800">Bエリア（首都圏近郊・関西中心部）</h5>
+                      <h5 className="font-medium text-blue-800">Bエリア（関西近郊主要都市）</h5>
                       <div>
                         <label className="block text-xs text-blue-700 mb-1">共配</label>
                         <input type="number" id="vehicle_4t_shared_B" className="form-input text-sm" min="0" step="1000" />
@@ -6005,10 +6375,10 @@ app.get('/masters', (c) => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">エリアランク *</label>
                 <select name="area_rank" className="form-select" required>
                   <option value="">選択してください</option>
-                  <option value="A">Aエリア（首都圏中心部）</option>
-                  <option value="B">Bエリア（首都圏近郊・関西中心部）</option>
-                  <option value="C">Cエリア（地方都市部）</option>
-                  <option value="D">Dエリア（遠方・離島）</option>
+                  <option value="A">Aエリア（大阪市内・京都市内・神戸市内）</option>
+                  <option value="B">Bエリア（関西近郊主要都市）</option>
+                  <option value="C">Cエリア（関西地方その他都市）</option>
+                  <option value="D">Dエリア（関西地方遠方）</option>
                 </select>
               </div>
             </div>
@@ -6038,12 +6408,6 @@ app.get('/masters', (c) => {
                   顧客名 <span className="text-red-500">*</span>
                 </label>
                 <input type="text" name="name" id="masterCustomerName" className="form-input" required />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  担当者名
-                </label>
-                <input type="text" name="contact_person" id="masterCustomerContact" className="form-input" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -6157,86 +6521,14 @@ app.get('/masters', (c) => {
         </div>
       </div>
 
+      {/* JavaScript処理 */}
+
+
     </div>
   )
 })
 
-// マスタ設定取得API
-app.get('/api/master-settings', async (c) => {
-  const userId = c.req.header('X-User-ID') || 'test-user-001'
-  
-  try {
-    const { env } = c
-    
-    // データベースからマスタ設定を取得
-    const result = await env.DB.prepare(`
-      SELECT category, subcategory, key, value, data_type 
-      FROM master_settings 
-      WHERE user_id = ?
-      ORDER BY category, subcategory, key
-    `).bind(userId).all()
-    
-    // データを階層構造に変換
-    const masterSettings = {
-      staff_rates: {},
-      vehicle_rates: {},
-      service_rates: {},
-      system_settings: {}
-    }
-    
-    if (result.results) {
-      result.results.forEach((row: any) => {
-        const value = row.data_type === 'number' ? parseFloat(row.value) : row.value
-        
-        if (row.category === 'staff' && row.subcategory === 'rates') {
-          masterSettings.staff_rates[row.key] = value
-        } else if (row.category === 'vehicle') {
-          const vehicleKey = `${row.subcategory}_${row.key === 'price' ? '' : row.key}`.replace('_$', '')
-          masterSettings.vehicle_rates[vehicleKey] = value
-        } else if (row.category === 'service') {
-          if (row.subcategory === 'parking_officer' && row.key === 'hourly_rate') {
-            masterSettings.service_rates['parking_officer_hourly'] = value
-          } else if (row.subcategory === 'transport_vehicle' && row.key === 'base_rate_20km') {
-            masterSettings.service_rates['transport_20km'] = value
-          } else if (row.subcategory === 'transport_vehicle' && row.key === 'rate_per_km') {
-            masterSettings.service_rates['transport_per_km'] = value
-          } else if (row.subcategory === 'fuel' && row.key === 'rate_per_liter') {
-            masterSettings.service_rates['fuel_per_liter'] = value
-          } else if (row.subcategory === 'waste_disposal') {
-            masterSettings.service_rates[`waste_${row.key}`] = value
-          } else if (row.subcategory === 'protection_work' && row.key === 'base_rate') {
-            masterSettings.service_rates['protection_base'] = value
-          } else if (row.subcategory === 'protection_work' && row.key === 'floor_rate') {
-            masterSettings.service_rates['protection_floor'] = value
-          } else if (row.subcategory === 'material_collection') {
-            masterSettings.service_rates[`material_${row.key}`] = value
-          } else if (row.subcategory === 'work_time') {
-            masterSettings.service_rates[`time_${row.key}`] = value
-          }
-        } else if (row.category === 'system') {
-          if (row.subcategory === 'tax' && row.key === 'rate') {
-            masterSettings.system_settings['tax_rate'] = value
-          } else if (row.subcategory === 'estimate' && row.key === 'number_prefix') {
-            masterSettings.system_settings['estimate_prefix'] = value
-          }
-        }
-      })
-    }
-    
-    return c.json({
-      success: true,
-      data: masterSettings
-    })
-    
-  } catch (error) {
-    console.error('Error fetching master settings:', error)
-    return c.json({
-      success: false,
-      message: 'マスタ設定の取得に失敗しました',
-      error: error instanceof Error ? error.message : '不明なエラー'
-    }, 500)
-  }
-})
+// 重複APIエンドポイント削除 - 12359行目のエンドポイントを使用
 
 // マスタ設定保存API
 app.post('/api/master-settings', async (c) => {
@@ -6277,8 +6569,8 @@ app.post('/api/master-settings', async (c) => {
       Object.entries(data.vehicle_rates).forEach(([key, value]: [string, any]) => {
         updates.push({
           category: 'vehicle',
-          subcategory: key,
-          key: 'price',
+          subcategory: 'pricing',
+          key: key,
           value: value.toString(),
           data_type: 'number',
           description: `${key}車両料金`
@@ -6964,12 +7256,6 @@ app.get('/customers', (c) => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  担当者名
-                </label>
-                <input type="text" name="contact_person" id="customerContactPerson" className="form-input" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
                   電話番号
                 </label>
                 <input type="tel" name="phone" id="customerPhone" className="form-input" />
@@ -7007,77 +7293,7 @@ app.get('/customers', (c) => {
         </div>
       </div>
 
-      {/* 案件追加・編集モーダル */}
-      <div id="projectModal" className="modal-backdrop" style="display: none;">
-        <div className="modal-content max-w-2xl">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 id="projectModalTitle" className="text-lg font-medium text-gray-900">案件情報</h3>
-          </div>
-          <form id="projectForm" className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  顧客 <span className="text-red-500">*</span>
-                </label>
-                <select name="customer_id" id="projectCustomerId" className="form-select" required>
-                  <option value="">顧客を選択してください</option>
-                  {/* JavaScript で動的生成 */}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  案件名 <span className="text-red-500">*</span>
-                </label>
-                <input type="text" name="name" id="projectName" className="form-input" required />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  ステータス <span className="text-red-500">*</span>
-                </label>
-                <select name="status" id="projectStatus" className="form-select" required>
-                  <option value="initial">初回コンタクト</option>
-                  <option value="quote_sent">見積書送信済み</option>
-                  <option value="under_consideration">受注検討中</option>
-                  <option value="order">受注</option>
-                  <option value="failed">失注</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  優先度
-                </label>
-                <select name="priority" id="projectPriority" className="form-select">
-                  <option value="low">低</option>
-                  <option value="medium" selected>中</option>
-                  <option value="high">高</option>
-                </select>
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  案件概要
-                </label>
-                <textarea name="description" id="projectDescription" className="form-textarea" rows={4}></textarea>
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  備考
-                </label>
-                <textarea name="notes" id="projectNotes" className="form-textarea" rows={3}></textarea>
-              </div>
-            </div>
-            
-            <div className="mt-6 flex justify-end space-x-3">
-              <button type="button" onclick="Modal.close('projectModal')" className="btn-secondary">
-                キャンセル
-              </button>
-              <button type="submit" className="btn-primary">
-                <i className="fas fa-save mr-2"></i>
-                保存
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
+
 
       {/* ステータス変更モーダル */}
       <div id="statusChangeModal" className="modal-backdrop" style="display: none;">
@@ -7495,7 +7711,6 @@ app.post('/api/projects/status-change', async (c) => {
 app.get('/estimates', (c) => {
   return c.render(
     <div className="min-h-screen bg-gray-50">
-      {/* ヘッダー */}
       <header className="bg-blue-600 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
@@ -7512,7 +7727,6 @@ app.get('/estimates', (c) => {
         </div>
       </header>
 
-      {/* メインコンテンツ */}
       <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">見積履歴・管理</h2>
@@ -7586,7 +7800,6 @@ app.get('/estimates', (c) => {
           </div>
         </div>
 
-        {/* 検索・フィルタセクション */}
         <div className="bg-white shadow rounded-lg mb-6">
           <div className="px-6 py-4 border-b border-gray-200">
             <h3 className="text-lg leading-6 font-medium text-gray-900">
@@ -7680,7 +7893,6 @@ app.get('/estimates', (c) => {
           </div>
         </div>
 
-        {/* 見積一覧 */}
         <div className="bg-white shadow overflow-hidden sm:rounded-md">
           <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
             <div className="flex justify-between items-center">
@@ -7747,49 +7959,16 @@ app.get('/estimates', (c) => {
                 </tr>
               </thead>
               <tbody id="estimatesTable" className="bg-white divide-y divide-gray-200">
-                {/* JavaScript で動的生成 */}
               </tbody>
             </table>
           </div>
 
           {/* ページネーション */}
           <div id="estimatePagination" className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
-            {/* JavaScript で動的生成 */}
           </div>
         </div>
       </main>
 
-      {/* 見積詳細モーダル */}
-      <div id="estimateDetailModal" className="modal-backdrop" style="display: none;">
-        <div className="modal-content max-w-4xl">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-medium text-gray-900">見積詳細</h3>
-              <button onclick="Modal.close('estimateDetailModal')" className="text-gray-400 hover:text-gray-600">
-                <i className="fas fa-times"></i>
-              </button>
-            </div>
-          </div>
-          <div id="estimateDetailContent" className="p-6">
-            {/* JavaScript で動的生成 */}
-          </div>
-          <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
-            <button onclick="EstimateManagement.generatePDF(EstimateManagement.currentEstimateId)" className="btn-secondary">
-              <i className="fas fa-file-pdf mr-2"></i>
-              PDF生成
-            </button>
-            <button onclick="EstimateManagement.editEstimate(EstimateManagement.currentEstimateId)" className="btn-primary">
-              <i className="fas fa-edit mr-2"></i>
-              編集
-            </button>
-            <button onclick="Modal.close('estimateDetailModal')" className="btn-secondary">
-              閉じる
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 見積詳細表示モーダル */}
       <div id="estimateDetailModal" className="modal-backdrop" style="display: none;">
         <div className="modal-content max-w-4xl">
           <div className="px-6 py-4 border-b border-gray-200">
@@ -7806,7 +7985,6 @@ app.get('/estimates', (c) => {
           
           <div className="p-6">
             <div id="estimateDetailContent">
-              {/* JavaScript で動的生成 */}
             </div>
             
             <div className="mt-6 flex justify-end space-x-3">
@@ -7822,7 +8000,6 @@ app.get('/estimates', (c) => {
         </div>
       </div>
 
-      {/* 見積編集モーダル */}
       <div id="estimateEditModal" className="modal-backdrop" style="display: none;">
         <div className="modal-content max-w-3xl">
           <div className="px-6 py-4 border-b border-gray-200">
@@ -7830,7 +8007,6 @@ app.get('/estimates', (c) => {
           </div>
           <form id="estimateEditForm" className="p-6">
             <div id="estimateEditContent">
-              {/* JavaScript で動的生成 */}
             </div>
             
             <div className="mt-6 flex justify-end space-x-3">
@@ -7846,7 +8022,6 @@ app.get('/estimates', (c) => {
         </div>
       </div>
 
-      {/* ステータス変更モーダル */}
       <div id="statusChangeModal" className="modal-backdrop" style="display: none;">
         <div className="modal-content max-w-md">
           <div className="px-6 py-4 border-b border-gray-200">
@@ -7952,7 +8127,6 @@ app.get('/estimates', (c) => {
         </div>
       </div>
 
-      {/* ステータス履歴モーダル */}
       <div id="statusHistoryModal" className="modal-backdrop" style="display: none;">
         <div className="modal-content max-w-3xl">
           <div className="px-6 py-4 border-b border-gray-200">
@@ -7966,7 +8140,6 @@ app.get('/estimates', (c) => {
           
           <div className="p-6">
             <div id="statusHistoryContent">
-              {/* 履歴がJavaScriptで動的に生成される */}
             </div>
           </div>
           
@@ -7977,6 +8150,555 @@ app.get('/estimates', (c) => {
           </div>
         </div>
       </div>
+
+      {/* 見積管理JavaScript */}
+      <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+      <script dangerouslySetInnerHTML={{
+        __html: `
+        // 見積管理システム
+        if (typeof EstimateManagement === 'undefined') {
+          window.EstimateManagement = {
+          estimates: [],
+          filteredEstimates: [],
+          currentEstimateId: null,
+          sortColumn: 'created_at',
+          sortDirection: 'desc',
+
+          // 初期化
+          init: async () => {
+            console.log('見積管理システム初期化開始');
+            await EstimateManagement.loadEstimates();
+            EstimateManagement.setupEventListeners();
+          },
+
+          // イベントリスナー設定
+          setupEventListeners: () => {
+            // 詳細編集ボタンのイベントリスナー
+            const editBtn = document.getElementById('editFromDetailBtn');
+            if (editBtn) {
+              editBtn.addEventListener('click', () => {
+                Modal.close('estimateDetailModal');
+                EstimateManagement.editEstimate(EstimateManagement.currentEstimateId);
+              });
+            }
+
+            // ステータス変更関連
+            document.querySelectorAll('.status-option').forEach(option => {
+              option.addEventListener('click', () => {
+                const value = option.getAttribute('data-value');
+                const label = option.getAttribute('data-label');
+                document.getElementById('selectedStatus').textContent = label;
+                document.getElementById('statusChangeForm').setAttribute('data-status', value);
+                
+                document.querySelectorAll('.status-option').forEach(opt => {
+                  opt.classList.remove('bg-blue-50');
+                });
+                option.classList.add('bg-blue-50');
+              });
+            });
+          },
+
+          // 見積一覧の読み込み
+          loadEstimates: async () => {
+            try {
+              console.log('見積データ読み込み開始');
+              
+              const response = await axios.get('/api/estimates', {
+                headers: { 'X-User-ID': 'test-user-001' }
+              });
+
+              if (response.data.success) {
+                EstimateManagement.estimates = response.data.data;
+                EstimateManagement.filteredEstimates = [...EstimateManagement.estimates];
+                EstimateManagement.renderEstimates();
+                console.log('見積データ読み込み完了:', EstimateManagement.estimates.length + '件');
+              } else {
+                console.error('見積データ取得失敗:', response.data.error);
+              }
+            } catch (error) {
+              console.error('見積データ読み込みエラー:', error);
+              Utils.showError('見積データの読み込みに失敗しました');
+            }
+          },
+
+          // 見積テーブルの描画
+          renderEstimates: () => {
+            const tbody = document.getElementById('estimatesTable');
+            const countElement = document.getElementById('estimateCount');
+            
+            if (!tbody) return;
+
+            // 件数表示を更新
+            if (countElement) {
+              countElement.textContent = \`(\${EstimateManagement.filteredEstimates.length}件)\`;
+            }
+
+            tbody.innerHTML = '';
+
+            EstimateManagement.filteredEstimates.forEach(estimate => {
+              const row = document.createElement('tr');
+              row.className = 'hover:bg-gray-50';
+              row.innerHTML = \`
+                <td class="table-cell">
+                  <input type="checkbox" value="\${estimate.id}" class="estimate-checkbox" />
+                </td>
+                <td class="table-cell font-medium text-blue-600">
+                  \${estimate.estimate_number || ''}
+                </td>
+                <td class="table-cell">
+                  \${estimate.customer_name || ''}
+                </td>
+                <td class="table-cell">
+                  \${estimate.project_name || ''}
+                </td>
+                <td class="table-cell">
+                  <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                    \${estimate.delivery_area || ''}エリア
+                  </span>
+                </td>
+                <td class="table-cell font-medium">
+                  \${Utils.formatCurrency(estimate.total_amount || 0)}
+                </td>
+                <td class="table-cell text-gray-500">
+                  \${estimate.created_at ? new Date(estimate.created_at).toLocaleDateString('ja-JP') : ''}
+                </td>
+                <td class="table-cell">
+                  <span class="status-badge status-\${estimate.status || 'initial'}">
+                    \${EstimateManagement.getStatusLabel(estimate.status || 'initial')}
+                  </span>
+                </td>
+                <td class="table-cell">
+                  <div class="flex space-x-1">
+                    <button 
+                      onclick="EstimateManagement.viewEstimate(\${estimate.id})" 
+                      class="btn-sm btn-primary" 
+                      title="詳細表示"
+                    >
+                      <i class="fas fa-eye"></i>
+                    </button>
+                    <button 
+                      onclick="EstimateManagement.editEstimate(\${estimate.id})" 
+                      class="btn-sm btn-secondary" 
+                      title="編集"
+                    >
+                      <i class="fas fa-edit"></i>
+                    </button>
+                    <button 
+                      onclick="EstimateManagement.generatePDF(\${estimate.id})" 
+                      class="btn-sm btn-success" 
+                      title="PDF出力"
+                    >
+                      <i class="fas fa-file-pdf"></i>
+                    </button>
+                    <button 
+                      onclick="StatusManagement.openStatusChangeModal(\${estimate.id}, 'estimate')" 
+                      class="btn-sm btn-warning" 
+                      title="ステータス変更"
+                    >
+                      <i class="fas fa-exchange-alt"></i>
+                    </button>
+                  </div>
+                </td>
+              \`;
+              tbody.appendChild(row);
+            });
+          },
+
+          // 見積詳細表示
+          viewEstimate: async (estimateId) => {
+            try {
+              console.log('見積詳細表示開始:', estimateId);
+              EstimateManagement.currentEstimateId = estimateId;
+
+              const response = await axios.get(\`/api/estimates/\${estimateId}\`, {
+                headers: { 'X-User-ID': 'test-user-001' }
+              });
+
+              if (response.data.success) {
+                const estimate = response.data.data;
+                EstimateManagement.renderEstimateDetail(estimate);
+                Modal.open('estimateDetailModal');
+              } else {
+                Utils.showError('見積詳細の取得に失敗しました');
+              }
+            } catch (error) {
+              console.error('見積詳細取得エラー:', error);
+              Utils.showError('見積詳細の取得中にエラーが発生しました');
+            }
+          },
+
+          // 見積詳細の描画（JSXコメント構文を正しく処理）
+          renderEstimateDetail: (estimate) => {
+            const container = document.getElementById('estimateDetailContent');
+            if (!container) return;
+
+            // 安全な文字列テンプレートを使用（JSXコメントは含めない）
+            container.innerHTML = \`
+              <div class="space-y-6">
+                <div class="bg-gray-50 p-4 rounded-lg">
+                  <h4 class="text-lg font-medium text-gray-900 mb-3 flex items-center">
+                    <i class="fas fa-info-circle mr-2 text-blue-500"></i>
+                    基本情報
+                  </h4>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label class="block text-sm font-medium text-gray-600">見積番号</label>
+                      <p class="mt-1 text-sm text-gray-900">\${estimate.estimate_number || 'なし'}</p>
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-600">作成日</label>
+                      <p class="mt-1 text-sm text-gray-900">\${estimate.created_at ? new Date(estimate.created_at).toLocaleDateString('ja-JP') : 'なし'}</p>
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-600">顧客名</label>
+                      <p class="mt-1 text-sm text-gray-900">\${estimate.customer_name || 'なし'}</p>
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-600">案件名</label>
+                      <p class="mt-1 text-sm text-gray-900">\${estimate.project_name || 'なし'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="bg-gray-50 p-4 rounded-lg">
+                  <h4 class="text-lg font-medium text-gray-900 mb-3 flex items-center">
+                    <i class="fas fa-map-marker-alt mr-2 text-green-500"></i>
+                    配送情報
+                  </h4>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label class="block text-sm font-medium text-gray-600">配送先住所</label>
+                      <p class="mt-1 text-sm text-gray-900">\${estimate.delivery_address || 'なし'}</p>
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-600">郵便番号</label>
+                      <p class="mt-1 text-sm text-gray-900">\${estimate.delivery_postal_code || 'なし'}</p>
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-600">配送エリア</label>
+                      <p class="mt-1 text-sm text-gray-900">
+                        <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                          \${estimate.delivery_area || ''}エリア
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="bg-gray-50 p-4 rounded-lg">
+                  <h4 class="text-lg font-medium text-gray-900 mb-3 flex items-center">
+                    <i class="fas fa-truck mr-2 text-orange-500"></i>
+                    車両・スタッフ情報
+                  </h4>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label class="block text-sm font-medium text-gray-600">車両タイプ</label>
+                      <p class="mt-1 text-sm text-gray-900">\${estimate.vehicle_type || 'なし'}</p>
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-600">稼働形態</label>
+                      <p class="mt-1 text-sm text-gray-900">\${estimate.operation_type || 'なし'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="bg-gray-50 p-4 rounded-lg">
+                  <h4 class="text-lg font-medium text-gray-900 mb-3 flex items-center">
+                    <i class="fas fa-yen-sign mr-2 text-purple-500"></i>
+                    料金情報
+                  </h4>
+                  <div class="space-y-3">
+                    <div class="flex justify-between">
+                      <span class="text-sm font-medium text-gray-600">車両費用</span>
+                      <span class="text-sm text-gray-900">\${Utils.formatCurrency(estimate.vehicle_cost || 0)}</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-sm font-medium text-gray-600">スタッフ費用</span>
+                      <span class="text-sm text-gray-900">\${Utils.formatCurrency(estimate.staff_cost || 0)}</span>
+                    </div>
+                    <div class="flex justify-between border-t pt-2">
+                      <span class="text-sm font-medium text-gray-600">小計</span>
+                      <span class="text-sm text-gray-900">\${Utils.formatCurrency(estimate.subtotal || 0)}</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-sm font-medium text-gray-600">消費税</span>
+                      <span class="text-sm text-gray-900">\${Utils.formatCurrency(estimate.tax_amount || 0)}</span>
+                    </div>
+                    <div class="flex justify-between border-t pt-2 font-bold text-lg">
+                      <span class="text-gray-900">合計金額</span>
+                      <span class="text-blue-600">\${Utils.formatCurrency(estimate.total_amount || 0)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                \${estimate.notes ? \`
+                <div class="bg-gray-50 p-4 rounded-lg">
+                  <h4 class="text-lg font-medium text-gray-900 mb-3 flex items-center">
+                    <i class="fas fa-sticky-note mr-2 text-yellow-500"></i>
+                    備考
+                  </h4>
+                  <p class="text-sm text-gray-900 whitespace-pre-wrap">\${estimate.notes}</p>
+                </div>
+                \` : ''}
+              </div>
+            \`;
+          },
+
+          // ステータスラベル取得
+          getStatusLabel: (status) => {
+            const labels = {
+              'initial': '初回コンタクト',
+              'quote_sent': '見積書送信済み',
+              'under_consideration': '受注検討中',
+              'order': '受注',
+              'completed': '完了',
+              'failed': '失注',
+              'cancelled': 'キャンセル'
+            };
+            return labels[status] || status;
+          },
+
+          // 見積編集
+          editEstimate: (estimateId) => {
+            // 編集機能は未実装
+            Utils.showError('編集機能は現在開発中です');
+          },
+
+          // PDF生成
+          generatePDF: async (estimateId) => {
+            try {
+              console.log('PDF生成開始:', estimateId);
+              
+              const response = await fetch(\`/api/estimates/\${estimateId}/pdf\`, {
+                method: 'GET',
+                headers: {
+                  'X-User-ID': 'test-user-001'
+                }
+              });
+
+              if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = \`estimate_\${estimateId}.pdf\`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                Utils.showSuccess('PDFを生成しました');
+              } else {
+                Utils.showError('PDF生成に失敗しました');
+              }
+            } catch (error) {
+              console.error('PDF生成エラー:', error);
+              Utils.showError('PDF生成中にエラーが発生しました');
+            }
+          },
+
+          // フィルタリング
+          filterEstimates: () => {
+            const searchTerm = document.getElementById('estimateSearch')?.value.toLowerCase() || '';
+            const customerFilter = document.getElementById('estimateCustomerFilter')?.value || '';
+            const statusFilter = document.getElementById('estimateStatusFilter')?.value || '';
+            const amountFilter = document.getElementById('estimateAmountFilter')?.value || '';
+            const dateFilter = document.getElementById('estimateDateFilter')?.value || '';
+
+            EstimateManagement.filteredEstimates = EstimateManagement.estimates.filter(estimate => {
+              // 検索キーワードフィルタ
+              if (searchTerm && !estimate.estimate_number?.toLowerCase().includes(searchTerm) &&
+                  !estimate.customer_name?.toLowerCase().includes(searchTerm) &&
+                  !estimate.project_name?.toLowerCase().includes(searchTerm)) {
+                return false;
+              }
+
+              // 顧客フィルタ
+              if (customerFilter && estimate.customer_name !== customerFilter) {
+                return false;
+              }
+
+              // ステータスフィルタ
+              if (statusFilter && estimate.status !== statusFilter) {
+                return false;
+              }
+
+              // 金額フィルタ
+              if (amountFilter) {
+                const amount = estimate.total_amount || 0;
+                const [min, max] = amountFilter.split('-').map(Number);
+                if (max && (amount < min || amount > max)) return false;
+                if (!max && amount < min) return false;
+              }
+
+              return true;
+            });
+
+            EstimateManagement.renderEstimates();
+          },
+
+          // ソート
+          sortEstimates: (column) => {
+            if (EstimateManagement.sortColumn === column) {
+              EstimateManagement.sortDirection = EstimateManagement.sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+              EstimateManagement.sortColumn = column;
+              EstimateManagement.sortDirection = 'asc';
+            }
+
+            EstimateManagement.filteredEstimates.sort((a, b) => {
+              let aValue = a[column];
+              let bValue = b[column];
+
+              if (column.includes('amount') || column.includes('cost')) {
+                aValue = parseFloat(aValue) || 0;
+                bValue = parseFloat(bValue) || 0;
+              } else if (column.includes('date') || column.includes('at')) {
+                aValue = new Date(aValue);
+                bValue = new Date(bValue);
+              } else {
+                aValue = (aValue || '').toString().toLowerCase();
+                bValue = (bValue || '').toString().toLowerCase();
+              }
+
+              if (aValue < bValue) return EstimateManagement.sortDirection === 'asc' ? -1 : 1;
+              if (aValue > bValue) return EstimateManagement.sortDirection === 'asc' ? 1 : -1;
+              return 0;
+            });
+
+            EstimateManagement.renderEstimates();
+          },
+
+          // 全選択切り替え
+          toggleSelectAll: () => {
+            const selectAll = document.getElementById('selectAll');
+            const checkboxes = document.querySelectorAll('.estimate-checkbox');
+            
+            checkboxes.forEach(checkbox => {
+              checkbox.checked = selectAll.checked;
+            });
+          },
+
+          // データ更新
+          refreshEstimates: () => {
+            EstimateManagement.loadEstimates();
+            Utils.showSuccess('データを更新しました');
+          },
+
+          // CSV出力
+          exportEstimatesCSV: () => {
+            window.open('/api/estimates/export/csv', '_blank');
+          },
+
+          // PDF一括出力
+          bulkGeneratePDF: () => {
+            const selectedIds = Array.from(document.querySelectorAll('.estimate-checkbox:checked')).map(cb => cb.value);
+            
+            if (selectedIds.length === 0) {
+              Utils.showError('PDFを生成する見積を選択してください');
+              return;
+            }
+
+            selectedIds.forEach(id => {
+              EstimateManagement.generatePDF(id);
+            });
+          }
+        };
+        } // EstimateManagement条件分岐の閉じ括弧
+
+        // ステータス管理
+        if (typeof StatusManagement === 'undefined') {
+          window.StatusManagement = {
+          currentItemId: null,
+          currentItemType: null,
+
+          openStatusChangeModal: (id, type) => {
+            StatusManagement.currentItemId = id;
+            StatusManagement.currentItemType = type;
+            Modal.open('statusChangeModal');
+          },
+
+          changeStatus: async () => {
+            const form = document.getElementById('statusChangeForm');
+            const status = form.getAttribute('data-status');
+            const comment = document.getElementById('statusChangeComment').value;
+
+            if (!status) {
+              Utils.showError('新しいステータスを選択してください');
+              return;
+            }
+
+            try {
+              const endpoint = StatusManagement.currentItemType === 'estimate' 
+                ? \`/api/estimates/\${StatusManagement.currentItemId}/status\`
+                : \`/api/projects/\${StatusManagement.currentItemId}/status\`;
+
+              const response = await axios.put(endpoint, {
+                status: status,
+                comment: comment
+              }, {
+                headers: { 'X-User-ID': 'test-user-001' }
+              });
+
+              if (response.data.success) {
+                Utils.showSuccess('ステータスを変更しました');
+                Modal.close('statusChangeModal');
+                EstimateManagement.loadEstimates();
+              } else {
+                Utils.showError('ステータスの変更に失敗しました');
+              }
+            } catch (error) {
+              console.error('ステータス変更エラー:', error);
+              Utils.showError('ステータス変更中にエラーが発生しました');
+            }
+          }
+        };
+        } // StatusManagement条件分岐の閉じ括弧
+
+        // ページ読み込み時の初期化（複数の方法で確実に実行）
+        document.addEventListener('DOMContentLoaded', () => {
+          console.log('DOMContentLoaded: EstimateManagement初期化開始');
+          console.log('EstimateManagement object:', typeof window.EstimateManagement);
+          console.log('EstimateManagement.init:', typeof window.EstimateManagement?.init);
+          console.log('EstimateManagement exists:', typeof EstimateManagement);
+          console.log('All EstimateManagement keys:', window.EstimateManagement ? Object.keys(window.EstimateManagement) : 'No keys');
+          
+          if (window.EstimateManagement) {
+            // 利用可能な初期化メソッドを確認
+            if (typeof window.EstimateManagement.init === 'function') {
+              console.log('✅ EstimateManagement.init呼び出し開始');
+              window.EstimateManagement.init();
+            } else if (typeof window.EstimateManagement.initialize === 'function') {
+              console.log('✅ EstimateManagement.initialize呼び出し開始');
+              window.EstimateManagement.initialize();
+            } else {
+              console.log('🔍 利用可能な初期化メソッドを探します');
+              console.log('Available methods:', Object.keys(window.EstimateManagement));
+              console.error('❌ 初期化メソッドが見つかりません');
+            }
+          } else {
+            console.error('❌ EstimateManagementオブジェクトが見つかりません');
+          }
+        });
+
+        // 追加の初期化（DOM読み込み完了後のフォールバック）
+        window.addEventListener('load', () => {
+          console.log('Window load: EstimateManagement初期化フォールバック');
+          if (window.EstimateManagement && typeof window.EstimateManagement.init === 'function') {
+            window.EstimateManagement.init();
+          }
+        });
+
+        // 即座に実行も試行（スクリプト読み込み完了後すぐ）
+        setTimeout(() => {
+          console.log('Timeout: EstimateManagement初期化即時実行');
+          if (window.EstimateManagement && typeof window.EstimateManagement.init === 'function') {
+            window.EstimateManagement.init();
+          }
+        }, 100);
+        `
+      }}></script>
     </div>
   )
 })
@@ -8616,6 +9338,179 @@ app.post('/api/reports/prediction-analysis', async (c) => {
   }
 })
 
+// API: AI予測生成（フロントエンド用）
+app.post('/api/reports/ai-prediction', async (c) => {
+  try {
+    const { env } = c
+    const { period = 3 } = await c.req.json()
+
+    // 過去の売上データから予測を生成
+    const { results: recentData } = await env.DB.prepare(`
+      SELECT AVG(e.total_amount) as avg_revenue
+      FROM estimates e
+      LEFT JOIN projects p ON e.project_id = p.id
+      WHERE p.status = 'order'
+        AND e.created_at >= date('now', '-3 months')
+    `).all()
+
+    const avgRevenue = recentData?.[0]?.avg_revenue || 100000
+    const seasonalFactor = 1.1 // 季節要因
+    const growthTrend = 1.08 // 成長トレンド
+    
+    const predictedRevenue = Math.round(avgRevenue * period * seasonalFactor * growthTrend)
+    const confidence = Math.max(70, Math.min(95, 85 + Math.random() * 10))
+
+    return c.json({
+      success: true,
+      predictedRevenue,
+      confidence: Math.round(confidence),
+      period,
+      factors: {
+        seasonal: seasonalFactor,
+        growth: growthTrend,
+        baseRevenue: avgRevenue
+      }
+    })
+
+  } catch (error) {
+    console.error('AI予測生成エラー:', error)
+    return c.json({ error: 'AI予測の生成に失敗しました' }, 500)
+  }
+})
+
+// API: 車両分析データ取得
+app.get('/api/reports/vehicle-analysis', async (c) => {
+  try {
+    const { env } = c
+
+    // 車両タイプ別売上分析
+    const { results: vehicleData } = await env.DB.prepare(`
+      SELECT 
+        e.vehicle_type,
+        SUM(e.total_amount) as revenue,
+        COUNT(*) as orders,
+        AVG(e.total_amount) as avg_order_value
+      FROM estimates e
+      LEFT JOIN projects p ON e.project_id = p.id
+      WHERE p.status = 'order'
+        AND e.created_at >= date('now', '-12 months')
+      GROUP BY e.vehicle_type
+      ORDER BY revenue DESC
+    `).all()
+
+    return c.json({
+      success: true,
+      vehicleData
+    })
+
+  } catch (error) {
+    console.error('車両分析データ取得エラー:', error)
+    return c.json({ error: '車両分析データの取得に失敗しました' }, 500)
+  }
+})
+
+// API: 効率分析指標計算
+app.get('/api/reports/efficiency-metrics', async (c) => {
+  try {
+    const { env } = c
+
+    // 簡略化した効率指標の算出
+    const ordersResult = await env.DB.prepare(`
+      SELECT COUNT(*) as total_orders
+      FROM estimates e
+      LEFT JOIN projects p ON e.project_id = p.id
+      WHERE p.status = 'order'
+    `).first()
+    
+    const estimatesResult = await env.DB.prepare(`
+      SELECT COUNT(*) as total_estimates
+      FROM estimates
+    `).first()
+
+    const totalOrders = ordersResult?.total_orders || 0
+    const totalEstimates = estimatesResult?.total_estimates || 0
+
+    // 効率指標の計算（実データベース + 推定値）
+    const completionRate = totalEstimates > 0 ? 
+      Math.round((totalOrders / totalEstimates) * 100) : 0
+    
+    const utilizationRate = Math.min(95, completionRate + 20) // 完了率をベースに稼働率を推定
+
+    return c.json({
+      success: true,
+      metrics: {
+        avgWorkTime: 6.5,
+        utilizationRate,
+        completionRate,
+        vehicleUtilization: Math.min(100, utilizationRate + 5),
+        avgDeliveryTime: 4.2,
+        fuelEfficiency: 8.5,
+        unitCost: 12500,
+        profitMargin: Math.max(15, Math.min(35, completionRate / 2)), // 完了率から利益率を推定
+        roiValue: Math.max(5, Math.min(25, completionRate / 3)) // 完了率からROIを推定
+      }
+    })
+
+  } catch (error) {
+    console.error('効率分析指標計算エラー:', error)
+    return c.json({ error: '効率分析指標の計算に失敗しました' }, 500)
+  }
+})
+
+// API: カスタムCSV出力
+app.post('/api/reports/custom-csv', async (c) => {
+  try {
+    const { env } = c
+    const { items } = await c.req.json()
+
+    let csvData = items.join(',') + '\n'
+
+    // 選択された項目に応じてデータを生成
+    if (items.includes('売上金額') || items.includes('受注件数')) {
+      const { results: salesData } = await env.DB.prepare(`
+        SELECT 
+          strftime('%Y-%m', e.created_at) as period,
+          SUM(e.total_amount) as revenue,
+          COUNT(*) as orders
+        FROM estimates e
+        LEFT JOIN projects p ON e.project_id = p.id
+        WHERE p.status = 'order'
+          AND e.created_at >= date('now', '-12 months')
+        GROUP BY strftime('%Y-%m', e.created_at)
+        ORDER BY period
+      `).all()
+
+      salesData.forEach(row => {
+        let rowData = []
+        items.forEach(item => {
+          switch (item) {
+            case '売上金額':
+              rowData.push(row.revenue || 0)
+              break
+            case '受注件数':
+              rowData.push(row.orders || 0)
+              break
+            default:
+              rowData.push('N/A')
+          }
+        })
+        csvData += rowData.join(',') + '\n'
+      })
+    }
+
+    return new Response(csvData, {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="custom_report_${new Date().toISOString().split('T')[0]}.csv"`
+      }
+    })
+
+  } catch (error) {
+    console.error('CSV生成エラー:', error)
+    return c.json({ error: 'CSVレポートの生成に失敗しました' }, 500)
+  }
+})
+
 // ================== AI機能ユーティリティ関数 ==================
 
 function generateDefaultRecommendation(vehicleType: string, operationType: string, deliveryArea: string) {
@@ -9064,19 +9959,53 @@ app.get('/settings', (c) => {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">会社名</label>
-                    <input type="text" className="form-input" value="輸送サービス株式会社" />
+                    <input type="text" id="companyName" className="form-input" placeholder="会社名を入力してください" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">担当者名</label>
-                    <input type="text" className="form-input" value="営業担当" />
+                    <input type="text" id="contactPerson" className="form-input" placeholder="担当者名を入力してください" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">電話番号</label>
-                    <input type="text" className="form-input" value="03-1234-5678" />
+                    <input type="text" id="phoneNumber" className="form-input" placeholder="03-1234-5678" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">メールアドレス</label>
-                    <input type="email" className="form-input" value="sales@transport-service.co.jp" />
+                    <input type="email" id="emailAddress" className="form-input" placeholder="email@example.com" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">会社住所</label>
+                    <input type="text" id="companyAddress" className="form-input" placeholder="〒000-0000 東京都千代田区..." />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">会社ロゴ</label>
+                    <p className="text-sm text-gray-500 mb-2">見積書に表示されるロゴをアップロードしてください（PNG, JPG, GIF対応）</p>
+                    <div className="space-y-3">
+                      <div>
+                        <input 
+                          type="file" 
+                          id="logoFile" 
+                          accept="image/png,image/jpeg,image/gif"
+                          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                          onchange="handleLogoUpload(event)"
+                        />
+                      </div>
+                      <div id="logoPreview" className="hidden">
+                        <p className="text-sm text-gray-600 mb-2">プレビュー:</p>
+                        <img id="logoImage" src="" alt="ロゴプレビュー" className="max-h-24 border border-gray-300 rounded" />
+                        <button type="button" onclick="removeLogo()" className="mt-2 text-sm text-red-600 hover:text-red-800">
+                          <i className="fas fa-trash mr-1"></i>ロゴを削除
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-x-3">
+                    <button type="button" onclick="saveBasicSettings()" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                      <i className="fas fa-save mr-2"></i>基本設定を保存
+                    </button>
+                    <button type="button" onclick="loadBasicSettings(0)" className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">
+                      <i className="fas fa-refresh mr-2"></i>設定を再読み込み
+                    </button>
                   </div>
                 </div>
               </div>
@@ -9142,14 +10071,1220 @@ app.get('/settings', (c) => {
           </div>
         </div>
       </main>
+
+      {/* ロゴアップロード機能のJavaScript */}
+      <script dangerouslySetInnerHTML={{
+        __html: `
+        // ページ読み込み時に設定を取得・表示
+        async function loadBasicSettings(retryCount = 0) {
+          try {
+            console.log('🔄 設定読み込み開始 (試行' + (retryCount + 1) + '回目)');
+            
+            // DOM要素の存在チェック
+            const companyNameEl = document.getElementById('companyName');
+            const contactPersonEl = document.getElementById('contactPerson');
+            const phoneNumberEl = document.getElementById('phoneNumber');
+            const emailAddressEl = document.getElementById('emailAddress');
+            const companyAddressEl = document.getElementById('companyAddress');
+            
+            if (!companyNameEl || !contactPersonEl || !phoneNumberEl || !emailAddressEl || !companyAddressEl) {
+              console.warn('⚠️ DOM要素が見つかりません。リトライします...');
+              if (retryCount < 5) {
+                setTimeout(() => loadBasicSettings(retryCount + 1), 1000);
+                return;
+              } else {
+                console.error('❌ DOM要素が見つかりません（最大試行回数に達しました）');
+                return;
+              }
+            }
+            
+            const response = await fetch('/api/settings/basic', {
+              method: 'GET',
+              headers: {
+                'X-User-ID': 'test-user-001'
+              }
+            });
+            
+            const result = await response.json();
+            
+            if (result.success && result.data) {
+              const settings = result.data;
+              
+              // フォームに値をセット
+              if (settings.company_name) {
+                companyNameEl.value = settings.company_name;
+                console.log('✅ 会社名設定:', settings.company_name);
+              }
+              
+              if (settings.contact_person || settings.representative_name) {
+                contactPersonEl.value = settings.contact_person || settings.representative_name;
+                console.log('✅ 担当者名設定:', settings.contact_person || settings.representative_name);
+              }
+              
+              if (settings.company_phone) {
+                phoneNumberEl.value = settings.company_phone;
+                console.log('✅ 電話番号設定:', settings.company_phone);
+              }
+              
+              if (settings.company_email) {
+                emailAddressEl.value = settings.company_email;
+                console.log('✅ メールアドレス設定:', settings.company_email);
+              }
+              
+              if (settings.company_address) {
+                companyAddressEl.value = settings.company_address;
+                console.log('✅ 会社住所設定:', settings.company_address);
+              }
+              
+              // ロゴがある場合は表示
+              if (settings.logo) {
+                const logoImage = document.getElementById('logoImage');
+                const logoPreview = document.getElementById('logoPreview');
+                
+                if (logoImage && logoPreview) {
+                  logoImage.src = settings.logo;
+                  logoPreview.classList.remove('hidden');
+                  console.log('✅ ロゴ表示完了');
+                }
+              }
+              
+              console.log('✅ 設定読み込み完了:', settings);
+              
+              // 最終確認：値が実際に設定されているかチェック
+              console.log('🔍 フォーム値確認:');
+              console.log('  会社名:', companyNameEl.value);
+              console.log('  担当者:', contactPersonEl.value);
+              console.log('  電話番号:', phoneNumberEl.value);
+              console.log('  メールアドレス:', emailAddressEl.value);
+              console.log('  会社住所:', companyAddressEl.value);
+              
+            } else {
+              console.warn('⚠️ 設定データの取得に失敗:', result);
+            }
+          } catch (error) {
+            console.error('設定読み込みエラー:', error);
+          }
+        }
+        
+        // ロゴアップロード処理
+        function handleLogoUpload(event) {
+          const file = event.target.files[0];
+          if (file) {
+            // ファイルサイズチェック (2MB以下)
+            if (file.size > 2 * 1024 * 1024) {
+              alert('ファイルサイズは2MB以下にしてください');
+              event.target.value = '';
+              return;
+            }
+            
+            // 画像プレビュー表示
+            const reader = new FileReader();
+            reader.onload = function(e) {
+              const logoImage = document.getElementById('logoImage');
+              const logoPreview = document.getElementById('logoPreview');
+              
+              logoImage.src = e.target.result;
+              logoPreview.classList.remove('hidden');
+            };
+            reader.readAsDataURL(file);
+          }
+        }
+        
+        // ロゴ削除
+        function removeLogo() {
+          document.getElementById('logoFile').value = '';
+          document.getElementById('logoPreview').classList.add('hidden');
+          document.getElementById('logoImage').src = '';
+        }
+        
+        // ページ読み込み時に設定を読み込み（遅延実行）
+        document.addEventListener('DOMContentLoaded', () => {
+          // DOM要素の準備を待つために少し遅延
+          setTimeout(loadBasicSettings, 500);
+        });
+        
+        // ウィンドウ読み込み完了時にも再実行（保険）
+        window.addEventListener('load', () => {
+          setTimeout(loadBasicSettings, 100);
+        });
+        
+        // 基本設定保存（JSON形式に更新）
+        async function saveBasicSettings() {
+          const companyNameEl = document.getElementById('companyName');
+          const contactPersonEl = document.getElementById('contactPerson');
+          const phoneNumberEl = document.getElementById('phoneNumber');
+          const emailAddressEl = document.getElementById('emailAddress');
+          const companyAddressEl = document.getElementById('companyAddress');
+          const logoFileEl = document.getElementById('logoFile');
+          
+          if (!companyNameEl || !contactPersonEl || !phoneNumberEl || !emailAddressEl || !companyAddressEl || !logoFileEl) {
+            console.error('❌ 必要なDOM要素が見つかりません');
+            alert('画面の読み込みが完了していません。しばらく待ってから再度お試しください。');
+            return;
+          }
+          
+          const companyName = companyNameEl.value;
+          const contactPerson = contactPersonEl.value;
+          const phoneNumber = phoneNumberEl.value;
+          const emailAddress = emailAddressEl.value;
+          const companyAddress = companyAddressEl.value;
+          const logoFile = logoFileEl.files[0];
+          
+          try {
+            let logoData = null;
+            
+            // ロゴファイルがある場合はBase64に変換
+            if (logoFile) {
+              // ファイルサイズチェック (2MB以下)
+              if (logoFile.size > 2 * 1024 * 1024) {
+                alert('ファイルサイズは2MB以下にしてください');
+                return;
+              }
+              
+              logoData = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(logoFile);
+              });
+            }
+            
+            const settings = {
+              company_name: companyName,
+              contact_person: contactPerson, // representative_nameではなくcontact_person
+              company_phone: phoneNumber,
+              company_email: emailAddress,
+              company_address: companyAddress,
+              logo: logoData
+            };
+            
+            console.log('💾 基本設定保存:', { ...settings, logo: logoData ? '[BASE64_DATA]' : null });
+            
+            const response = await fetch('/api/settings/basic', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-User-ID': 'test-user-001'
+              },
+              body: JSON.stringify(settings)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+              alert('基本設定を保存しました');
+              console.log('✅ 設定保存成功');
+            } else {
+              alert('保存に失敗しました: ' + result.error);
+              console.error('❌ 設定保存失敗:', result.error);
+            }
+          } catch (error) {
+            console.error('基本設定保存エラー:', error);
+            alert('保存中にエラーが発生しました: ' + error.message);
+          }
+        }
+        `
+      }}></script>
     </div>
   )
 })
 
-// 新規見積作成ページ（STEP1へリダイレクト）
-app.get('/estimate/new', (c) => {
-  return c.redirect('/estimate/step1')
+// 基本設定取得API（新しい実装への統合）
+app.get('/api/settings/basic-old', async (c) => {
+  try {
+    const { env } = c
+    const settingsData = await env.KV.get('system_settings')
+    
+    if (settingsData) {
+      const settings = JSON.parse(settingsData)
+      return c.json({
+        success: true,
+        data: settings
+      })
+    } else {
+      // デフォルト設定を返す
+      return c.json({
+        success: true,
+        data: {
+          companyName: '輸送サービス株式会社',
+          contactPerson: '営業担当',
+          phoneNumber: '03-1234-5678',
+          emailAddress: 'sales@transport-service.co.jp',
+          logo: null
+        }
+      })
+    }
+  } catch (error) {
+    console.error('基本設定取得エラー:', error)
+    return c.json({
+      success: false,
+      error: error.message || '設定の取得に失敗しました'
+    }, 500)
+  }
 })
+
+// 新規見積作成ページ（タイプ選択へリダイレクト）
+app.get('/estimate/new', (c) => {
+  return c.redirect('/estimate/type-select')
+})
+
+// 見積もりタイプ選択ページ
+app.get('/estimate/type-select', (c) => {
+  return c.render(
+    <div className="min-h-screen bg-gray-50">
+      {/* ヘッダー */}
+      <header className="bg-blue-600 shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
+            <div className="flex items-center">
+              <i className="fas fa-truck text-white text-3xl mr-3"></i>
+              <h1 className="text-2xl font-bold text-white">見積もりタイプ選択</h1>
+            </div>
+            <a href="/" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+              <i className="fas fa-home mr-2"></i>
+              トップページ
+            </a>
+          </div>
+        </div>
+      </header>
+
+      {/* メインコンテンツ */}
+      <main className="max-w-4xl mx-auto py-8 px-4">
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-bold text-gray-800 mb-4">見積もり作成方式を選択してください</h2>
+          <p className="text-gray-600">お客様の状況に合わせて適切な見積もり方式をお選びください</p>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-8">
+          {/* 標準見積もり */}
+          <div className="bg-white rounded-lg shadow-lg p-8 hover:shadow-xl transition-shadow">
+            <div className="text-center mb-6">
+              <div className="bg-blue-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
+                <i className="fas fa-clipboard-list text-blue-600 text-3xl"></i>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-800 mb-2">標準見積もり</h3>
+              <p className="text-gray-600">関西エリア内の輸送サービス</p>
+            </div>
+
+            <div className="mb-6">
+              <h4 className="font-semibold text-gray-800 mb-3">対象サービス：</h4>
+              <ul className="text-sm text-gray-600 space-y-2">
+                <li><i className="fas fa-check text-green-500 mr-2"></i>車両輸送（4t車、大型車等）</li>
+                <li><i className="fas fa-check text-green-500 mr-2"></i>作業員派遣</li>
+                <li><i className="fas fa-check text-green-500 mr-2"></i>梱包・養生作業</li>
+                <li><i className="fas fa-check text-green-500 mr-2"></i>エリア：大阪・京都・兵庫</li>
+              </ul>
+            </div>
+
+            <div className="mb-6">
+              <h4 className="font-semibold text-gray-800 mb-3">特徴：</h4>
+              <ul className="text-sm text-gray-600 space-y-1">
+                <li>• 事前設定された料金体系</li>
+                <li>• エリア別料金自動計算</li>
+                <li>• 詳細な内訳表示</li>
+              </ul>
+            </div>
+
+            <button 
+              onclick="window.location.href='/estimate/step1?type=standard'" 
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg transition-colors"
+            >
+              <i className="fas fa-arrow-right mr-2"></i>
+              標準見積もりで進む
+            </button>
+          </div>
+
+          {/* フリー見積もり */}
+          <div className="bg-white rounded-lg shadow-lg p-8 hover:shadow-xl transition-shadow">
+            <div className="text-center mb-6">
+              <div className="bg-green-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
+                <i className="fas fa-edit text-green-600 text-3xl"></i>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-800 mb-2">フリー見積もり</h3>
+              <p className="text-gray-600">エリア外・特殊案件向け</p>
+            </div>
+
+            <div className="mb-6">
+              <h4 className="font-semibold text-gray-800 mb-3">対象ケース：</h4>
+              <ul className="text-sm text-gray-600 space-y-2">
+                <li><i className="fas fa-check text-green-500 mr-2"></i>関西エリア外の輸送</li>
+                <li><i className="fas fa-check text-green-500 mr-2"></i>特殊機材・車両</li>
+                <li><i className="fas fa-check text-green-500 mr-2"></i>カスタムサービス</li>
+                <li><i className="fas fa-check text-green-500 mr-2"></i>個別料金設定が必要</li>
+              </ul>
+            </div>
+
+            <div className="mb-6">
+              <h4 className="font-semibold text-gray-800 mb-3">特徴：</h4>
+              <ul className="text-sm text-gray-600 space-y-1">
+                <li>• 項目・料金を自由入力</li>
+                <li>• 最大20項目まで対応</li>
+                <li>• 税込み計算自動対応</li>
+              </ul>
+            </div>
+
+            <button 
+              onclick="window.location.href='/estimate/free-form?type=free'" 
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg transition-colors"
+            >
+              <i className="fas fa-arrow-right mr-2"></i>
+              フリー見積もりで進む
+            </button>
+          </div>
+        </div>
+
+        {/* 戻るボタン */}
+        <div className="text-center mt-8">
+          <a href="/" className="text-gray-600 hover:text-gray-800">
+            <i className="fas fa-arrow-left mr-2"></i>
+            トップページに戻る
+          </a>
+        </div>
+      </main>
+    </div>
+  )
+})
+
+// フリー見積もり入力ページ
+app.get('/estimate/free-form', (c) => {
+  return c.render(
+    <div className="min-h-screen bg-gray-50">
+      {/* ヘッダー */}
+      <header className="bg-green-600 shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
+            <div className="flex items-center">
+              <a href="/" className="flex items-center text-white hover:text-green-200">
+                <i className="fas fa-truck text-white text-2xl mr-3"></i>
+                <h1 className="text-xl font-bold">輸送見積もりシステム</h1>
+              </a>
+            </div>
+            <div className="text-white">
+              <span className="text-sm">フリー見積作成</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* メインコンテンツ */}
+      <main className="max-w-6xl mx-auto py-8 px-4">
+        <div className="bg-white rounded-lg shadow-lg p-8">
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">フリー見積もり作成</h2>
+            <p className="text-gray-600">項目を自由に入力して見積もりを作成できます（最大20項目）</p>
+          </div>
+
+          <form id="freeEstimateForm">
+            {/* 基本情報 */}
+            <div className="grid md:grid-cols-2 gap-6 mb-8">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  顧客名 <span className="text-red-500">*</span>
+                </label>
+                <input 
+                  type="text" 
+                  id="customerName" 
+                  name="customerName" 
+                  required 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="例：山田太郎"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  案件名 <span className="text-red-500">*</span>
+                </label>
+                <input 
+                  type="text" 
+                  id="projectName" 
+                  name="projectName" 
+                  required 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="例：○○工場設備移転作業"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  作業日
+                </label>
+                <input 
+                  type="date" 
+                  id="workDate" 
+                  name="workDate"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  見積有効期限
+                </label>
+                <input 
+                  type="date" 
+                  id="validUntil" 
+                  name="validUntil"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+            </div>
+
+            {/* 見積もり項目 */}
+            <div className="mb-8">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-gray-800">見積もり項目</h3>
+                <button 
+                  type="button" 
+                  id="addItemBtn"
+                  onclick="FreeEstimate.addItem()"
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                >
+                  <i className="fas fa-plus mr-2"></i>
+                  項目追加
+                </button>
+              </div>
+              
+              <div id="itemsContainer" className="space-y-4">
+                {/* 初期項目 */}
+                <div className="item-row bg-gray-50 p-4 rounded-md border" data-index="0">
+                  <div className="grid grid-cols-12 gap-3 items-end">
+                    <div className="col-span-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">項目名</label>
+                      <input 
+                        type="text" 
+                        name="items[0][name]" 
+                        required 
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                        placeholder="例：4tトラック輸送"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">単位</label>
+                      <input 
+                        type="text" 
+                        name="items[0][unit]" 
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                        placeholder="例：台"
+                      />
+                    </div>
+                    <div className="col-span-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">数量</label>
+                      <input 
+                        type="number" 
+                        name="items[0][quantity]" 
+                        value="1" 
+                        min="1" 
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                        onchange="FreeEstimate.calculateItemTotal(0)"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">単価（税抜）</label>
+                      <input 
+                        type="number" 
+                        name="items[0][unitPrice]" 
+                        min="0" 
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                        placeholder="0"
+                        onchange="FreeEstimate.calculateItemTotal(0)"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">合計（税抜）</label>
+                      <input 
+                        type="number" 
+                        name="items[0][total]" 
+                        readonly 
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div className="col-span-1">
+                      <button 
+                        type="button" 
+                        onclick="FreeEstimate.removeItem(0)" 
+                        className="w-full bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-md"
+                        title="削除"
+                      >
+                        <i className="fas fa-trash"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div id="itemsLimit" className="text-sm text-gray-500 mt-2">
+                項目数: <span id="itemCount">1</span> / 20
+              </div>
+            </div>
+
+            {/* 合計計算 */}
+            <div className="bg-blue-50 p-6 rounded-lg mb-8">
+              <h3 className="text-lg font-bold text-gray-800 mb-4">合計金額</h3>
+              
+              {/* 値引き入力 */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  値引き金額（税抜）
+                </label>
+                <div className="flex items-center space-x-3">
+                  <input 
+                    type="number" 
+                    id="discountAmount" 
+                    name="discountAmount" 
+                    min="0" 
+                    value="0"
+                    className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="0"
+                    onchange="FreeEstimate.calculateTotal()"
+                  />
+                  <span className="text-sm text-gray-600">円</span>
+                  <span className="text-xs text-gray-500">※小計から値引きされます</span>
+                </div>
+              </div>
+              
+              <div className="grid md:grid-cols-4 gap-4 text-center">
+                <div>
+                  <div className="text-sm text-gray-600">小計（税抜）</div>
+                  <div id="subtotalAmount" className="text-xl font-bold text-blue-600">¥0</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-600">値引き額</div>
+                  <div id="discountDisplayAmount" className="text-xl font-bold text-red-600">¥0</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-600">消費税（10%）</div>
+                  <div id="taxAmount" className="text-xl font-bold text-blue-600">¥0</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-600">合計（税込）</div>
+                  <div id="totalAmount" className="text-2xl font-bold text-blue-600">¥0</div>
+                </div>
+              </div>
+            </div>
+
+            {/* 追加事項 */}
+            <div className="mb-8">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                追加事項・備考
+              </label>
+              <textarea 
+                id="notes" 
+                name="notes" 
+                rows="4"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="特記事項や作業条件等をご記入ください"
+              ></textarea>
+            </div>
+
+            {/* アクションボタン */}
+            <div className="flex justify-between items-center">
+              <a href="/estimate/type-select" className="text-gray-600 hover:text-gray-800">
+                <i className="fas fa-arrow-left mr-2"></i>
+                タイプ選択に戻る
+              </a>
+              
+              <div className="space-x-3">
+                <button 
+                  type="button" 
+                  onclick="FreeEstimate.preview()"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md font-medium"
+                >
+                  <i className="fas fa-eye mr-2"></i>
+                  プレビュー
+                </button>
+                <button 
+                  type="submit" 
+                  className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-md font-medium"
+                >
+                  <i className="fas fa-save mr-2"></i>
+                  見積もり保存
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </main>
+
+      {/* JavaScript初期化（rendererで読み込まれるapp.jsを使用） */}
+      <script dangerouslySetInnerHTML={{
+        __html: `
+          // フリー見積もり専用JavaScript初期化
+          window.addEventListener('load', function() {
+            if (typeof FreeEstimate !== 'undefined') {
+              FreeEstimate.init();
+            }
+          });
+        `
+      }}></script>
+    </div>
+  )
+})
+
+// 見積詳細表示ページ
+app.get('/estimate/:id', async (c) => {
+  try {
+    const { env } = c
+    const estimateId = c.req.param('id')
+    
+    // 見積データ取得
+    const estimate = await env.DB.prepare(`
+      SELECT * FROM estimates WHERE id = ?
+    `).bind(estimateId).first()
+    
+    if (!estimate) {
+      return c.notFound()
+    }
+    
+    let estimateHtml = ''
+    
+    if (estimate.estimate_type === 'free') {
+      // フリー見積の場合
+      const items = await env.DB.prepare(`
+        SELECT * FROM free_estimate_items 
+        WHERE estimate_id = ? 
+        ORDER BY sort_order
+      `).bind(estimateId).all()
+      
+      const itemsHtml = items.results.map((item, index) => `
+        <tr class="${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}">
+          <td class="px-4 py-2 border">${item.item_name}</td>
+          <td class="px-4 py-2 border text-center">${item.unit || '-'}</td>
+          <td class="px-4 py-2 border text-right">${item.quantity}</td>
+          <td class="px-4 py-2 border text-right">¥${item.unit_price.toLocaleString()}</td>
+          <td class="px-4 py-2 border text-right font-bold">¥${item.total_price.toLocaleString()}</td>
+        </tr>
+      `).join('')
+      
+      estimateHtml = `
+        <div class="bg-white rounded-lg shadow-lg p-8">
+          <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">見 積 書</h1>
+            <p class="text-gray-600">見積番号: ${estimate.estimate_number}</p>
+            <p class="text-gray-500 text-sm">フリー見積もり</p>
+          </div>
+
+          <div class="mb-8">
+            <div class="grid grid-cols-2 gap-8">
+              <div>
+                <h3 class="text-lg font-bold text-gray-800 mb-3">お客様情報</h3>
+                <p><strong>顧客名：</strong> ${estimate.delivery_address ? estimate.delivery_address.split(',')[0]?.replace('顧客: ', '') : '未設定'}</p>
+                <p><strong>案件名：</strong> ${estimate.delivery_address ? estimate.delivery_address.split(',')[1]?.replace(' 案件: ', '') : '未設定'}</p>
+              </div>
+              <div>
+                <h3 class="text-lg font-bold text-gray-800 mb-3">見積もり情報</h3>
+                <p><strong>作業日：</strong> ${estimate.work_date || '未設定'}</p>
+                <p><strong>有効期限：</strong> ${estimate.valid_until || '未設定'}</p>
+                <p><strong>作成日：</strong> ${new Date(estimate.created_at).toLocaleDateString('ja-JP')}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-8">
+            <table class="w-full border-collapse border border-gray-300">
+              <thead>
+                <tr class="bg-blue-600 text-white">
+                  <th class="px-4 py-3 border text-left">項目名</th>
+                  <th class="px-4 py-3 border text-center">単位</th>
+                  <th class="px-4 py-3 border text-right">数量</th>
+                  <th class="px-4 py-3 border text-right">単価（税抜）</th>
+                  <th class="px-4 py-3 border text-right">金額（税抜）</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsHtml}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="mb-8">
+            <div class="bg-blue-50 p-6 rounded-lg">
+              <div class="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <div class="text-sm text-gray-600">小計（税抜）</div>
+                  <div class="text-2xl font-bold text-blue-600">¥${estimate.subtotal.toLocaleString()}</div>
+                </div>
+                <div>
+                  <div class="text-sm text-gray-600">消費税（10%）</div>
+                  <div class="text-2xl font-bold text-blue-600">¥${estimate.tax_amount.toLocaleString()}</div>
+                </div>
+                <div>
+                  <div class="text-sm text-gray-600">合計（税込）</div>
+                  <div class="text-3xl font-bold text-blue-600">¥${estimate.total_amount.toLocaleString()}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          ${estimate.notes ? `
+          <div class="mb-8">
+            <h3 class="text-lg font-bold text-gray-800 mb-3">追加事項・備考</h3>
+            <div class="bg-gray-50 p-4 rounded-md">
+              <p class="whitespace-pre-wrap">${estimate.notes}</p>
+            </div>
+          </div>
+          ` : ''}
+        </div>
+      `
+    } else {
+      // 標準見積の場合（既存処理）
+      estimateHtml = `
+        <div class="bg-white rounded-lg shadow-lg p-8">
+          <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">見 積 書</h1>
+            <p class="text-gray-600">見積番号: ${estimate.estimate_number}</p>
+            <p class="text-gray-500 text-sm">標準見積もり</p>
+          </div>
+          <div class="text-center">
+            <p class="text-gray-600">標準見積の詳細表示機能は実装中です</p>
+            <p class="text-2xl font-bold text-blue-600 mt-4">合計金額: ¥${estimate.total_cost.toLocaleString()}</p>
+          </div>
+        </div>
+      `
+    }
+    
+    return c.render(
+      <div className="min-h-screen bg-gray-50">
+        <header className="bg-blue-600 shadow-lg">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center py-6">
+              <div className="flex items-center">
+                <a href="/" className="flex items-center text-white hover:text-blue-200">
+                  <i className="fas fa-truck text-white text-2xl mr-3"></i>
+                  <h1 className="text-xl font-bold">輸送見積もりシステム</h1>
+                </a>
+              </div>
+              <div className="text-white">
+                <span className="text-sm">見積詳細</span>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <main className="max-w-6xl mx-auto py-8 px-4">
+          <div dangerouslySetInnerHTML={{ __html: estimateHtml }}></div>
+          
+          <div className="mt-8 flex justify-between items-center">
+            <a href="/" className="text-gray-600 hover:text-gray-800">
+              <i className="fas fa-arrow-left mr-2"></i>
+              トップページに戻る
+            </a>
+            
+            <div className="space-x-3">
+              <a 
+                href={`/estimate/${estimateId}/pdf`}
+                target="_blank"
+                className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-md font-medium"
+              >
+                <i className="fas fa-file-pdf mr-2"></i>
+                PDF出力
+              </a>
+              <button 
+                onclick="window.print()"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md font-medium"
+              >
+                <i className="fas fa-print mr-2"></i>
+                印刷
+              </button>
+            </div>
+          </div>
+        </main>
+      </div>
+    )
+    
+  } catch (error) {
+    console.error('見積詳細取得エラー:', error)
+    return c.render(
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-800 mb-4">エラーが発生しました</h1>
+          <p className="text-gray-600 mb-6">見積データの取得に失敗しました</p>
+          <a href="/" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md">
+            トップページに戻る
+          </a>
+        </div>
+      </div>
+    )
+  }
+})
+
+// フリー見積PDF生成ページ
+app.get('/estimate/:id/pdf', async (c) => {
+  try {
+    const { env } = c
+    const estimateId = c.req.param('id')
+    
+    // 見積データ取得
+    const estimate = await env.DB.prepare(`
+      SELECT * FROM estimates WHERE id = ?
+    `).bind(estimateId).first()
+    
+    if (!estimate) {
+      return c.notFound()
+    }
+    
+    if (estimate.estimate_type === 'free') {
+      // フリー見積の場合
+      const items = await env.DB.prepare(`
+        SELECT * FROM free_estimate_items 
+        WHERE estimate_id = ? 
+        ORDER BY sort_order
+      `).bind(estimateId).all()
+      
+      // 会社設定情報を取得（KVが利用不可の場合はデフォルト値）
+      const basicSettings = {
+        company_name: (env.KV ? await env.KV.get('basic_settings:company_name') : null) || '輸送サービス株式会社',
+        company_address: (env.KV ? await env.KV.get('basic_settings:company_address') : null) || '',
+        company_phone: (env.KV ? await env.KV.get('basic_settings:company_phone') : null) || '',
+        company_fax: (env.KV ? await env.KV.get('basic_settings:company_fax') : null) || '',
+        company_email: (env.KV ? await env.KV.get('basic_settings:company_email') : null) || '',
+        logo: (env.KV ? await env.KV.get('basic_settings:company_logo') : null) || null
+      }
+
+      // フリー見積用PDF生成関数を呼び出し（標準見積と同じフォーマット）
+      const pdfHtml = generateFreePdfHTML(estimate, items.results, basicSettings)
+      
+      return c.html(pdfHtml)
+      
+    } else {
+      // 標準見積の場合は既存のPDF生成にリダイレクト
+      return c.redirect(`/api/estimates/${estimateId}/pdf`)
+    }
+    
+  } catch (error) {
+    console.error('PDF生成エラー:', error)
+    return c.html(`
+      <!DOCTYPE html>
+      <html lang="ja">
+      <head>
+        <meta charset="UTF-8">
+        <title>PDF生成エラー</title>
+      </head>
+      <body>
+        <div style="text-align: center; padding: 50px;">
+          <h1>PDF生成エラー</h1>
+          <p>見積書のPDF生成に失敗しました。</p>
+          <button onclick="window.close()">閉じる</button>
+        </div>
+      </body>
+      </html>
+    `)
+  }
+})
+
+// フリー見積用PDF生成関数（標準見積と全く同じフォーマット）
+function generateFreePdfHTML(estimate: any, items: any[], basicSettings: any = {}): string {
+  const currentDate = new Date().toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })
+  
+  // フリー見積項目をテーブル行として生成
+  const itemsTableRows = items.map(item => `
+    <tr>
+      <td>&nbsp;&nbsp;${item.item_name}${item.unit ? ` (${item.unit})` : ''}</td>
+      <td class="amount-cell">¥${item.total_price.toLocaleString()}</td>
+    </tr>
+  `).join('')
+  
+  return `
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>見積書 - ${estimate.estimate_number}</title>
+    <style>
+        @media print {
+            body { margin: 0; }
+            .no-print { display: none; }
+            .page-break { page-break-before: always; }
+        }
+        
+        body {
+            font-family: 'MS Gothic', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            margin: 20px;
+            color: #333;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            border-bottom: 3px solid #2563eb;
+            padding-bottom: 20px;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            margin: 0;
+            color: #2563eb;
+        }
+
+        .company-logo {
+            max-height: 80px;
+            max-width: 200px;
+            object-fit: contain;
+        }
+        
+        .company-info {
+            text-align: right;
+            margin-bottom: 30px;
+        }
+        
+        .estimate-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+        }
+        
+        .customer-info {
+            flex: 1;
+            margin-right: 50px;
+        }
+        
+        .estimate-details {
+            flex: 1;
+        }
+        
+        .info-box {
+            border: 2px solid #e5e7eb;
+            padding: 15px;
+            margin-bottom: 20px;
+            background-color: #f9fafb;
+        }
+        
+        .info-box h3 {
+            margin: 0 0 10px 0;
+            color: #374151;
+            border-bottom: 1px solid #d1d5db;
+            padding-bottom: 5px;
+        }
+        
+        .estimate-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+        }
+        
+        .estimate-table th,
+        .estimate-table td {
+            border: 1px solid #d1d5db;
+            padding: 12px;
+            text-align: left;
+        }
+        
+        .estimate-table th {
+            background-color: #f3f4f6;
+            font-weight: bold;
+            color: #374151;
+        }
+        
+        .amount-cell {
+            text-align: right;
+            font-weight: bold;
+        }
+        
+        .total-section {
+            float: right;
+            width: 300px;
+            margin-bottom: 30px;
+        }
+        
+        .total-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .total-table th,
+        .total-table td {
+            border: 1px solid #d1d5db;
+            padding: 8px 12px;
+        }
+        
+        .total-table th {
+            background-color: #f3f4f6;
+            text-align: left;
+        }
+        
+        .total-table td {
+            text-align: right;
+            font-weight: bold;
+        }
+        
+        .grand-total {
+            background-color: #dbeafe !important;
+            font-size: 16px;
+        }
+        
+        .notes-section {
+            clear: both;
+            margin-top: 40px;
+            page-break-inside: avoid;
+        }
+        
+        .notes-section h3 {
+            color: #374151;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 5px;
+        }
+        
+        .footer {
+            margin-top: 50px;
+            text-align: center;
+            color: #6b7280;
+            font-size: 12px;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 20px;
+        }
+        
+        .no-print {
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .print-button {
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 0 10px;
+        }
+        
+        .print-button:hover {
+            background-color: #1d4ed8;
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print">
+        <button class="print-button" onclick="window.print()">印刷</button>
+        <button class="print-button" onclick="window.close()">閉じる</button>
+    </div>
+
+    <div class="header">
+        <div>
+            <h1>見積書</h1>
+        </div>
+        ${basicSettings.logo ? `<img src="${basicSettings.logo}" alt="会社ロゴ" class="company-logo" />` : ''}
+    </div>
+    
+    <div class="company-info">
+        ${basicSettings.company_name ? `<strong>${basicSettings.company_name}</strong><br>` : ''}
+        ${basicSettings.company_address ? `${basicSettings.company_address}<br>` : ''}
+        ${basicSettings.company_phone ? `TEL: ${basicSettings.company_phone}` : ''}${basicSettings.company_fax ? ` / FAX: ${basicSettings.company_fax}` : ''}${basicSettings.company_phone || basicSettings.company_fax ? '<br>' : ''}
+        ${basicSettings.company_email ? `Email: ${basicSettings.company_email}` : ''}
+    </div>
+    
+    <div class="estimate-info">
+        <div class="customer-info">
+            <div class="info-box">
+                <h3>お客様情報</h3>
+                <strong>${estimate.delivery_address ? estimate.delivery_address.split(',')[0]?.replace('顧客: ', '') : '未設定'}</strong><br>
+                ${estimate.delivery_address ? estimate.delivery_address.split(',')[1]?.replace(' 案件: ', '') : '未設定'}<br>
+            </div>
+        </div>
+        
+        <div class="estimate-details">
+            <div class="info-box">
+                <h3>見積詳細</h3>
+                <strong>見積番号:</strong> ${estimate.estimate_number || ''}<br>
+                <strong>案件名:</strong> ${estimate.delivery_address ? estimate.delivery_address.split(',')[1]?.replace(' 案件: ', '') : '未設定'}<br>
+                <strong>作成日:</strong> ${currentDate}<br>
+                <strong>有効期限:</strong> ${estimate.valid_until ? new Date(estimate.valid_until).toLocaleDateString('ja-JP') : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('ja-JP')}<br>
+                <strong>作業日:</strong> ${estimate.work_date ? new Date(estimate.work_date).toLocaleDateString('ja-JP') : '未定'}
+            </div>
+        </div>
+    </div>
+    
+    <table class="estimate-table">
+        <thead>
+            <tr>
+                <th style="width: 60%">項目</th>
+                <th style="width: 40%">金額（税抜）</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>
+                    <strong>フリー見積サービス</strong><br>
+                    顧客: ${estimate.delivery_address ? estimate.delivery_address.split(',')[0]?.replace('顧客: ', '') : '未設定'}<br>
+                    案件: ${estimate.delivery_address ? estimate.delivery_address.split(',')[1]?.replace(' 案件: ', '') : '未設定'}<br>
+                    ${estimate.work_date ? `作業日: ${new Date(estimate.work_date).toLocaleDateString('ja-JP')}` : ''}
+                </td>
+                <td class="amount-cell">-</td>
+            </tr>
+            ${itemsTableRows}
+        </tbody>
+    </table>
+    
+    <div class="total-section">
+        <table class="total-table">
+            <tr>
+                <th>小計</th>
+                <td>¥${estimate.subtotal.toLocaleString()}</td>
+            </tr>
+            ${(() => {
+              // 値引き金額をdelivery_addressから抽出
+              const discountMatch = estimate.delivery_address?.match(/値引: (\d+)円/);
+              const discountAmount = discountMatch ? parseInt(discountMatch[1]) : 0;
+              const discountedSubtotal = Math.max(0, estimate.subtotal - discountAmount);
+              
+              if (discountAmount > 0) {
+                return `
+                  <tr style="color: #dc2626;">
+                    <th>値引き</th>
+                    <td>-¥${discountAmount.toLocaleString()}</td>
+                  </tr>
+                  <tr style="background-color: #fef3c7;">
+                    <th>値引き後小計</th>
+                    <td>¥${discountedSubtotal.toLocaleString()}</td>
+                  </tr>`;
+              }
+              return '';
+            })()}
+            <tr>
+                <th>消費税（10%）</th>
+                <td>¥${estimate.tax_amount.toLocaleString()}</td>
+            </tr>
+            <tr class="grand-total">
+                <th>合計金額</th>
+                <td style="font-size: 18px;">¥${estimate.total_amount.toLocaleString()}</td>
+            </tr>
+        </table>
+    </div>
+    
+    ${estimate.notes ? `
+    <div class="notes-section">
+        <h3>追加事項・備考</h3>
+        <div style="border: 1px solid #d1d5db; padding: 15px; background-color: #f9fafb; white-space: pre-wrap;">${estimate.notes}</div>
+    </div>
+    ` : ''}
+    
+    <!-- フリースペース（標準見積と同じ） -->
+    <div class="notes-section">
+        <h3>フリースペース</h3>
+        <div style="border: 1px solid #d1d5db; padding: 15px; background-color: #f9fafb; min-height: 100px;">
+            <div style="color: #9ca3af; font-style: italic;">※ 追加情報やメモをこちらにご記入ください</div>
+        </div>
+    </div>
+    
+    <div class="footer">
+        <p>本見積書は${currentDate}に作成されました。</p>
+        <p>ご質問やご不明な点がございましたら、お気軽にお問い合わせください。</p>
+    </div>
+</body>
+</html>
+  `
+}
 
 // ================== 郵便番号テストページ ==================
 
@@ -9342,7 +11477,7 @@ app.get('/api/test/estimate-flow/:step', async (c) => {
           postal_code: '1234567',
           address: 'テスト住所',
           area: 'A',
-          area_name: '首都圏中心部'
+          area_name: '大阪市内・京都市内・神戸市内'
         }
       })
     }
@@ -9670,11 +11805,12 @@ app.get('/api/estimates/:id/pdf', async (c) => {
       SELECT 
         e.*,
         c.name as customer_name,
-        c.contact_person,
+        c.contact_person as customer_contact_person,
         c.phone as customer_phone,
         c.email as customer_email,
         c.address as customer_address,
         p.name as project_name,
+        p.contact_person as project_contact_person,
         p.description as project_description
       FROM estimates e
       LEFT JOIN customers c ON e.customer_id = c.id
@@ -9701,8 +11837,118 @@ app.get('/api/estimates/:id/pdf', async (c) => {
       }, 404)
     }
     
+    // スタッフ単価をデータベースから取得
+    let staffRates = {
+      supervisor: 20000,
+      leader: 17000,
+      m2_half_day: 7000,
+      m2_full_day: 12500,
+      temp_half_day: 6500,
+      temp_full_day: 11500
+    }
+    
+    try {
+      const rates = await env.DB.prepare(`
+        SELECT key, value 
+        FROM master_settings 
+        WHERE category = 'staff' AND subcategory = 'pricing'
+      `).all()
+      
+      // オブジェクト形式に変換
+      const dbRates = {}
+      rates.results.forEach((row: any) => {
+        dbRates[row.key] = parseInt(row.value)
+      })
+      
+      // データベースから取得した単価で更新
+      staffRates = {
+        supervisor: dbRates.supervisor_rate || 20000,
+        leader: dbRates.leader_rate || 17000,
+        m2_half_day: dbRates.m2_half_day_rate || 7000,
+        m2_full_day: dbRates.m2_full_day_rate || 12500,
+        temp_half_day: dbRates.temp_half_day_rate || 6500,
+        temp_full_day: dbRates.temp_full_day_rate || 11500
+      }
+    } catch (error) {
+      console.error('PDF生成時のスタッフ単価取得エラー:', error)
+    }
+    
+    // 車両単価をデータベースから直接取得（複数車両対応）
+    let vehiclePricing = {}
+    if (estimateResult.uses_multiple_vehicles) {
+      try {
+        console.log('🚗 PDF生成用車両単価取得開始:', {
+          vehicle_2t_count: estimateResult.vehicle_2t_count,
+          vehicle_4t_count: estimateResult.vehicle_4t_count,
+          operation_type: estimateResult.operation_type,
+          delivery_area: estimateResult.delivery_area
+        })
+        
+        // 作業タイプを正しいフォーマットに変換
+        const operationTypeMap = {
+          '引越': 'full_day',
+          '終日': 'full_day',
+          '配送': 'half_day',
+          '半日': 'half_day',
+          '混載': 'shared',
+          '共有': 'shared'
+        }
+        const operationType = operationTypeMap[estimateResult.operation_type] || 'full_day'
+        
+        // 2t車の単価取得
+        if (estimateResult.vehicle_2t_count > 0) {
+          const vehicleKey = `vehicle_2t_${operationType}_${estimateResult.delivery_area}`
+          console.log('🔍 2t車キー検索:', vehicleKey)
+          
+          const pricing2tResult = await env.DB.prepare(`
+            SELECT value FROM master_settings 
+            WHERE category = 'vehicle' AND subcategory = 'pricing' AND \`key\` = ?
+          `).bind(vehicleKey).first()
+          
+          if (pricing2tResult) {
+            vehiclePricing.vehicle_2t_price = parseInt(pricing2tResult.value)
+            console.log('✅ 2t車単価取得:', vehiclePricing.vehicle_2t_price)
+          } else {
+            console.warn('⚠️ 2t車単価が見つかりません:', vehicleKey)
+          }
+        }
+        
+        // 4t車の単価取得
+        if (estimateResult.vehicle_4t_count > 0) {
+          const vehicleKey = `vehicle_4t_${operationType}_${estimateResult.delivery_area}`
+          console.log('🔍 4t車キー検索:', vehicleKey)
+          
+          const pricing4tResult = await env.DB.prepare(`
+            SELECT value FROM master_settings 
+            WHERE category = 'vehicle' AND subcategory = 'pricing' AND \`key\` = ?
+          `).bind(vehicleKey).first()
+          
+          if (pricing4tResult) {
+            vehiclePricing.vehicle_4t_price = parseInt(pricing4tResult.value)
+            console.log('✅ 4t車単価取得:', vehiclePricing.vehicle_4t_price)
+          } else {
+            console.warn('⚠️ 4t車単価が見つかりません:', vehicleKey)
+          }
+        }
+        
+        console.log('✅ PDF生成用車両単価取得完了:', vehiclePricing)
+      } catch (error) {
+        console.error('❌ PDF生成時の車両単価取得エラー:', error)
+      }
+    }
+
+    // 基本設定（ロゴ含む）をKVから取得
+    const basicSettings = {
+      company_name: await env.KV.get('basic_settings:company_name') || '',
+      company_address: await env.KV.get('basic_settings:company_address') || '',
+      company_phone: await env.KV.get('basic_settings:company_phone') || '',
+      company_fax: await env.KV.get('basic_settings:company_fax') || '',
+      company_email: await env.KV.get('basic_settings:company_email') || '',
+      logo: await env.KV.get('basic_settings:company_logo')
+    }
+
     // PDF用HTMLを生成
-    const pdfHtml = generatePdfHTML(estimateResult)
+    const pdfHtml = generatePdfHTML(estimateResult, staffRates, vehiclePricing, basicSettings)
     
     return new Response(pdfHtml, {
       headers: {
@@ -9721,7 +11967,7 @@ app.get('/api/estimates/:id/pdf', async (c) => {
   }
 })
 
-function generatePdfHTML(estimate: any): string {
+function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {}, basicSettings: any = {}): string {
   const currentDate = new Date().toLocaleDateString('ja-JP', {
     year: 'numeric',
     month: 'long',
@@ -9751,7 +11997,9 @@ function generatePdfHTML(estimate: any): string {
         }
         
         .header {
-            text-align: center;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 30px;
             border-bottom: 3px solid #2563eb;
             padding-bottom: 20px;
@@ -9761,6 +12009,12 @@ function generatePdfHTML(estimate: any): string {
             font-size: 28px;
             margin: 0;
             color: #2563eb;
+        }
+
+        .company-logo {
+            max-height: 80px;
+            max-width: 200px;
+            object-fit: contain;
         }
         
         .company-info {
@@ -9902,14 +12156,17 @@ function generatePdfHTML(estimate: any): string {
     </div>
 
     <div class="header">
-        <h1>見積書</h1>
+        <div>
+            <h1>見積書</h1>
+        </div>
+        ${basicSettings.logo ? `<img src="${basicSettings.logo}" alt="会社ロゴ" class="company-logo" />` : ''}
     </div>
     
     <div class="company-info">
-        <strong>輸送サービス株式会社</strong><br>
-        〒100-0001 東京都千代田区千代田1-1-1<br>
-        TEL: 03-1234-5678 / FAX: 03-1234-5679<br>
-        Email: info@transport-service.co.jp
+        ${basicSettings.company_name ? `<strong>${basicSettings.company_name}</strong><br>` : ''}
+        ${basicSettings.company_address ? `${basicSettings.company_address}<br>` : ''}
+        ${basicSettings.company_phone ? `TEL: ${basicSettings.company_phone}` : ''}${basicSettings.company_fax ? ` / FAX: ${basicSettings.company_fax}` : ''}${basicSettings.company_phone || basicSettings.company_fax ? '<br>' : ''}
+        ${basicSettings.company_email ? `Email: ${basicSettings.company_email}` : ''}
     </div>
     
     <div class="estimate-info">
@@ -9917,7 +12174,7 @@ function generatePdfHTML(estimate: any): string {
             <div class="info-box">
                 <h3>お客様情報</h3>
                 <strong>${estimate.customer_name || ''}</strong><br>
-                ${estimate.contact_person ? `担当者: ${estimate.contact_person}<br>` : ''}
+                ${estimate.project_contact_person ? `担当者: ${estimate.project_contact_person}<br>` : estimate.contact_person ? `担当者: ${estimate.contact_person}<br>` : ''}
                 ${estimate.customer_address || ''}<br>
                 ${estimate.customer_phone ? `TEL: ${estimate.customer_phone}<br>` : ''}
                 ${estimate.customer_email ? `Email: ${estimate.customer_email}` : ''}
@@ -9952,12 +12209,67 @@ function generatePdfHTML(estimate: any): string {
                 </td>
                 <td class="amount-cell">-</td>
             </tr>
-            <tr>
-                <td>
-                    &nbsp;&nbsp;車両費用（${estimate.vehicle_type} - ${estimate.operation_type}）
-                </td>
-                <td class="amount-cell">¥${(estimate.vehicle_cost || 0).toLocaleString()}</td>
-            </tr>
+            ${(() => {
+              // 複数車両対応の詳細表示
+              if (estimate.uses_multiple_vehicles) {
+                let vehicleRows = [];
+                let totalVehicleCost = 0;
+                
+                // 2t車の明細
+                if (estimate.vehicle_2t_count > 0) {
+                  const unitPrice2t = vehiclePricing.vehicle_2t_price || 0;
+                  const totalPrice2t = unitPrice2t * estimate.vehicle_2t_count;
+                  totalVehicleCost += totalPrice2t;
+                  vehicleRows.push(`
+                    <tr>
+                      <td>&nbsp;&nbsp;&nbsp;&nbsp;2t車 ${estimate.vehicle_2t_count}台・${estimate.operation_type}（${estimate.delivery_area}エリア）@ ¥${unitPrice2t.toLocaleString()}</td>
+                      <td class="amount-cell">¥${totalPrice2t.toLocaleString()}</td>
+                    </tr>
+                  `);
+                }
+                
+                // 4t車の明細
+                if (estimate.vehicle_4t_count > 0) {
+                  const unitPrice4t = vehiclePricing.vehicle_4t_price || 0;
+                  const totalPrice4t = unitPrice4t * estimate.vehicle_4t_count;
+                  totalVehicleCost += totalPrice4t;
+                  vehicleRows.push(`
+                    <tr>
+                      <td>&nbsp;&nbsp;&nbsp;&nbsp;4t車 ${estimate.vehicle_4t_count}台・${estimate.operation_type}（${estimate.delivery_area}エリア）@ ¥${unitPrice4t.toLocaleString()}</td>
+                      <td class="amount-cell">¥${totalPrice4t.toLocaleString()}</td>
+                    </tr>
+                  `);
+                }
+                
+                // 外部協力業者費用
+                if (estimate.external_contractor_cost > 0) {
+                  totalVehicleCost += estimate.external_contractor_cost;
+                  vehicleRows.push(`
+                    <tr>
+                      <td>&nbsp;&nbsp;&nbsp;&nbsp;外部協力業者費用</td>
+                      <td class="amount-cell">¥${estimate.external_contractor_cost.toLocaleString()}</td>
+                    </tr>
+                  `);
+                }
+                
+                // 車両費用の見出し行 + 詳細行
+                return `
+                  <tr>
+                    <td><strong>車両費用</strong></td>
+                    <td class="amount-cell">¥${totalVehicleCost.toLocaleString()}</td>
+                  </tr>
+                  ${vehicleRows.join('')}
+                `;
+              } else {
+                // 従来の単一車両表示
+                return `
+                  <tr>
+                    <td>&nbsp;&nbsp;車両費用（${estimate.vehicle_type} - ${estimate.operation_type}）</td>
+                    <td class="amount-cell">¥${(estimate.vehicle_cost || 0).toLocaleString()}</td>
+                  </tr>
+                `;
+              }
+            })()}
             <tr>
                 <td>
                     &nbsp;&nbsp;スタッフ費用<br>
@@ -9974,15 +12286,8 @@ function generatePdfHTML(estimate: any): string {
                     return estimate.staff_cost.toLocaleString();
                   }
                   
-                  // データベースに保存されていない場合は再計算
-                  const staffRates = {
-                    supervisor: 25000,
-                    leader: 22000,
-                    m2_half_day: 8500,
-                    m2_full_day: 15000,
-                    temp_half_day: 7500,
-                    temp_full_day: 13500
-                  };
+                  // データベースから取得した統一されたスタッフ単価を使用
+                  // （引数として渡されたstaffRatesをそのまま使用）
                   
                   const calculatedStaffCost = 
                     (estimate.supervisor_count || 0) * staffRates.supervisor +
@@ -10060,11 +12365,8 @@ function generatePdfHTML(estimate: any): string {
                 <td>¥${(() => {
                   // PDF生成時にサービス費用を正しく計算
                   const vehicleCost = estimate.vehicle_cost || 0;
-                  // スタッフ費用を動的に再計算
-                  const staffRates = {
-                    supervisor: 25000, leader: 22000, m2_half_day: 8500,
-                    m2_full_day: 15000, temp_half_day: 7500, temp_full_day: 13500
-                  };
+                  // データベースから取得した統一されたスタッフ単価を使用
+                  // （引数として渡されたstaffRatesを使用）
                   const staffCost = estimate.staff_cost || 
                     (estimate.supervisor_count || 0) * staffRates.supervisor +
                     (estimate.leader_count || 0) * staffRates.leader +
@@ -10085,16 +12387,16 @@ function generatePdfHTML(estimate: any): string {
                   return calculatedSubtotal.toLocaleString();
                 })()}</td>
             </tr>
+            ${(estimate.discount_amount > 0) ? `
             <tr>
-                <th>消費税（${Math.round((estimate.tax_rate || 0.1) * 100)}%）</th>
+                <th>値引き</th>
+                <td style="color: #dc2626;">-¥${(estimate.discount_amount || 0).toLocaleString()}</td>
+            </tr>
+            <tr>
+                <th>値引き後小計</th>
                 <td>¥${(() => {
-                  // 消費税を再計算
+                  // 値引き後小計を計算
                   const vehicleCost = estimate.vehicle_cost || 0;
-                  // スタッフ費用を動的に再計算
-                  const staffRates = {
-                    supervisor: 25000, leader: 22000, m2_half_day: 8500,
-                    m2_full_day: 15000, temp_half_day: 7500, temp_full_day: 13500
-                  };
                   const staffCost = estimate.staff_cost || 
                     (estimate.supervisor_count || 0) * staffRates.supervisor +
                     (estimate.leader_count || 0) * staffRates.leader +
@@ -10112,21 +12414,47 @@ function generatePdfHTML(estimate: any): string {
                                      (estimate.highway_fee || 0);
                   
                   const calculatedSubtotal = vehicleCost + staffCost + servicesCost;
+                  const discountedSubtotal = Math.max(0, calculatedSubtotal - (estimate.discount_amount || 0));
+                  return discountedSubtotal.toLocaleString();
+                })()}</td>
+            </tr>` : ''}
+            <tr>
+                <th>消費税（${Math.round((estimate.tax_rate || 0.1) * 100)}%）</th>
+                <td>¥${(() => {
+                  // 消費税を値引き後の金額で再計算
+                  const vehicleCost = estimate.vehicle_cost || 0;
+                  // データベースから取得した統一されたスタッフ単価を使用
+                  // （引数として渡されたstaffRatesを使用）
+                  const staffCost = estimate.staff_cost || 
+                    (estimate.supervisor_count || 0) * staffRates.supervisor +
+                    (estimate.leader_count || 0) * staffRates.leader +
+                    (estimate.m2_staff_half_day || 0) * staffRates.m2_half_day +
+                    (estimate.m2_staff_full_day || 0) * staffRates.m2_full_day +
+                    (estimate.temp_staff_half_day || 0) * staffRates.temp_half_day +
+                    (estimate.temp_staff_full_day || 0) * staffRates.temp_full_day;
+                  const servicesCost = (estimate.parking_officer_cost || 0) + 
+                                     (estimate.transport_cost || 0) + 
+                                     (estimate.waste_disposal_cost || 0) + 
+                                     (estimate.protection_cost || 0) + 
+                                     (estimate.material_collection_cost || 0) + 
+                                     (estimate.construction_cost || 0) + 
+                                     (estimate.parking_fee || 0) + 
+                                     (estimate.highway_fee || 0);
+                  
+                  const calculatedSubtotal = vehicleCost + staffCost + servicesCost;
+                  const discountedSubtotal = Math.max(0, calculatedSubtotal - (estimate.discount_amount || 0));
                   const taxRate = estimate.tax_rate || 0.1;
-                  const calculatedTaxAmount = Math.floor(calculatedSubtotal * taxRate);
+                  const calculatedTaxAmount = Math.floor(discountedSubtotal * taxRate);
                   return calculatedTaxAmount.toLocaleString();
                 })()}</td>
             </tr>
             <tr class="grand-total">
                 <th>合計金額</th>
                 <td style="font-size: 18px;">¥${(() => {
-                  // 合計金額を再計算
+                  // 合計金額を値引き後で再計算
                   const vehicleCost = estimate.vehicle_cost || 0;
-                  // スタッフ費用を動的に再計算
-                  const staffRates = {
-                    supervisor: 25000, leader: 22000, m2_half_day: 8500,
-                    m2_full_day: 15000, temp_half_day: 7500, temp_full_day: 13500
-                  };
+                  // データベースから取得した統一されたスタッフ単価を使用
+                  // （引数として渡されたstaffRatesで使用）
                   const staffCost = estimate.staff_cost || 
                     (estimate.supervisor_count || 0) * staffRates.supervisor +
                     (estimate.leader_count || 0) * staffRates.leader +
@@ -10144,9 +12472,10 @@ function generatePdfHTML(estimate: any): string {
                                      (estimate.highway_fee || 0);
                   
                   const calculatedSubtotal = vehicleCost + staffCost + servicesCost;
+                  const discountedSubtotal = Math.max(0, calculatedSubtotal - (estimate.discount_amount || 0));
                   const taxRate = estimate.tax_rate || 0.1;
-                  const calculatedTaxAmount = Math.floor(calculatedSubtotal * taxRate);
-                  const calculatedTotalAmount = calculatedSubtotal + calculatedTaxAmount;
+                  const calculatedTaxAmount = Math.floor(discountedSubtotal * taxRate);
+                  const calculatedTotalAmount = discountedSubtotal + calculatedTaxAmount;
                   return calculatedTotalAmount.toLocaleString();
                 })()}</td>
             </tr>
@@ -10563,10 +12892,10 @@ app.put('/api/projects/:id', async (c) => {
     const data = await c.req.json()
     
     // バリデーション
-    if (!data.name || !data.customer_id) {
+    if (!data.name || !data.customer_id || !data.contact_person) {
       return c.json({ 
         success: false, 
-        error: '案件名と顧客IDは必須です' 
+        error: '案件名、顧客ID、担当者名は必須です' 
       }, 400)
     }
     
@@ -10868,6 +13197,9 @@ app.get('/customers', (c) => {
                       顧客名
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      担当者名
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       ステータス
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -10919,10 +13251,7 @@ app.get('/customers', (c) => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">顧客名 *</label>
                 <input type="text" id="customerName" name="name" className="form-input" required />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">担当者名</label>
-                <input type="text" id="customerContactPerson" name="contact_person" className="form-input" />
-              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">電話番号</label>
@@ -10973,6 +13302,10 @@ app.get('/customers', (c) => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">案件名 *</label>
                 <input type="text" id="projectName" name="name" className="form-input" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">担当者名 *</label>
+                <input type="text" id="projectContactPerson" name="contact_person" className="form-input" required placeholder="例: 田中太郎" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">案件説明</label>
@@ -11085,19 +13418,24 @@ app.get('/api/master-settings', async (c) => {
   try {
     const { env } = c;
     
-    // マスタ設定データを取得
+    // マスタ設定データを取得（最新データを優先）
     const result = await env.DB.prepare(`
-      SELECT category, subcategory, key, value, data_type 
+      SELECT DISTINCT category, subcategory, key, value, data_type, MAX(updated_at) as updated_at
       FROM master_settings 
-      WHERE user_id = ?
+      GROUP BY category, subcategory, key
       ORDER BY category, subcategory, key
-    `).bind('user001').all();
+    `).all();
 
     if (result.success && result.results) {
-      // データを整理してフラット構造に変換
-      const settings = {};
+      // データを階層構造に変換（フロントエンドとの互換性確保）
+      const settings = {
+        staff_rates: {},
+        vehicle_rates: {},
+        service_rates: {},
+        system_settings: {}
+      };
+      
       result.results.forEach(row => {
-        const key = row.key;
         let value = row.value;
         
         // 数値型の場合は変換
@@ -11105,10 +13443,41 @@ app.get('/api/master-settings', async (c) => {
           value = parseFloat(value) || 0;
         }
         
-        settings[key] = value;
+        // カテゴリ別に分類
+        if (row.category === 'staff' && row.subcategory === 'rates') {
+          settings.staff_rates[row.key] = value;
+        } else if (row.category === 'vehicle' && row.subcategory === 'pricing') {
+          settings.vehicle_rates[row.key] = value;
+        } else if (row.category === 'service') {
+          if (row.subcategory === 'parking_officer' && row.key === 'hourly_rate') {
+            settings.service_rates['parking_officer_hourly'] = value;
+          } else if (row.subcategory === 'transport_vehicle' && row.key === 'base_rate_20km') {
+            settings.service_rates['transport_20km'] = value;
+          } else if (row.subcategory === 'transport_vehicle' && row.key === 'rate_per_km') {
+            settings.service_rates['transport_per_km'] = value;
+          } else if (row.subcategory === 'fuel' && row.key === 'rate_per_liter') {
+            settings.service_rates['fuel_per_liter'] = value;
+          } else if (row.subcategory === 'waste_disposal') {
+            settings.service_rates[`waste_${row.key}`] = value;
+          } else if (row.subcategory === 'protection_work' && row.key === 'base_rate') {
+            settings.service_rates['protection_base'] = value;
+          } else if (row.subcategory === 'protection_work' && row.key === 'floor_rate') {
+            settings.service_rates['protection_floor'] = value;
+          } else if (row.subcategory === 'material_collection') {
+            settings.service_rates[`material_${row.key}`] = value;
+          } else if (row.subcategory === 'work_time') {
+            settings.service_rates[`time_${row.key}`] = value;
+          }
+        } else if (row.category === 'system') {
+          if (row.subcategory === 'tax' && row.key === 'rate') {
+            settings.system_settings['tax_rate'] = value;
+          } else if (row.subcategory === 'estimate' && row.key === 'number_prefix') {
+            settings.system_settings['estimate_prefix'] = value;
+          }
+        }
       });
 
-      console.log('マスタ設定データ:', settings); // デバッグ用
+      console.log('マスタ設定データ（階層構造）:', settings); // デバッグ用
 
       return c.json({
         success: true,
@@ -11138,9 +13507,8 @@ app.get('/api/area-settings', async (c) => {
     const result = await env.DB.prepare(`
       SELECT id, postal_code_prefix, area_name, area_rank, created_at 
       FROM area_settings 
-      WHERE user_id = ?
       ORDER BY postal_code_prefix
-    `).bind('user001').all();
+    `).all();
 
     if (result.success && result.results) {
       return c.json({
@@ -11288,11 +13656,12 @@ app.post('/api/projects', async (c) => {
     const data = await c.req.json();
     
     const result = await env.DB.prepare(`
-      INSERT INTO projects (name, customer_id, status, description, user_id)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO projects (name, customer_id, contact_person, status, description, user_id)
+      VALUES (?, ?, ?, ?, ?, ?)
     `).bind(
       data.name,
       data.customer_id,
+      data.contact_person || '',
       data.status || 'initial',
       data.description || null,
       'user001'
@@ -12215,6 +14584,564 @@ async function executeScheduledBackup(db, schedule) {
     record_count: totalRecords
   }
 }
+
+// ================== システム設定機能 ==================
+
+// 設定画面表示
+app.get('/settings', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="ja">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>システム設定 - 輸送見積もりシステム</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <link href="/static/style.css" rel="stylesheet">
+    </head>
+    <body class="bg-gray-100">
+        <div class="container mx-auto px-4 py-8">
+            <!-- ヘッダー -->
+            <div class="mb-8">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-3xl font-bold text-gray-800">
+                            <i class="fas fa-cog mr-3 text-blue-600"></i>
+                            システム設定
+                        </h1>
+                        <p class="text-gray-600 mt-2">見積書とシステムの基本設定</p>
+                    </div>
+                    <a href="/" class="btn-secondary">
+                        <i class="fas fa-home mr-2"></i>
+                        トップページに戻る
+                    </a>
+                </div>
+            </div>
+
+            <!-- 設定タブ -->
+            <div class="bg-white rounded-lg shadow-md">
+                <div class="border-b border-gray-200">
+                    <nav class="-mb-px flex space-x-8">
+                        <button id="tab-basic" onclick="switchTab('basic')" 
+                                class="tab-button active py-4 px-1 border-b-2 font-medium text-sm focus:outline-none">
+                            <i class="fas fa-building mr-2"></i>
+                            基本設定
+                        </button>
+                        <button id="tab-masters" onclick="switchTab('masters')" 
+                                class="tab-button py-4 px-1 border-b-2 font-medium text-sm focus:outline-none">
+                            <i class="fas fa-database mr-2"></i>
+                            マスタ管理
+                        </button>
+                        <button id="tab-api" onclick="switchTab('api')" 
+                                class="tab-button py-4 px-1 border-b-2 font-medium text-sm focus:outline-none">
+                            <i class="fas fa-key mr-2"></i>
+                            API設定
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- 基本設定タブ -->
+                <div id="content-basic" class="tab-content p-6">
+                    <div class="max-w-4xl">
+                        <form id="basicSettingsForm">
+                            <!-- 会社ロゴ -->
+                            <div class="mb-8">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">会社ロゴ</label>
+                                <div class="border-2 border-dashed border-gray-300 rounded-lg p-6">
+                                    <div class="text-center">
+                                        <div id="logoPreview" class="mb-4 hidden">
+                                            <img id="logoImage" src="" alt="ロゴプレビュー" class="mx-auto max-h-32" />
+                                            <p class="text-sm text-gray-600 mt-2">現在のロゴ</p>
+                                        </div>
+                                        
+                                        <div id="logoUploadArea">
+                                            <i class="fas fa-upload text-4xl text-gray-400 mb-4"></i>
+                                            <div class="mb-4">
+                                                <input type="file" id="logoFile" accept="image/png,image/jpeg,image/gif" 
+                                                       onchange="handleLogoUpload(event)" class="hidden" />
+                                                <label for="logoFile" class="btn-primary cursor-pointer">
+                                                    <i class="fas fa-folder-open mr-2"></i>
+                                                    ファイルを選択
+                                                </label>
+                                            </div>
+                                            <p class="text-xs text-gray-500">
+                                                PNG、JPEG、GIF形式（最大2MB）<br>
+                                                推奨サイズ: 300×100px
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div id="logoActions" class="mt-4 hidden">
+                                    <button type="button" onclick="removeLogo()" class="btn-secondary">
+                                        <i class="fas fa-trash mr-2"></i>
+                                        ロゴを削除
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- 会社情報 -->
+                            <div class="mb-8">
+                                <h3 class="text-lg font-medium text-gray-900 mb-4">会社情報</h3>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">会社名</label>
+                                        <input type="text" id="companyName" name="company_name" 
+                                               class="form-input" placeholder="株式会社○○○" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">代表者名</label>
+                                        <input type="text" id="representativeName" name="representative_name" 
+                                               class="form-input" placeholder="代表取締役 ○○ ○○" />
+                                    </div>
+                                    <div class="md:col-span-2">
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">所在地</label>
+                                        <input type="text" id="companyAddress" name="company_address" 
+                                               class="form-input" placeholder="〒100-0001 東京都千代田区..." />
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">電話番号</label>
+                                        <input type="tel" id="companyPhone" name="company_phone" 
+                                               class="form-input" placeholder="03-1234-5678" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">FAX番号</label>
+                                        <input type="tel" id="companyFax" name="company_fax" 
+                                               class="form-input" placeholder="03-1234-5679" />
+                                    </div>
+                                    <div class="md:col-span-2">
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">メールアドレス</label>
+                                        <input type="email" id="companyEmail" name="company_email" 
+                                               class="form-input" placeholder="info@company.co.jp" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 見積書設定 -->
+                            <div class="mb-8">
+                                <h3 class="text-lg font-medium text-gray-900 mb-4">見積書設定</h3>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">有効期限（日数）</label>
+                                        <input type="number" id="quoteValidDays" name="quote_valid_days" 
+                                               class="form-input" placeholder="30" min="1" max="365" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">消費税率（%）</label>
+                                        <input type="number" id="taxRate" name="tax_rate" 
+                                               class="form-input" placeholder="10" min="0" max="100" step="0.1" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 保存ボタン -->
+                            <div class="flex justify-end">
+                                <button type="button" onclick="saveBasicSettings()" class="btn-primary">
+                                    <i class="fas fa-save mr-2"></i>
+                                    設定を保存
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- マスタ管理タブ -->
+                <div id="content-masters" class="tab-content p-6 hidden">
+                    <div class="mb-6">
+                        <h3 class="text-lg font-medium text-gray-900 mb-2">マスタ管理</h3>
+                        <p class="text-gray-600">料金設定とエリア設定を管理できます。</p>
+                    </div>
+                    
+                    <!-- マスタ管理メニュー -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <a href="/masters" class="block p-6 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors">
+                            <div class="flex items-center">
+                                <i class="fas fa-truck text-blue-600 text-2xl mr-4"></i>
+                                <div>
+                                    <h4 class="text-lg font-semibold text-blue-900">車両料金設定</h4>
+                                    <p class="text-blue-700 text-sm">車両タイプ・エリア別料金</p>
+                                </div>
+                            </div>
+                        </a>
+                        
+                        <a href="/masters" class="block p-6 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors">
+                            <div class="flex items-center">
+                                <i class="fas fa-users text-green-600 text-2xl mr-4"></i>
+                                <div>
+                                    <h4 class="text-lg font-semibold text-green-900">スタッフ料金設定</h4>
+                                    <p class="text-green-700 text-sm">スタッフ種別・時間単価</p>
+                                </div>
+                            </div>
+                        </a>
+                        
+                        <a href="/masters" class="block p-6 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors">
+                            <div class="flex items-center">
+                                <i class="fas fa-map-marked-alt text-purple-600 text-2xl mr-4"></i>
+                                <div>
+                                    <h4 class="text-lg font-semibold text-purple-900">エリア設定</h4>
+                                    <p class="text-purple-700 text-sm">郵便番号・エリア判定</p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- API設定タブ -->
+                <div id="content-api" class="tab-content p-6 hidden">
+                    <div class="mb-6">
+                        <h3 class="text-lg font-medium text-gray-900 mb-2">API設定</h3>
+                        <p class="text-gray-600">外部サービス連携用の設定を管理できます。</p>
+                    </div>
+                    
+                    <div class="max-w-2xl">
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">外部API キー</label>
+                            <input type="password" id="externalApiKey" name="external_api_key" 
+                                   class="form-input" placeholder="未設定" />
+                            <p class="text-xs text-gray-500 mt-1">郵便番号検索などで使用</p>
+                        </div>
+                        
+                        <button type="button" onclick="saveApiSettings()" class="btn-primary">
+                            <i class="fas fa-save mr-2"></i>
+                            API設定を保存
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script>
+            // 設定機能の実装
+            const Settings = {
+                // タブ切り替え
+                switchTab: (tabName) => {
+                    // タブボタンの状態更新
+                    document.querySelectorAll('.tab-button').forEach(btn => {
+                        btn.classList.remove('active', 'border-blue-500', 'text-blue-600');
+                        btn.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+                    });
+                    
+                    document.getElementById(\`tab-\${tabName}\`).classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+                    document.getElementById(\`tab-\${tabName}\`).classList.add('active', 'border-blue-500', 'text-blue-600');
+                    
+                    // コンテンツの切り替え
+                    document.querySelectorAll('.tab-content').forEach(content => {
+                        content.classList.add('hidden');
+                    });
+                    document.getElementById(\`content-\${tabName}\`).classList.remove('hidden');
+                },
+
+                // ロゴアップロード処理
+                handleLogoUpload: (event) => {
+                    const file = event.target.files[0];
+                    if (!file) return;
+
+                    // ファイル形式チェック
+                    if (!file.type.match(/^image\/(png|jpeg|gif)$/)) {
+                        Utils.showError('PNG、JPEG、GIF形式のファイルを選択してください');
+                        return;
+                    }
+
+                    // ファイルサイズチェック（2MB制限）
+                    if (file.size > 2 * 1024 * 1024) {
+                        Utils.showError('ファイルサイズは2MB以下にしてください');
+                        return;
+                    }
+
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        // プレビュー表示
+                        document.getElementById('logoImage').src = e.target.result;
+                        document.getElementById('logoPreview').classList.remove('hidden');
+                        document.getElementById('logoActions').classList.remove('hidden');
+                        
+                        // アップロードエリアを小さく
+                        document.getElementById('logoUploadArea').classList.add('hidden');
+                        
+                        console.log('✅ ロゴファイル読み込み完了');
+                    };
+                    reader.readAsDataURL(file);
+                },
+
+                // ロゴ削除
+                removeLogo: () => {
+                    document.getElementById('logoFile').value = '';
+                    document.getElementById('logoPreview').classList.add('hidden');
+                    document.getElementById('logoActions').classList.add('hidden');
+                    document.getElementById('logoUploadArea').classList.remove('hidden');
+                    console.log('🗑️ ロゴ削除');
+                },
+
+                // 基本設定保存
+                saveBasicSettings: async () => {
+                    try {
+                        const logoFile = document.getElementById('logoFile').files[0];
+                        let logoData = null;
+
+                        // ロゴファイルがある場合はBase64エンコード
+                        if (logoFile) {
+                            logoData = await Settings.fileToBase64(logoFile);
+                        }
+
+                        const settings = {
+                            company_name: document.getElementById('companyName').value,
+                            representative_name: document.getElementById('representativeName').value,
+                            company_address: document.getElementById('companyAddress').value,
+                            company_phone: document.getElementById('companyPhone').value,
+                            company_fax: document.getElementById('companyFax').value,
+                            company_email: document.getElementById('companyEmail').value,
+                            quote_valid_days: document.getElementById('quoteValidDays').value,
+                            tax_rate: document.getElementById('taxRate').value,
+                            logo: logoData
+                        };
+
+                        console.log('💾 基本設定保存:', settings);
+
+                        // 直接fetch APIを使用（APIヘルパーではなく）
+                        const response = await fetch('/api/settings/basic', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-User-ID': 'test-user-001'
+                            },
+                            body: JSON.stringify(settings)
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (result.success) {
+                            alert('基本設定を保存しました');
+                            console.log('✅ 設定保存成功');
+                        } else {
+                            alert('保存に失敗しました: ' + result.error);
+                            console.error('❌ 設定保存失敗:', result.error);
+                        }
+                    } catch (error) {
+                        console.error('基本設定保存エラー:', error);
+                        alert('保存でエラーが発生しました: ' + error.message);
+                    }
+                },
+
+                // API設定保存
+                saveApiSettings: async () => {
+                    try {
+                        const settings = {
+                            external_api_key: document.getElementById('externalApiKey').value
+                        };
+
+                        const response = await API.post('/settings/api', settings);
+                        
+                        if (response.success) {
+                            Utils.showSuccess('API設定を保存しました');
+                        } else {
+                            Utils.showError(response.error || '保存に失敗しました');
+                        }
+                    } catch (error) {
+                        console.error('API設定保存エラー:', error);
+                        Utils.showError('保存でエラーが発生しました');
+                    }
+                },
+
+                // ファイルをBase64に変換
+                fileToBase64: (file) => {
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(file);
+                    });
+                },
+
+                // 設定データ読み込み
+                loadSettings: async () => {
+                    try {
+                        const response = await fetch('/api/settings/basic', {
+                            method: 'GET',
+                            headers: {
+                                'X-User-ID': 'test-user-001'
+                            }
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (result.success && result.data) {
+                            const settings = result.data;
+                            
+                            // フォームに値をセット（null/undefinedチェックを追加）
+                            if (settings.company_name) {
+                                const companyNameEl = document.getElementById('companyName');
+                                if (companyNameEl) companyNameEl.value = settings.company_name;
+                            }
+                            if (settings.representative_name) {
+                                const repNameEl = document.getElementById('representativeName');
+                                if (repNameEl) repNameEl.value = settings.representative_name;
+                            }
+                            if (settings.company_address) {
+                                const addressEl = document.getElementById('companyAddress');
+                                if (addressEl) addressEl.value = settings.company_address;
+                            }
+                            if (settings.company_phone) {
+                                const phoneEl = document.getElementById('companyPhone');
+                                if (phoneEl) phoneEl.value = settings.company_phone;
+                            }
+                            if (settings.company_fax) {
+                                const faxEl = document.getElementById('companyFax');
+                                if (faxEl) faxEl.value = settings.company_fax;
+                            }
+                            if (settings.company_email) {
+                                const emailEl = document.getElementById('companyEmail');
+                                if (emailEl) emailEl.value = settings.company_email;
+                            }
+                            if (settings.quote_valid_days) {
+                                const validDaysEl = document.getElementById('quoteValidDays');
+                                if (validDaysEl) validDaysEl.value = settings.quote_valid_days;
+                            }
+                            if (settings.tax_rate) {
+                                const taxRateEl = document.getElementById('taxRate');
+                                if (taxRateEl) taxRateEl.value = settings.tax_rate;
+                            }
+                            
+                            // ロゴがある場合は表示
+                            if (settings.logo) {
+                                const logoImageEl = document.getElementById('logoImage');
+                                const logoPreviewEl = document.getElementById('logoPreview');
+                                const logoActionsEl = document.getElementById('logoActions');
+                                const logoUploadEl = document.getElementById('logoUploadArea');
+                                
+                                if (logoImageEl) logoImageEl.src = settings.logo;
+                                if (logoPreviewEl) logoPreviewEl.classList.remove('hidden');
+                                if (logoActionsEl) logoActionsEl.classList.remove('hidden');
+                                if (logoUploadEl) logoUploadEl.classList.add('hidden');
+                            }
+                            
+                            console.log('✅ 設定読み込み完了:', settings);
+                        }
+                    } catch (error) {
+                        console.error('設定読み込みエラー:', error);
+                    }
+                }
+            };
+
+            // グローバル関数として公開
+            window.switchTab = Settings.switchTab;
+            window.handleLogoUpload = Settings.handleLogoUpload;
+            window.removeLogo = Settings.removeLogo;
+            window.saveBasicSettings = Settings.saveBasicSettings;
+            window.saveApiSettings = Settings.saveApiSettings;
+
+            // ページ読み込み時に設定データを読み込み
+            document.addEventListener('DOMContentLoaded', Settings.loadSettings);
+        </script>
+    </body>
+    </html>
+  `)
+})
+
+// 基本設定保存API
+app.post('/api/settings/basic', async (c) => {
+  try {
+    const { env } = c
+    const data = await c.req.json()
+    const userId = c.req.header('X-User-ID') || 'test-user-001'
+    
+    console.log('💾 基本設定保存データ:', { ...data, logo: data.logo ? '[BASE64_DATA]' : null })
+    
+    // 各設定項目を個別に保存
+    const settingItems = [
+      { key: 'company_name', value: data.company_name, description: '会社名' },
+      { key: 'contact_person', value: data.contact_person || data.representative_name, description: '担当者名' },
+      { key: 'company_address', value: data.company_address, description: '会社住所' },
+      { key: 'company_phone', value: data.company_phone, description: '会社電話番号' },
+      { key: 'company_fax', value: data.company_fax, description: '会社FAX番号' },
+      { key: 'company_email', value: data.company_email, description: '会社メールアドレス' },
+      { key: 'quote_valid_days', value: data.quote_valid_days, description: '見積書有効期限（日数）' },
+      { key: 'tax_rate', value: data.tax_rate, description: '消費税率' }
+    ]
+    
+    for (const item of settingItems) {
+      if (item.value !== undefined && item.value !== '') {
+        // KV Storageに保存
+        await env.KV.put(`basic_settings:${item.key}`, item.value.toString())
+        console.log(`✅ ${item.key} saved:`, item.value)
+      }
+    }
+    
+    // ロゴデータがある場合はKVに保存
+    if (data.logo) {
+      await env.KV.put('basic_settings:company_logo', data.logo)
+      console.log('✅ 会社ロゴ保存完了')
+    }
+    
+    console.log('✅ 基本設定保存完了')
+    return c.json({ 
+      success: true, 
+      message: '基本設定を保存しました' 
+    })
+  } catch (error) {
+    console.error('基本設定保存エラー:', error)
+    return c.json({ 
+      success: false, 
+      error: '基本設定の保存に失敗しました' 
+    }, 500)
+  }
+})
+
+// 基本設定取得API
+app.get('/api/settings/basic', async (c) => {
+  try {
+    const { env } = c
+    
+    // KVから設定を取得
+    const settings = {
+      company_name: await env.KV.get('basic_settings:company_name'),
+      contact_person: await env.KV.get('basic_settings:contact_person'),
+      representative_name: await env.KV.get('basic_settings:representative_name'), // 後方互換性のため
+      company_address: await env.KV.get('basic_settings:company_address'),
+      company_phone: await env.KV.get('basic_settings:company_phone'),
+      company_fax: await env.KV.get('basic_settings:company_fax'),
+      company_email: await env.KV.get('basic_settings:company_email'),
+      quote_valid_days: await env.KV.get('basic_settings:quote_valid_days'),
+      tax_rate: await env.KV.get('basic_settings:tax_rate'),
+      logo: await env.KV.get('basic_settings:company_logo')
+    }
+    
+    return c.json({ 
+      success: true, 
+      data: settings 
+    })
+  } catch (error) {
+    console.error('基本設定取得エラー:', error)
+    return c.json({ 
+      success: false, 
+      error: '基本設定の取得に失敗しました' 
+    }, 500)
+  }
+})
+
+// API設定保存
+app.post('/api/settings/api', async (c) => {
+  try {
+    const { env } = c
+    const data = await c.req.json()
+    
+    if (data.external_api_key) {
+      await env.KV.put('api_settings:external_api_key', data.external_api_key)
+    }
+    
+    return c.json({ 
+      success: true, 
+      message: 'API設定を保存しました' 
+    })
+  } catch (error) {
+    console.error('API設定保存エラー:', error)
+    return c.json({ 
+      success: false, 
+      error: 'API設定の保存に失敗しました' 
+    }, 500)
+  }
+})
 
 // Cloudflare Cron Trigger対応
 export default {
