@@ -5230,15 +5230,27 @@ if (typeof MasterManagement === 'undefined') {
       // モーダルが存在しない場合は作成
       MasterManagement.createCustomerModal();
       
-      // 顧客データを取得
-      const result = await API.get(`/customers/${customerId}`);
+      // 顧客データを取得（直接fetch使用でAPI問題を回避）
+      const response = await fetch(`/api/customers/${customerId}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-ID': currentUser
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: 顧客データの取得に失敗しました`);
+      }
+      
+      const result = await response.json();
       console.log('取得した顧客データ:', result);
       
-      if (!result.success) {
-        throw new Error(result.error || '顧客データの取得に失敗しました');
+      if (!result || !result.success) {
+        throw new Error(result?.error || '顧客データの取得に失敗しました');
       }
       
       const customer = result.data;
+      console.log('顧客データ詳細:', customer);
       
       // モーダルを開く
       const modal = document.getElementById('masterCustomerModal');
@@ -5249,12 +5261,28 @@ if (typeof MasterManagement === 'undefined') {
         // フォームに既存データを設定
         const form = document.getElementById('masterCustomerForm');
         if (form) {
-          form.elements.name.value = customer.name || '';
-          form.elements.contact_person.value = customer.contact_person || '';
-          form.elements.phone.value = customer.phone || '';
-          form.elements.email.value = customer.email || '';
-          form.elements.address.value = customer.address || '';
-          form.elements.notes.value = customer.notes || '';
+          const nameField = form.querySelector('input[name="name"]');
+          const contactPersonField = form.querySelector('input[name="contact_person"]');
+          const phoneField = form.querySelector('input[name="phone"]');
+          const emailField = form.querySelector('input[name="email"]');
+          const addressField = form.querySelector('textarea[name="address"]');
+          const notesField = form.querySelector('textarea[name="notes"]');
+          
+          if (nameField) nameField.value = customer.name || '';
+          if (contactPersonField) contactPersonField.value = customer.contact_person || '';
+          if (phoneField) phoneField.value = customer.phone || '';
+          if (emailField) emailField.value = customer.email || '';
+          if (addressField) addressField.value = customer.address || '';
+          if (notesField) notesField.value = customer.notes || '';
+          
+          console.log('✅ フォームデータ設定完了:', {
+            name: customer.name,
+            contact_person: customer.contact_person,
+            phone: customer.phone,
+            email: customer.email
+          });
+        } else {
+          console.error('❌ masterCustomerForm が見つかりません');
         }
         
         // モーダルタイトルを更新
@@ -5264,9 +5292,9 @@ if (typeof MasterManagement === 'undefined') {
         }
         
         // 送信ボタンのテキストを更新
-        const submitButton = form.querySelector('button[type="submit"]');
+        const submitButton = form?.querySelector('button[type="submit"]');
         if (submitButton) {
-          submitButton.textContent = '更新';
+          submitButton.innerHTML = '<i class="fas fa-save mr-2"></i>更新';
         }
         
         // モーダルを表示
