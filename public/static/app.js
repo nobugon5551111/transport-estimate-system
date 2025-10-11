@@ -116,7 +116,7 @@ if (typeof Utils === 'undefined') {
 
 // API呼び出し関数（重複宣言を防ぐため条件付き）
 if (typeof API === 'undefined') {
-  const API = {
+  window.API = {
   // ベースURL
   baseUrl: '/api',
 
@@ -125,7 +125,7 @@ if (typeof API === 'undefined') {
     try {
       const config = {
         method,
-        url: `${API.baseUrl}${endpoint}`,
+        url: `${window.API.baseUrl}${endpoint}`,
         headers: {
           'Content-Type': 'application/json',
           'X-User-ID': currentUser
@@ -152,20 +152,17 @@ if (typeof API === 'undefined') {
   },
 
   // GET リクエスト
-  get: (endpoint) => API.request('GET', endpoint),
+  get: (endpoint) => window.API.request('GET', endpoint),
 
   // POST リクエスト
-  post: (endpoint, data) => API.request('POST', endpoint, data),
+  post: (endpoint, data) => window.API.request('POST', endpoint, data),
 
   // PUT リクエスト
-  put: (endpoint, data) => API.request('PUT', endpoint, data),
+  put: (endpoint, data) => window.API.request('PUT', endpoint, data),
 
   // DELETE リクエスト
-  delete: (endpoint) => API.request('DELETE', endpoint)
-};
-  
-  // グローバル参照も設定
-  window.API = API;
+  delete: (endpoint) => window.API.request('DELETE', endpoint)
+  };
 }
 
 // 郵便番号検索（重複宣言を防ぐため条件付き）
@@ -4880,7 +4877,7 @@ if (typeof MasterManagement === 'undefined') {
           <td class="px-6 py-4 whitespace-nowrap">
             <div class="text-sm text-gray-900">${customer.project_count || 0}件</div>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+          <td class="px-3 py-4 text-sm font-medium" style="width: 120px; min-width: 120px;">
             ${actionButtons}
           </td>
         </tr>
@@ -4908,45 +4905,51 @@ if (typeof MasterManagement === 'undefined') {
     switch (status) {
       case 'deleted':
         return `
-          <button onclick="MasterManagement.restoreCustomer('${customerId}', '${customerName}')" 
-                  class="text-green-600 hover:text-green-900 mr-3">
-            <i class="fas fa-undo"></i> 復活
-          </button>
-          <button onclick="MasterManagement.permanentDeleteCustomer('${customerId}', '${customerName}')" 
-                  class="text-red-800 hover:text-red-900">
-            <i class="fas fa-trash-alt"></i> 完全削除
-          </button>
+          <div class="flex flex-col space-y-1">
+            <button onclick="MasterManagement.restoreCustomer('${customerId}', '${customerName}')" 
+                    class="text-green-600 hover:text-green-900 text-xs px-2 py-1 border border-green-300 rounded hover:bg-green-50">
+              <i class="fas fa-undo"></i> 復活
+            </button>
+            <button onclick="MasterManagement.permanentDeleteCustomer('${customerId}', '${customerName}')" 
+                    class="text-red-800 hover:text-red-900 text-xs px-2 py-1 border border-red-300 rounded hover:bg-red-50">
+              <i class="fas fa-trash-alt"></i> 完全削除
+            </button>
+          </div>
         `;
       case 'inactive':
         return `
-          <button onclick="MasterManagement.editCustomer('${customerId}')" 
-                  class="text-blue-600 hover:text-blue-900 mr-3">
-            <i class="fas fa-edit"></i> 編集
-          </button>
-          <button onclick="MasterManagement.toggleCustomerStatus('${customerId}', '${customerName}', 'inactive')" 
-                  class="text-green-600 hover:text-green-900 mr-3">
-            <i class="fas fa-check"></i> 有効化
-          </button>
-          <button onclick="MasterManagement.deleteCustomer('${customerId}', '${customerName}')" 
-                  class="text-red-600 hover:text-red-900">
-            <i class="fas fa-trash"></i> 削除
-          </button>
+          <div class="flex flex-col space-y-1">
+            <button onclick="MasterManagement.editCustomer('${customerId}')" 
+                    class="text-blue-600 hover:text-blue-900 text-xs px-2 py-1 border border-blue-300 rounded hover:bg-blue-50">
+              <i class="fas fa-edit"></i> 編集
+            </button>
+            <button onclick="MasterManagement.toggleCustomerStatus('${customerId}', '${customerName}', 'inactive')" 
+                    class="text-green-600 hover:text-green-900 text-xs px-2 py-1 border border-green-300 rounded hover:bg-green-50">
+              <i class="fas fa-check"></i> 有効化
+            </button>
+            <button onclick="MasterManagement.deleteCustomer('${customerId}', '${customerName}')" 
+                    class="text-red-600 hover:text-red-900 text-xs px-2 py-1 border border-red-300 rounded hover:bg-red-50">
+              <i class="fas fa-trash"></i> 削除
+            </button>
+          </div>
         `;
       case 'active':
       default:
         return `
-          <button onclick="MasterManagement.editCustomer('${customerId}')" 
-                  class="text-blue-600 hover:text-blue-900 mr-3">
-            <i class="fas fa-edit"></i> 編集
-          </button>
-          <button onclick="MasterManagement.toggleCustomerStatus('${customerId}', '${customerName}', 'active')" 
-                  class="text-yellow-600 hover:text-yellow-900 mr-3">
-            <i class="fas fa-pause"></i> 無効化
-          </button>
-          <button onclick="MasterManagement.deleteCustomer('${customerId}', '${customerName}')" 
-                  class="text-red-600 hover:text-red-900">
-            <i class="fas fa-trash"></i> 削除
-          </button>
+          <div class="flex flex-col space-y-1">
+            <button onclick="MasterManagement.editCustomer('${customerId}')" 
+                    class="text-blue-600 hover:text-blue-900 text-xs px-2 py-1 border border-blue-300 rounded hover:bg-blue-50">
+              <i class="fas fa-edit"></i> 編集
+            </button>
+            <button onclick="MasterManagement.toggleCustomerStatus('${customerId}', '${customerName}', 'active')" 
+                    class="text-yellow-600 hover:text-yellow-900 text-xs px-2 py-1 border border-yellow-300 rounded hover:bg-yellow-50">
+              <i class="fas fa-pause"></i> 無効化
+            </button>
+            <button onclick="MasterManagement.deleteCustomer('${customerId}', '${customerName}')" 
+                    class="text-red-600 hover:text-red-900 text-xs px-2 py-1 border border-red-300 rounded hover:bg-red-50">
+              <i class="fas fa-trash"></i> 削除
+            </button>
+          </div>
         `;
     }
   },
@@ -5224,17 +5227,11 @@ if (typeof MasterManagement === 'undefined') {
     try {
       console.log('顧客編集:', customerId);
       
-      // 顧客データを取得
-      const response = await fetch(`/api/customers/${customerId}`, {
-        headers: {
-          'X-User-ID': currentUser
-        }
-      });
-      if (!response.ok) {
-        throw new Error('顧客データの取得に失敗しました');
-      }
+      // モーダルが存在しない場合は作成
+      MasterManagement.createCustomerModal();
       
-      const result = await response.json();
+      // 顧客データを取得
+      const result = await API.get(`/customers/${customerId}`);
       console.log('取得した顧客データ:', result);
       
       if (!result.success) {
