@@ -3925,23 +3925,43 @@ if (typeof MasterManagement === 'undefined') {
 
   // ページ初期化
   initialize: async () => {
-    // データベースエラーが発生してもタブ機能は動作させる
-    try {
-      // マスタ設定データを取得（エラーが発生しても継続）
-      await MasterManagement.loadMasterSettings();
-    } catch (error) {
-      console.error('マスタ設定読み込みエラー:', error);
+    // 初期化フラグでの重複実行防止
+    if (MasterManagement._initializing) {
+      console.log('⚠️ MasterManagement already initializing, skipping...');
+      return;
     }
+    MasterManagement._initializing = true;
     
     try {
-      // エリア設定データを取得（エラーが発生しても継続）
-      await MasterManagement.loadAreaSettings();
-    } catch (error) {
-      console.error('エリア設定読み込みエラー:', error);
+      console.log('🚀 MasterManagement initialization started');
+      
+      // マスタ設定データを取得（一回のみ）
+      if (!MasterManagement.masterSettings) {
+        try {
+          await MasterManagement.loadMasterSettings();
+          console.log('✅ Master settings loaded');
+        } catch (error) {
+          console.error('❌ マスタ設定読み込みエラー:', error);
+        }
+      }
+      
+      // エリア設定データを取得（一回のみ）
+      if (!MasterManagement.areaSettings) {
+        try {
+          await MasterManagement.loadAreaSettings();
+          console.log('✅ Area settings loaded');
+        } catch (error) {
+          console.error('❌ エリア設定読み込みエラー:', error);
+        }
+      }
+      
+      // 初期表示（データロード完了後）
+      MasterManagement.switchTab('staff-area');
+      console.log('✅ MasterManagement initialization completed');
+      
+    } finally {
+      MasterManagement._initializing = false;
     }
-    
-    // 初期表示（データベースエラーに関係なく実行）
-    MasterManagement.switchTab('staff-area');
   },
 
   // タブ切り替え
@@ -3988,13 +4008,19 @@ if (typeof MasterManagement === 'undefined') {
 
     MasterManagement.currentTab = tabName;
 
-    // タブ固有の初期化処理
+    // タブ固有の初期化処理（一回のみ実行）
     switch (tabName) {
       case 'staff-area':
-        MasterManagement.displayStaffAreaSettings();
+        if (!MasterManagement._staffAreaDisplayed) {
+          MasterManagement.displayStaffAreaSettings();
+          MasterManagement._staffAreaDisplayed = true;
+        }
         break;
       case 'vehicle':
-        MasterManagement.displayVehicleSettings();
+        if (!MasterManagement._vehicleDisplayed) {
+          MasterManagement.displayVehicleSettings();
+          MasterManagement._vehicleDisplayed = true;
+        }
         break;
       case 'services':
         MasterManagement.displayServicesSettings();
@@ -4035,6 +4061,14 @@ if (typeof MasterManagement === 'undefined') {
       console.log('⚠️ populateUIWithData already in progress, skipping...');
       return;
     }
+    
+    // データが既に入力されている場合は上書きしない（ユーザー入力保護）
+    const testElement = document.getElementById('vehicle_2t_full_day_A');
+    if (testElement && testElement.value && testElement.value !== '0' && testElement.value !== '') {
+      console.log('⚠️ User data already exists, skipping populate to prevent overwrite');
+      return;
+    }
+    
     MasterManagement._isPopulating = true;
     
     try {
@@ -4132,12 +4166,12 @@ if (typeof MasterManagement === 'undefined') {
       if (element) element.value = value;
     };
 
-    setInputValue('rate_supervisor', settings.supervisor_rate || 15000);
-    setInputValue('rate_leader', settings.leader_rate || 12000);
-    setInputValue('rate_m2_half_day', settings.m2_staff_half_day_rate || 6000);
-    setInputValue('rate_m2_full_day', settings.m2_staff_full_day_rate || 10000);
-    setInputValue('rate_temp_half_day', settings.temp_staff_half_day_rate || 5500);
-    setInputValue('rate_temp_full_day', settings.temp_staff_full_day_rate || 9500);
+    setInputValue('rate_supervisor', settings.staff_rates?.supervisor || 15000);
+    setInputValue('rate_leader', settings.staff_rates?.leader || 12000);
+    setInputValue('rate_m2_half_day', settings.staff_rates?.m2_half_day || 6000);
+    setInputValue('rate_m2_full_day', settings.staff_rates?.m2_full_day || 10000);
+    setInputValue('rate_temp_half_day', settings.staff_rates?.temp_half_day || 5500);
+    setInputValue('rate_temp_full_day', settings.staff_rates?.temp_full_day || 9500);
 
     // エリア設定一覧を表示
     MasterManagement.displayAreaList();
