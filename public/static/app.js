@@ -4348,37 +4348,42 @@ if (typeof MasterManagement === 'undefined') {
       if (element) element.value = value;
     };
 
-    // 駅車対策員
-    setInputValue('service_parking_officer_hourly', settings.parking_officer_hourly_rate || 3000);
+    // APIレスポンスの正しい構造を使用：settings.service_rates.*
+    const serviceRates = settings.service_rates || {};
+    const systemSettings = settings.system_settings || {};
+
+    // 駐車対策員
+    setInputValue('service_parking_officer_hourly', serviceRates.parking_officer_hourly || 3000);
     
     // 人員輸送車両
-    setInputValue('service_transport_20km', settings.transport_vehicle_20km_rate || 8000);
-    setInputValue('service_transport_per_km', settings.transport_vehicle_per_km_rate || 100);
-    setInputValue('service_fuel_per_liter', settings.fuel_per_liter_rate || 150);
+    setInputValue('service_transport_20km', serviceRates.transport_20km || 8000);
+    setInputValue('service_transport_per_km', serviceRates.transport_per_km || 100);
+    setInputValue('service_fuel_per_liter', serviceRates.fuel_per_liter || 150);
     
     // 引き取り廃棄
-    setInputValue('service_waste_small', settings.waste_disposal_small_rate || 5000);
-    setInputValue('service_waste_medium', settings.waste_disposal_medium_rate || 10000);
-    setInputValue('service_waste_large', settings.waste_disposal_large_rate || 20000);
+    setInputValue('service_waste_small', serviceRates.waste_small || 5000);
+    setInputValue('service_waste_medium', serviceRates.waste_medium || 10000);
+    setInputValue('service_waste_large', serviceRates.waste_large || 20000);
     
     // 養生作業
-    setInputValue('service_protection_base', settings.protection_work_base_rate || 8000);
-    setInputValue('service_protection_floor', settings.protection_work_floor_rate || 2000);
+    setInputValue('service_protection_base', serviceRates.protection_base || 5000);
+    setInputValue('service_protection_floor', serviceRates.protection_floor || 3000);
     
     // 残材回収
-    setInputValue('service_material_few', settings.material_collection_small_rate || 3000);
-    setInputValue('service_material_medium', settings.material_collection_medium_rate || 8000);
-    setInputValue('service_material_many', settings.material_collection_large_rate || 15000);
+    setInputValue('service_material_few', serviceRates.material_few || 3000);
+    setInputValue('service_material_medium', serviceRates.material_medium || 8000);
+    setInputValue('service_material_many', serviceRates.material_many || 15000);
     
     // 施工・作業時間帯
-    setInputValue('service_construction_m2', settings.construction_m2_staff_rate || 8000);
-    setInputValue('service_time_early', settings.work_time_early_multiplier || 1.15);
-    setInputValue('service_time_night', settings.work_time_night_multiplier || 1.25);
-    setInputValue('service_time_midnight', settings.work_time_midnight_multiplier || 1.5);
+    setInputValue('service_construction_m2', serviceRates.construction_m2_staff_rate || 8000);
+    setInputValue('service_time_normal', serviceRates.time_normal || 1.0);
+    setInputValue('service_time_early', serviceRates.time_early || 1.2);
+    setInputValue('service_time_night', serviceRates.time_night || 1.5);
+    setInputValue('service_time_midnight', serviceRates.time_midnight || 2.0);
     
     // システム設定
-    setInputValue('system_tax_rate', settings.tax_rate || 0.10);
-    setInputValue('system_estimate_prefix', settings.estimate_prefix || 'EST');
+    setInputValue('system_tax_rate', systemSettings.tax_rate || 0.10);
+    setInputValue('system_estimate_prefix', systemSettings.estimate_prefix || 'EST');
   },
 
   // デフォルトサービス価格設定用のヘルパー関数

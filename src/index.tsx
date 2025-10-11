@@ -13479,6 +13479,8 @@ app.get('/api/master-settings', async (c) => {
             settings.service_rates[`material_${row.key}`] = value;
           } else if (row.subcategory === 'work_time') {
             settings.service_rates[`time_${row.key}`] = value;
+          } else if (row.subcategory === 'construction') {
+            settings.service_rates[`construction_${row.key}`] = value;
           }
         } else if (row.category === 'system') {
           if (row.subcategory === 'tax' && row.key === 'rate') {
