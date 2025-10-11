@@ -5092,12 +5092,22 @@ if (typeof MasterManagement === 'undefined') {
     Modal.open('masterProjectModal');
   },
 
-  // 顧客モーダルを動的作成
+  // 顧客モーダルを動的作成または初期化
   createCustomerModal: () => {
     console.log('🔧 createCustomerModal called');
-    // 既に存在する場合はスキップ
-    if (document.getElementById('masterCustomerModal')) {
-      console.log('⚠️ masterCustomerModal already exists, skipping creation');
+    
+    // 既に存在する場合はイベントハンドラーを設定してスキップ
+    const existingModal = document.getElementById('masterCustomerModal');
+    if (existingModal) {
+      console.log('⚠️ masterCustomerModal already exists, setting up event handlers');
+      const form = document.getElementById('masterCustomerForm');
+      if (form) {
+        // 既存のイベントリスナーを削除
+        form.removeEventListener('submit', MasterManagement.handleCustomerFormSubmitDirect);
+        // 新しいイベントリスナーを追加
+        form.addEventListener('submit', MasterManagement.handleCustomerFormSubmitDirect);
+        console.log('✅ Event handler attached to existing form');
+      }
       return;
     }
 

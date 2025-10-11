@@ -6433,13 +6433,19 @@ app.get('/masters', (c) => {
           <div className="px-6 py-4 border-b border-gray-200">
             <h3 id="masterCustomerModalTitle" className="text-lg font-medium text-gray-900">顧客情報</h3>
           </div>
-          <form id="masterCustomerForm" className="p-6">
+          <form id="masterCustomerForm" className="p-6" onsubmit="return MasterManagement.handleCustomerFormSubmitDirect(event)">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   顧客名 <span className="text-red-500">*</span>
                 </label>
                 <input type="text" name="name" id="masterCustomerName" className="form-input" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  担当者
+                </label>
+                <input type="text" name="contact_person" id="masterCustomerContactPerson" className="form-input" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
