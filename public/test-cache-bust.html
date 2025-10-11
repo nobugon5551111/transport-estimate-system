@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>キャッシュバスターテスト</title>
+</head>
+<body>
+    <h1>キャッシュバスターテスト</h1>
+    <div id="result"></div>
+    <script>
+        // JavaScriptファイルのキャッシュバスターテスト
+        const timestamp = '20251011001';
+        const scriptUrl = `/static/app.js?v=${timestamp}`;
+        
+        console.log('📋 キャッシュバスターテスト開始:', scriptUrl);
+        
+        const script = document.createElement('script');
+        script.src = scriptUrl;
+        script.onload = function() {
+            console.log('✅ JavaScript正常読み込み完了');
+            
+            // MasterManagement が存在するかテスト
+            if (typeof MasterManagement !== 'undefined') {
+                console.log('✅ MasterManagement が定義されています');
+                
+                // switchTab メソッドをテスト
+                if (typeof MasterManagement.switchTab === 'function') {
+                    console.log('✅ switchTab メソッドが存在します');
+                    
+                    // services タブを強制的にアクティブ化
+                    MasterManagement.switchTab('services');
+                    
+                    document.getElementById('result').innerHTML = '✅ テスト完了：新しいJavaScriptが読み込まれ、サービスタブがアクティブ化されました';
+                } else {
+                    console.error('❌ switchTab メソッドが見つかりません');
+                    document.getElementById('result').innerHTML = '❌ テスト失敗：switchTabメソッドが見つかりません';
+                }
+            } else {
+                console.error('❌ MasterManagement が定義されていません');
+                document.getElementById('result').innerHTML = '❌ テスト失敗：MasterManagementが定義されていません';
+            }
+        };
+        script.onerror = function() {
+            console.error('❌ JavaScript読み込み失敗');
+            document.getElementById('result').innerHTML = '❌ テスト失敗：JavaScript読み込みエラー';
+        };
+        
+        document.head.appendChild(script);
+    </script>
+</body>
+</html>
