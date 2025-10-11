@@ -2325,6 +2325,7 @@ app.get('/api/customers', async (c) => {
   try {
     const { env } = c
     const search = c.req.query('search') || ''
+    const status = c.req.query('status') || 'active' // デフォルトは有効のみ
     const page = parseInt(c.req.query('page') || '1')
     const limit = parseInt(c.req.query('limit') || '20')
     const offset = (page - 1) * limit
@@ -2339,6 +2340,24 @@ app.get('/api/customers', async (c) => {
     `
     let countQuery = 'SELECT COUNT(*) as total FROM customers WHERE 1=1'
     const params = []
+    
+    // ステータスフィルタリング
+    if (status === 'all') {
+      // すべて表示（削除済みも含む）
+    } else if (status === 'deleted') {
+      query += ' AND c.status = ?'
+      countQuery += ' AND status = ?'
+      params.push('deleted')
+    } else if (status === 'inactive') {
+      query += ' AND c.status = ?'
+      countQuery += ' AND status = ?'
+      params.push('inactive')
+    } else {
+      // デフォルト: activeのみ
+      query += ' AND (c.status = ? OR c.status IS NULL)'
+      countQuery += ' AND (status = ? OR status IS NULL)'
+      params.push('active')
+    }
     
     if (search) {
       query += ' AND (c.name LIKE ? OR c.contact_person LIKE ? OR c.address LIKE ?)'
@@ -6204,7 +6223,7 @@ app.get('/masters', (c) => {
                 
                 {/* 検索・フィルター */}
                 <div className="bg-gray-50 p-4 rounded-lg">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">顧客名検索</label>
                       <input type="text" id="masterCustomerSearch" placeholder="顧客名を入力..." className="form-input" />
@@ -6212,6 +6231,15 @@ app.get('/masters', (c) => {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">担当者検索</label>
                       <input type="text" id="masterContactSearch" placeholder="担当者名を入力..." className="form-input" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">表示フィルター</label>
+                      <select id="masterCustomerStatusFilter" className="form-select" onchange="MasterManagement.loadCustomersList()">
+                        <option value="active">有効のみ</option>
+                        <option value="inactive">無効のみ</option>
+                        <option value="deleted">削除済みのみ</option>
+                        <option value="all">すべて表示</option>
+                      </select>
                     </div>
                     <div className="flex items-end">
                       <button onclick="MasterManagement.filterCustomers()" className="btn-secondary mr-2">
@@ -12817,30 +12845,34 @@ app.put('/api/customers/:id', async (c) => {
 })
 
 // 顧客削除API
+// 顧客の論理削除
 app.delete('/api/customers/:id', async (c) => {
   try {
     const { env } = c
     const customerId = c.req.param('id')
     const userId = c.req.header('X-User-ID') || 'test-user-001'
+    const body = await c.req.json().catch(() => ({}))
+    const reason = body.reason || '削除処理'
     
-    // 関連する案件があるかチェック
+    // 関連する案件があるかチェック（activeのみ）
     const projectCount = await env.DB.prepare(`
       SELECT COUNT(*) as count FROM projects 
-      WHERE customer_id = ? AND user_id = ?
+      WHERE customer_id = ? AND user_id = ? AND (status != 'deleted' OR status IS NULL)
     `).bind(customerId, userId).first()
     
     if (projectCount && projectCount.count > 0) {
       return c.json({ 
         success: false, 
-        error: 'この顧客には関連する案件があるため削除できません。先に案件を削除してください。' 
+        error: 'この顧客には関連する有効な案件があるため削除できません。先に案件を処理してください。' 
       }, 400)
     }
     
-    // 削除実行
+    // 論理削除実行（物理削除ではなくstatusを'deleted'に変更）
     const result = await env.DB.prepare(`
-      DELETE FROM customers 
+      UPDATE customers 
+      SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP, deleted_reason = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND user_id = ?
-    `).bind(customerId, userId).run()
+    `).bind(reason, customerId, userId).run()
     
     if (!result.success) {
       return c.json({ 
@@ -12851,13 +12883,112 @@ app.delete('/api/customers/:id', async (c) => {
     
     return c.json({
       success: true,
-      message: '顧客を正常に削除しました'
+      message: '顧客を正常に削除しました（復活可能）'
     })
   } catch (error) {
     console.error('顧客削除エラー:', error)
     return c.json({ 
       success: false, 
       error: '顧客の削除に失敗しました',
+      detail: error.message 
+    }, 500)
+  }
+})
+
+// 顧客の復活機能
+app.post('/api/customers/:id/restore', async (c) => {
+  try {
+    const { env } = c
+    const customerId = c.req.param('id')
+    const userId = c.req.header('X-User-ID') || 'test-user-001'
+    
+    // 削除済み顧客の存在チェック
+    const customer = await env.DB.prepare(`
+      SELECT id, name, status FROM customers 
+      WHERE id = ? AND user_id = ? AND status = 'deleted'
+    `).bind(customerId, userId).first()
+    
+    if (!customer) {
+      return c.json({ 
+        success: false, 
+        error: '復活対象の削除済み顧客が見つかりません' 
+      }, 404)
+    }
+    
+    // 復活実行（statusを'active'に戻し、削除情報をクリア）
+    const result = await env.DB.prepare(`
+      UPDATE customers 
+      SET status = 'active', deleted_at = NULL, deleted_reason = NULL, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ?
+    `).bind(customerId, userId).run()
+    
+    if (!result.success) {
+      return c.json({ 
+        success: false, 
+        error: '顧客の復活に失敗しました' 
+      }, 500)
+    }
+    
+    return c.json({
+      success: true,
+      message: `顧客「${customer.name}」を復活させました`
+    })
+  } catch (error) {
+    console.error('顧客復活エラー:', error)
+    return c.json({ 
+      success: false, 
+      error: '顧客の復活に失敗しました',
+      detail: error.message 
+    }, 500)
+  }
+})
+
+// 顧客のステータス変更（有効⇔無効）
+app.post('/api/customers/:id/toggle-status', async (c) => {
+  try {
+    const { env } = c
+    const customerId = c.req.param('id')
+    const userId = c.req.header('X-User-ID') || 'test-user-001'
+    
+    // 現在のステータス取得
+    const customer = await env.DB.prepare(`
+      SELECT id, name, status FROM customers 
+      WHERE id = ? AND user_id = ? AND status IN ('active', 'inactive')
+    `).bind(customerId, userId).first()
+    
+    if (!customer) {
+      return c.json({ 
+        success: false, 
+        error: '対象の顧客が見つかりません' 
+      }, 404)
+    }
+    
+    // ステータス切り替え
+    const newStatus = customer.status === 'active' ? 'inactive' : 'active'
+    const result = await env.DB.prepare(`
+      UPDATE customers 
+      SET status = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ?
+    `).bind(newStatus, customerId, userId).run()
+    
+    if (!result.success) {
+      return c.json({ 
+        success: false, 
+        error: 'ステータス変更に失敗しました' 
+      }, 500)
+    }
+    
+    const statusText = newStatus === 'active' ? '有効' : '無効'
+    return c.json({
+      success: true,
+      message: `顧客「${customer.name}」を${statusText}に変更しました`,
+      new_status: newStatus
+    })
+  } catch (error) {
+    console.error('ステータス変更エラー:', error)
+    return c.json({ 
+      success: false, 
+      error: 'ステータス変更に失敗しました',
       detail: error.message 
     }, 500)
   }

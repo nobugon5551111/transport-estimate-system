@@ -4785,10 +4785,33 @@ if (typeof MasterManagement === 'undefined') {
       // ローディング表示
       tableBody.innerHTML = '<tr><td colspan="6" class="text-center p-4"><i class="fas fa-spinner fa-spin mr-2"></i>ローディング中...</td></tr>';
       
-      const response = await API.get('/customers');
+      // ステータスフィルター取得
+      const statusFilter = document.getElementById('masterCustomerStatusFilter');
+      const status = statusFilter ? statusFilter.value : 'active';
+      
+      // 検索パラメータ取得
+      const searchInput = document.getElementById('masterCustomerSearch');
+      const search = searchInput ? searchInput.value : '';
+      
+      // APIパラメータ構築
+      const params = new URLSearchParams({
+        status: status,
+        limit: '100' // 表示件数を増やす
+      });
+      
+      if (search) {
+        params.append('search', search);
+      }
+      
+      const response = await API.get(`/customers?${params.toString()}`);
       
       if (response.success && response.data) {
         MasterManagement.displayCustomersTable(response.data);
+        
+        // ステータス表示
+        const statusText = MasterManagement.getStatusFilterText(status);
+        const countText = `${response.data.length}件の顧客（${statusText}）`;
+        MasterManagement.updateCustomerCount(countText);
       } else {
         tableBody.innerHTML = '<tr><td colspan="6" class="text-center text-gray-500 p-4">顧客データがありません</td></tr>';
       }
@@ -4798,40 +4821,134 @@ if (typeof MasterManagement === 'undefined') {
     }
   },
 
+  // ステータスフィルターテキスト取得
+  getStatusFilterText: (status) => {
+    switch (status) {
+      case 'active': return '有効のみ';
+      case 'inactive': return '無効のみ';
+      case 'deleted': return '削除済みのみ';
+      case 'all': return 'すべて';
+      default: return '有効のみ';
+    }
+  },
+
+  // 顧客数表示更新
+  updateCustomerCount: (text) => {
+    let countElement = document.getElementById('customerCount');
+    if (!countElement) {
+      // カウント表示要素が存在しない場合は作成
+      const headerElement = document.querySelector('#customers-content .flex.justify-between');
+      if (headerElement) {
+        countElement = document.createElement('span');
+        countElement.id = 'customerCount';
+        countElement.className = 'text-sm text-gray-600';
+        headerElement.appendChild(countElement);
+      }
+    }
+    if (countElement) {
+      countElement.textContent = text;
+    }
+  },
+
   // 顧客テーブル表示
   displayCustomersTable: (customers) => {
     const tableBody = document.getElementById('masterCustomersTable');
     if (!tableBody || !customers) return;
 
-    const html = customers.map(customer => `
-      <tr class="hover:bg-gray-50">
-        <td class="px-6 py-4 whitespace-nowrap">
-          <div class="text-sm font-medium text-gray-900">${customer.name || '名称なし'}</div>
-        </td>
-        <td class="px-6 py-4 whitespace-nowrap">
-          <div class="text-sm text-gray-900">${customer.contact_person || '-'}</div>
-        </td>
-        <td class="px-6 py-4 whitespace-nowrap">
-          <div class="text-sm text-gray-900">${customer.phone || '-'}</div>
-        </td>
-        <td class="px-6 py-4 whitespace-nowrap">
-          <div class="text-sm text-gray-900">${customer.email || '-'}</div>
-        </td>
-        <td class="px-6 py-4 whitespace-nowrap">
-          <div class="text-sm text-gray-900">${customer.project_count || 0}件</div>
-        </td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-          <button onclick="MasterManagement.editCustomer('${customer.id}')" class="text-blue-600 hover:text-blue-900 mr-3">
-            <i class="fas fa-edit"></i> 編集
-          </button>
-          <button onclick="MasterManagement.deleteCustomer('${customer.id}')" class="text-red-600 hover:text-red-900">
-            <i class="fas fa-trash"></i> 削除
-          </button>
-        </td>
-      </tr>
-    `).join('');
+    const html = customers.map(customer => {
+      const status = customer.status || 'active';
+      const statusBadge = MasterManagement.getStatusBadge(status);
+      const actionButtons = MasterManagement.getActionButtons(customer.id, status, customer.name);
+      
+      return `
+        <tr class="hover:bg-gray-50 ${status === 'deleted' ? 'bg-red-50' : status === 'inactive' ? 'bg-yellow-50' : ''}">
+          <td class="px-6 py-4 whitespace-nowrap">
+            <div class="text-sm font-medium text-gray-900">
+              ${customer.name || '名称なし'}
+              ${statusBadge}
+            </div>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <div class="text-sm text-gray-900">${customer.contact_person || '-'}</div>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <div class="text-sm text-gray-900">${customer.phone || '-'}</div>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <div class="text-sm text-gray-900">${customer.email || '-'}</div>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <div class="text-sm text-gray-900">${customer.project_count || 0}件</div>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+            ${actionButtons}
+          </td>
+        </tr>
+      `;
+    }).join('');
 
     tableBody.innerHTML = html;
+  },
+
+  // ステータスバッジ生成
+  getStatusBadge: (status) => {
+    switch (status) {
+      case 'deleted':
+        return '<span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">削除済み</span>';
+      case 'inactive':
+        return '<span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">無効</span>';
+      case 'active':
+      default:
+        return '<span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">有効</span>';
+    }
+  },
+
+  // アクションボタン生成
+  getActionButtons: (customerId, status, customerName) => {
+    switch (status) {
+      case 'deleted':
+        return `
+          <button onclick="MasterManagement.restoreCustomer('${customerId}', '${customerName}')" 
+                  class="text-green-600 hover:text-green-900 mr-3">
+            <i class="fas fa-undo"></i> 復活
+          </button>
+          <button onclick="MasterManagement.permanentDeleteCustomer('${customerId}', '${customerName}')" 
+                  class="text-red-800 hover:text-red-900">
+            <i class="fas fa-trash-alt"></i> 完全削除
+          </button>
+        `;
+      case 'inactive':
+        return `
+          <button onclick="MasterManagement.editCustomer('${customerId}')" 
+                  class="text-blue-600 hover:text-blue-900 mr-3">
+            <i class="fas fa-edit"></i> 編集
+          </button>
+          <button onclick="MasterManagement.toggleCustomerStatus('${customerId}', '${customerName}', 'inactive')" 
+                  class="text-green-600 hover:text-green-900 mr-3">
+            <i class="fas fa-check"></i> 有効化
+          </button>
+          <button onclick="MasterManagement.deleteCustomer('${customerId}', '${customerName}')" 
+                  class="text-red-600 hover:text-red-900">
+            <i class="fas fa-trash"></i> 削除
+          </button>
+        `;
+      case 'active':
+      default:
+        return `
+          <button onclick="MasterManagement.editCustomer('${customerId}')" 
+                  class="text-blue-600 hover:text-blue-900 mr-3">
+            <i class="fas fa-edit"></i> 編集
+          </button>
+          <button onclick="MasterManagement.toggleCustomerStatus('${customerId}', '${customerName}', 'active')" 
+                  class="text-yellow-600 hover:text-yellow-900 mr-3">
+            <i class="fas fa-pause"></i> 無効化
+          </button>
+          <button onclick="MasterManagement.deleteCustomer('${customerId}', '${customerName}')" 
+                  class="text-red-600 hover:text-red-900">
+            <i class="fas fa-trash"></i> 削除
+          </button>
+        `;
+    }
   },
 
   // 案件一覧読み込み
@@ -5268,6 +5385,74 @@ if (typeof MasterManagement === 'undefined') {
     } else {
       console.error('❌ Form not found');
     }
+  },
+
+  // 顧客削除処理（論理削除）
+  deleteCustomer: async (customerId, customerName) => {
+    const reason = prompt(`顧客「${customerName}」を削除します。\n削除理由を入力してください：`, '管理者による削除');
+    if (!reason) return;
+    
+    if (!confirm(`顧客「${customerName}」を削除してもよろしいですか？\n（削除後も復活可能です）`)) return;
+    
+    try {
+      const response = await axios.delete(`/api/customers/${customerId}`, {
+        data: { reason }
+      });
+      
+      if (response.data.success) {
+        Utils.showSuccess(response.data.message);
+        MasterManagement.loadCustomersList();
+      } else {
+        Utils.showError(response.data.error);
+      }
+    } catch (error) {
+      console.error('削除エラー:', error);
+      Utils.showError('削除処理でエラーが発生しました');
+    }
+  },
+
+  // 顧客復活処理
+  restoreCustomer: async (customerId, customerName) => {
+    if (!confirm(`削除済み顧客「${customerName}」を復活させますか？`)) return;
+    
+    try {
+      const response = await axios.post(`/api/customers/${customerId}/restore`);
+      
+      if (response.data.success) {
+        Utils.showSuccess(response.data.message);
+        MasterManagement.loadCustomersList();
+      } else {
+        Utils.showError(response.data.error);
+      }
+    } catch (error) {
+      console.error('復活エラー:', error);
+      Utils.showError('復活処理でエラーが発生しました');
+    }
+  },
+
+  // 顧客ステータス切り替え（有効⇔無効）
+  toggleCustomerStatus: async (customerId, customerName, currentStatus) => {
+    const newStatus = currentStatus === 'active' ? '無効化' : '有効化';
+    if (!confirm(`顧客「${customerName}」を${newStatus}しますか？`)) return;
+    
+    try {
+      const response = await axios.post(`/api/customers/${customerId}/toggle-status`);
+      
+      if (response.data.success) {
+        Utils.showSuccess(response.data.message);
+        MasterManagement.loadCustomersList();
+      } else {
+        Utils.showError(response.data.error);
+      }
+    } catch (error) {
+      console.error('ステータス変更エラー:', error);
+      Utils.showError('ステータス変更でエラーが発生しました');
+    }
+  },
+
+  // 完全削除（物理削除）- 将来の拡張用
+  permanentDeleteCustomer: async (customerId, customerName) => {
+    Utils.showError('完全削除機能は安全のため無効化されています。管理者にお問い合わせください。');
   }
   };
 }
