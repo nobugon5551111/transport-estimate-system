@@ -3930,6 +3930,11 @@ if (typeof MasterManagement === 'undefined') {
       console.log('⚠️ MasterManagement already initializing, skipping...');
       return;
     }
+    // すでに初期化完了している場合もスキップ
+    if (MasterManagement._initialized) {
+      console.log('✅ MasterManagement already initialized, skipping...');
+      return;
+    }
     MasterManagement._initializing = true;
     
     try {
@@ -3958,6 +3963,7 @@ if (typeof MasterManagement === 'undefined') {
       // 初期表示（データロード完了後）
       MasterManagement.switchTab('staff-area');
       console.log('✅ MasterManagement initialization completed');
+      MasterManagement._initialized = true;
       
     } finally {
       MasterManagement._initializing = false;
@@ -4063,11 +4069,12 @@ if (typeof MasterManagement === 'undefined') {
     }
     
     // データが既に入力されている場合は上書きしない（ユーザー入力保護）
-    // ただし、サービスタブではAPIデータを正しく反映する
+    // 初回ロード時のみAPIデータを反映、それ以降はユーザーデータを保護
     const testElement = document.getElementById('vehicle_2t_full_day_A');
-    const isServicesTab = MasterManagement.currentTab === 'services';
-    if (!isServicesTab && testElement && testElement.value && testElement.value !== '0' && testElement.value !== '') {
-      console.log('⚠️ User data already exists, skipping populate to prevent overwrite');
+    const hasExistingData = testElement && testElement.value && testElement.value !== '0' && testElement.value !== '';
+    
+    if (hasExistingData && MasterManagement._dataPopulated) {
+      console.log('🛡️ User data protection: skipping populate to prevent overwrite');
       return;
     }
     
@@ -4129,12 +4136,13 @@ if (typeof MasterManagement === 'undefined') {
       }
       
       console.log('🎯 UI data population completed');
+      // データ投入完了フラグを設定
+      MasterManagement._dataPopulated = true;
+      
       // 最終的に設定された値を確認
       const finalElement = document.getElementById('vehicle_2t_full_day_A');
       if (finalElement) {
         console.log('🎯 最終設定値 vehicle_2t_full_day_A:', finalElement.value);
-        
-
       }
     } catch (error) {
       console.error('UI data population error:', error);
@@ -4576,7 +4584,12 @@ if (typeof MasterManagement === 'undefined') {
       
       if (response.success) {
         Utils.showSuccess('サービス料金設定を保存しました');
+        // 保存後は強制的にデータを再読み込みして最新値を反映
+        MasterManagement._dataPopulated = false; // フラグをリセット
+        MasterManagement.masterSettings = null;  // キャッシュをクリア
         await MasterManagement.loadMasterSettings();
+        // サービス設定を強制的に再表示
+        MasterManagement.displayServicesSettings();
       } else {
         Utils.showError('保存に失敗しました: ' + response.error);
       }
