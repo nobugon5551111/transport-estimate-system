@@ -5137,7 +5137,7 @@ if (typeof MasterManagement === 'undefined') {
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">住所</label>
-                <textarea name="address" class="form-input" rows="3"></textarea>
+                <input type="text" name="address" class="form-input" />
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">備考</label>
@@ -5275,7 +5275,7 @@ if (typeof MasterManagement === 'undefined') {
           const contactPersonField = form.querySelector('input[name="contact_person"]');
           const phoneField = form.querySelector('input[name="phone"]');
           const emailField = form.querySelector('input[name="email"]');
-          const addressField = form.querySelector('textarea[name="address"]');
+          const addressField = form.querySelector('input[name="address"]');
           const notesField = form.querySelector('textarea[name="notes"]');
           
           if (nameField) nameField.value = customer.name || '';
@@ -5289,7 +5289,19 @@ if (typeof MasterManagement === 'undefined') {
             name: customer.name,
             contact_person: customer.contact_person,
             phone: customer.phone,
-            email: customer.email
+            email: customer.email,
+            address: customer.address,
+            notes: customer.notes
+          });
+          
+          // デバッグ：要素の検出状況
+          console.log('🔍 フィールド検出状況:', {
+            nameField: !!nameField,
+            contactPersonField: !!contactPersonField,
+            phoneField: !!phoneField,
+            emailField: !!emailField,
+            addressField: !!addressField,
+            notesField: !!notesField
           });
         } else {
           console.error('❌ masterCustomerForm が見つかりません');
