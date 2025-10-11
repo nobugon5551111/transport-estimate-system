@@ -4029,7 +4029,10 @@ if (typeof MasterManagement === 'undefined') {
         }
         break;
       case 'services':
-        MasterManagement.displayServicesSettings();
+        if (!MasterManagement._servicesDisplayed) {
+          MasterManagement.displayServicesSettings();
+          MasterManagement._servicesDisplayed = true;
+        }
         break;
       case 'customers':
         // 顧客マスター表示処理
@@ -4344,17 +4347,25 @@ if (typeof MasterManagement === 'undefined') {
 
   // サービス設定表示
   displayServicesSettings: () => {
+    // 初期化中の場合は待機
+    if (MasterManagement._initializing) {
+      console.log('⚠️ Still initializing, waiting for completion...');
+      setTimeout(() => MasterManagement.displayServicesSettings(), 200);
+      return;
+    }
+    
     if (!MasterManagement.masterSettings) {
-      // APIデータのロードを待機してからデフォルト値を設定
-      console.log('⚠️ masterSettings not loaded yet, waiting for API data...');
-      setTimeout(() => {
+      // APIデータのロードを強制実行
+      console.log('⚠️ masterSettings not loaded, forcing reload...');
+      MasterManagement.loadMasterSettings().then(() => {
         if (MasterManagement.masterSettings) {
+          console.log('✅ masterSettings loaded, retrying displayServicesSettings');
           MasterManagement.displayServicesSettings();
         } else {
-          console.log('⚠️ masterSettings still not loaded, using default values');
+          console.error('❌ Failed to load masterSettings, using defaults as fallback');
           MasterManagement.setDefaultServicesPrices();
         }
-      }, 500);
+      });
       return;
     }
 
@@ -4586,6 +4597,7 @@ if (typeof MasterManagement === 'undefined') {
         Utils.showSuccess('サービス料金設定を保存しました');
         // 保存後は強制的にデータを再読み込みして最新値を反映
         MasterManagement._dataPopulated = false; // フラグをリセット
+        MasterManagement._servicesDisplayed = false; // サービス表示フラグもリセット
         MasterManagement.masterSettings = null;  // キャッシュをクリア
         await MasterManagement.loadMasterSettings();
         // サービス設定を強制的に再表示
