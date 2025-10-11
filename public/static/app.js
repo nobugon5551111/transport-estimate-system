@@ -4029,9 +4029,13 @@ if (typeof MasterManagement === 'undefined') {
         }
         break;
       case 'services':
+        console.log('🔧 Services tab activated');
         if (!MasterManagement._servicesDisplayed) {
+          console.log('🔧 First time display, calling displayServicesSettings');
           MasterManagement.displayServicesSettings();
           MasterManagement._servicesDisplayed = true;
+        } else {
+          console.log('🔧 Services already displayed, skipping');
         }
         break;
       case 'customers':
@@ -4120,8 +4124,15 @@ if (typeof MasterManagement === 'undefined') {
           const elementId = `service_${key}`;
           const element = document.getElementById(elementId);
           if (element) {
+            const oldValue = element.value;
             element.value = value;
-            console.log(`✅ Updated ${elementId}: ${value}`);
+            const newValue = element.value;
+            console.log(`✅ Updated ${elementId}: ${oldValue} → ${value} (actual: ${newValue})`);
+            if (newValue != value) {
+              console.error(`❌ FAILED to set ${elementId}: expected ${value}, got ${newValue}`);
+            }
+          } else {
+            console.error(`❌ Element not found: ${elementId}`);
           }
         });
       }
