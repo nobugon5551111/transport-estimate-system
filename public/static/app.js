@@ -5059,6 +5059,12 @@ if (typeof MasterManagement === 'undefined') {
       title.textContent = '新規顧客追加';
     }
     
+    // 送信ボタンのテキストをリセット
+    const submitButton = form?.querySelector('button[type="submit"]');
+    if (submitButton) {
+      submitButton.innerHTML = '<i class="fas fa-save mr-2"></i>保存';
+    }
+    
     Modal.open('masterCustomerModal');
   },
 
@@ -5214,9 +5220,66 @@ if (typeof MasterManagement === 'undefined') {
   currentEditProjectId: null,
 
   // 顧客編集
-  editCustomer: (customerId) => {
-    console.log('顧客編集:', customerId);
-    // TODO: 顧客編集処理を実装
+  editCustomer: async (customerId) => {
+    try {
+      console.log('顧客編集:', customerId);
+      
+      // 顧客データを取得
+      const response = await fetch(`/api/customers/${customerId}`, {
+        headers: {
+          'X-User-ID': currentUser
+        }
+      });
+      if (!response.ok) {
+        throw new Error('顧客データの取得に失敗しました');
+      }
+      
+      const result = await response.json();
+      console.log('取得した顧客データ:', result);
+      
+      if (!result.success) {
+        throw new Error(result.error || '顧客データの取得に失敗しました');
+      }
+      
+      const customer = result.data;
+      
+      // モーダルを開く
+      const modal = document.getElementById('masterCustomerModal');
+      if (modal) {
+        // 編集モードを設定
+        MasterManagement.currentEditId = customerId;
+        
+        // フォームに既存データを設定
+        const form = document.getElementById('masterCustomerForm');
+        if (form) {
+          form.elements.name.value = customer.name || '';
+          form.elements.contact_person.value = customer.contact_person || '';
+          form.elements.phone.value = customer.phone || '';
+          form.elements.email.value = customer.email || '';
+          form.elements.address.value = customer.address || '';
+          form.elements.notes.value = customer.notes || '';
+        }
+        
+        // モーダルタイトルを更新
+        const title = modal.querySelector('h3');
+        if (title) {
+          title.textContent = '顧客情報編集';
+        }
+        
+        // 送信ボタンのテキストを更新
+        const submitButton = form.querySelector('button[type="submit"]');
+        if (submitButton) {
+          submitButton.textContent = '更新';
+        }
+        
+        // モーダルを表示
+        modal.style.display = 'block';
+        modal.classList.remove('hidden');
+      }
+    } catch (error) {
+      console.error('顧客編集エラー:', error);
+      alert('顧客データの取得に失敗しました: ' + error.message);
+    }
   },
 
   // 顧客削除
@@ -5345,16 +5408,37 @@ if (typeof MasterManagement === 'undefined') {
       user_id: currentUser
     };
 
+    // 顧客コードは新規作成時のみ追加
+    if (!MasterManagement.currentEditId) {
+      customerData.code = formData.get('code');
+    }
+
     try {
       const saveButton = event.target.querySelector('button[type="submit"]');
       Utils.showLoading(saveButton, '<i class="fas fa-spinner fa-spin mr-2"></i>保存中...');
 
-      // APIコール（既存のAPIを使用）
-      const response = await axios.post('/api/customers', customerData);
+      let response;
+      let successMessage;
+      
+      // 編集モードか新規作成モードかを判断
+      if (MasterManagement.currentEditId) {
+        // 編集モード - PUT リクエスト
+        console.log('編集モード - 顧客ID:', MasterManagement.currentEditId);
+        response = await axios.put(`/api/customers/${MasterManagement.currentEditId}`, customerData);
+        successMessage = '顧客情報を更新しました';
+      } else {
+        // 新規作成モード - POST リクエスト
+        console.log('新規作成モード');
+        response = await axios.post('/api/customers', customerData);
+        successMessage = '顧客を保存しました';
+      }
 
       if (response.data.success) {
         Utils.hideLoading(saveButton, '<i class="fas fa-save mr-2"></i>保存');
-        Utils.showSuccess('顧客を保存しました');
+        Utils.showSuccess(successMessage);
+        
+        // 編集モードをリセット
+        MasterManagement.currentEditId = null;
         
         Modal.close('masterCustomerModal');
         event.target.reset();
