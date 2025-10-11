@@ -5437,6 +5437,19 @@ if (typeof MasterManagement === 'undefined') {
     if (!MasterManagement.currentEditId) {
       customerData.code = formData.get('code');
     }
+    
+    console.log('📝 フォームから取得したデータ:', customerData);
+    console.log('🔧 編集ID:', MasterManagement.currentEditId);
+    console.log('👤 currentUser:', currentUser);
+    
+    // フォーム要素のデバッグ情報
+    console.log('🔍 フォーム要素詳細:');
+    console.log('- name:', formData.get('name'));
+    console.log('- contact_person:', formData.get('contact_person'));
+    console.log('- phone:', formData.get('phone'));
+    console.log('- email:', formData.get('email'));
+    console.log('- address:', formData.get('address'));
+    console.log('- notes:', formData.get('notes'));
 
     try {
       const saveButton = event.target.querySelector('button[type="submit"]');
@@ -5449,27 +5462,55 @@ if (typeof MasterManagement === 'undefined') {
       if (MasterManagement.currentEditId) {
         // 編集モード - PUT リクエスト
         console.log('編集モード - 顧客ID:', MasterManagement.currentEditId);
-        response = await axios.put(`/api/customers/${MasterManagement.currentEditId}`, customerData);
+        console.log('送信データ:', customerData);
+        
+        response = await axios.put(`/api/customers/${MasterManagement.currentEditId}`, customerData, {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-ID': currentUser
+          }
+        });
         successMessage = '顧客情報を更新しました';
       } else {
         // 新規作成モード - POST リクエスト
         console.log('新規作成モード');
-        response = await axios.post('/api/customers', customerData);
+        console.log('送信データ:', customerData);
+        
+        response = await axios.post('/api/customers', customerData, {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-ID': currentUser
+          }
+        });
         successMessage = '顧客を保存しました';
       }
+      
+      console.log('API レスポンス:', response.data);
 
       if (response.data.success) {
+        console.log('✅ 保存成功:', successMessage);
         Utils.hideLoading(saveButton, '<i class="fas fa-save mr-2"></i>保存');
         Utils.showSuccess(successMessage);
         
-        // 編集モードをリセット
+        // 編集モードの状態を保存してからリセット
+        const wasEditMode = MasterManagement.currentEditId !== null;
+        console.log('🔄 編集モードリセット - wasEditMode:', wasEditMode);
         MasterManagement.currentEditId = null;
         
         Modal.close('masterCustomerModal');
-        event.target.reset();
+        
+        // 新規作成時のみフォームをリセット
+        if (!wasEditMode) {
+          event.target.reset();
+          console.log('🆕 新規作成完了 - フォームリセット');
+        } else {
+          console.log('✏️ 編集完了 - フォームはリセットしない');
+        }
         
         // 顧客リストを更新
+        console.log('📝 顧客リストを更新中...');
         await MasterManagement.loadCustomersList();
+        console.log('✅ 顧客リスト更新完了');
       } else {
         Utils.hideLoading(saveButton, '<i class="fas fa-save mr-2"></i>保存');
         Utils.showError('顧客の保存に失敗しました: ' + (response.data.error || '不明なエラー'));
