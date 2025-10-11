@@ -9163,57 +9163,6 @@ const resetData = async () => {
 
 // フォーム送信処理
 document.addEventListener('DOMContentLoaded', () => {
-  // マスター管理顧客フォーム
-  const masterCustomerForm = document.getElementById('masterCustomerForm');
-  if (masterCustomerForm) {
-    masterCustomerForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      const formData = new FormData(event.target);
-      
-      const customerData = {
-        name: formData.get('name'),
-        contact_person: formData.get('contact_person'),
-        phone: formData.get('phone'),
-        email: formData.get('email'),
-        address: formData.get('address'),
-        notes: formData.get('notes'),
-        user_id: currentUser
-      };
-
-      try {
-        const saveButton = event.target.querySelector('button[type="submit"]');
-        Utils.showLoading(saveButton);
-
-        let response;
-        if (MasterManagement.currentEditId) {
-          response = await API.put(`/customers/${MasterManagement.currentEditId}`, customerData);
-        } else {
-          response = await API.post('/customers', customerData);
-        }
-        
-        if (response.success) {
-          Utils.hideLoading(saveButton, '<i class="fas fa-save mr-2"></i>保存');
-          Utils.showSuccess(response.message);
-          
-          Modal.close('masterCustomerModal');
-          event.target.reset();
-          
-          await MasterManagement.loadCustomers();
-          MasterManagement.displayCustomers();
-          MasterManagement.updateCustomerOptions();
-        } else {
-          Utils.hideLoading(saveButton, '<i class="fas fa-save mr-2"></i>保存');
-          Utils.showError('顧客の保存に失敗しました: ' + response.error);
-        }
-        
-      } catch (error) {
-        const saveButton = event.target.querySelector('button[type="submit"]');
-        Utils.hideLoading(saveButton, '<i class="fas fa-save mr-2"></i>保存');
-        Utils.showError('保存中にエラーが発生しました: ' + error.message);
-      }
-    });
-  }
-
   // マスター管理案件フォーム
   const masterProjectForm = document.getElementById('masterProjectForm');
   if (masterProjectForm) {
