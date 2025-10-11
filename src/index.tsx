@@ -414,7 +414,7 @@ app.get('/admin/backup', (c) => {
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/app.js?v=1760180166"></script>
+        <script src="/static/app.js?v=1760182366"></script>
         <script>
             // バックアップ管理機能の実装
             const BackupManager = {
@@ -6196,7 +6196,7 @@ app.get('/masters', (c) => {
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-medium text-gray-900">顧客マスター管理</h3>
-                  <button onclick="MasterManagement.openAddCustomerModal()" className="btn-primary">
+                  <button onclick="MasterManagement.openAddMasterCustomerModal()" className="btn-primary">
                     <i className="fas fa-plus mr-2"></i>
                     新規顧客追加
                   </button>
@@ -14830,7 +14830,7 @@ app.get('/settings', (c) => {
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/app.js?v=1760180166"></script>
+        <script src="/static/app.js?v=1760182366"></script>
         <script>
             // 設定機能の実装
             const Settings = {
@@ -15054,7 +15054,7 @@ app.get('/settings', (c) => {
             document.addEventListener('DOMContentLoaded', Settings.loadSettings);
             
             // 🧪 キャッシュバスター検証テスト - 即座に実行
-            console.log('🧪 キャッシュバスター検証テスト開始 - タイムスタンプ: 1760180166-ROLLBACK');
+            console.log('🧪 キャッシュバスター検証テスト開始 - タイムスタンプ: 1760182366-DIRECT');
             
             setTimeout(() => {
                 console.log('🔍 MasterManagement チェック開始');

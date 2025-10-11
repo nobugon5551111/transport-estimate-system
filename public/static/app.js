@@ -1,5 +1,5 @@
 // 輸送見積もりシステム - メインJavaScript
-// 🔄 キャッシュバスター緊急ロールバック: 1760180166
+// 🔄 キャッシュバスター直接フォーム制御: 1760182366
 
 // グローバル変数（重複宣言を防ぐため条件付き）
 if (typeof currentUser === 'undefined') {
@@ -4917,8 +4917,9 @@ if (typeof MasterManagement === 'undefined') {
     tableBody.innerHTML = html;
   },
 
-  // 顧客新規追加モーダルを開く
-  openAddCustomerModal: () => {
+  // 顧客新規追加モーダルを開く（マスタ管理専用）
+  openAddMasterCustomerModal: () => {
+    console.log('🎯 openAddMasterCustomerModal called (Master Management)');
     // モーダルが存在しない場合は作成
     MasterManagement.createCustomerModal();
     MasterManagement.currentEditId = null;
@@ -4927,6 +4928,7 @@ if (typeof MasterManagement === 'undefined') {
     const form = document.getElementById('masterCustomerForm');
     if (form) {
       form.reset();
+      console.log('✅ Master form reset completed (using onsubmit attribute for handling)');
     }
     
     // モーダルタイトルを設定
@@ -4961,8 +4963,12 @@ if (typeof MasterManagement === 'undefined') {
 
   // 顧客モーダルを動的作成
   createCustomerModal: () => {
+    console.log('🔧 createCustomerModal called');
     // 既に存在する場合はスキップ
-    if (document.getElementById('masterCustomerModal')) return;
+    if (document.getElementById('masterCustomerModal')) {
+      console.log('⚠️ masterCustomerModal already exists, skipping creation');
+      return;
+    }
 
     const modalHtml = `
       <div id="masterCustomerModal" class="modal-backdrop" style="display: none;">
@@ -4970,7 +4976,7 @@ if (typeof MasterManagement === 'undefined') {
           <div class="px-6 py-4 border-b border-gray-200">
             <h3 id="masterCustomerModalTitle" class="text-lg font-medium text-gray-900">新規顧客追加</h3>
           </div>
-          <form id="masterCustomerForm" class="p-6">
+          <form id="masterCustomerForm" class="p-6" onsubmit="return MasterManagement.handleCustomerFormSubmitDirect(event)">
             <div class="space-y-4">
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">顧客名 *</label>
@@ -5011,6 +5017,8 @@ if (typeof MasterManagement === 'undefined') {
     `;
 
     document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    console.log('✅ Modal created with onsubmit attribute handler');
   },
 
   // 案件モーダルを動的作成
@@ -5150,6 +5158,99 @@ if (typeof MasterManagement === 'undefined') {
     if (statusFilterSelect) statusFilterSelect.value = '';
     
     MasterManagement.loadProjectsList();
+  },
+  
+  // 顧客フォーム送信処理（動的作成フォーム用）
+  handleCustomerFormSubmit: async (event) => {
+    event.preventDefault();
+    console.log('🎯 Master customer form submit triggered');
+    
+    const formData = new FormData(event.target);
+    
+    const customerData = {
+      name: formData.get('name'),
+      contact_person: formData.get('contact_person'),
+      phone: formData.get('phone'),
+      email: formData.get('email'),
+      address: formData.get('address'),
+      notes: formData.get('notes'),
+      user_id: currentUser
+    };
+
+    try {
+      const saveButton = event.target.querySelector('button[type="submit"]');
+      Utils.showLoading(saveButton, '<i class="fas fa-spinner fa-spin mr-2"></i>保存中...');
+
+      // APIコール（既存のAPIを使用）
+      const response = await axios.post('/api/customers', customerData);
+
+      if (response.data.success) {
+        Utils.hideLoading(saveButton, '<i class="fas fa-save mr-2"></i>保存');
+        Utils.showSuccess('顧客を保存しました');
+        
+        Modal.close('masterCustomerModal');
+        event.target.reset();
+        
+        // 顧客リストを更新
+        await MasterManagement.loadCustomersList();
+      } else {
+        Utils.hideLoading(saveButton, '<i class="fas fa-save mr-2"></i>保存');
+        Utils.showError('顧客の保存に失敗しました: ' + (response.data.error || '不明なエラー'));
+      }
+    } catch (error) {
+      console.error('顧客保存エラー:', error);
+      const saveButton = event.target.querySelector('button[type="submit"]');
+      Utils.hideLoading(saveButton, '<i class="fas fa-save mr-2"></i>保存');
+      Utils.showError('顧客の保存中にエラーが発生しました');
+    }
+  },
+  
+  // 顧客フォーム送信処理（onsubmit属性用 - 直接制御）
+  handleCustomerFormSubmitDirect: async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    console.log('🎯 Direct customer form submit triggered (no duplicate handlers)');
+    
+    const formData = new FormData(event.target);
+    
+    const customerData = {
+      name: formData.get('name'),
+      contact_person: formData.get('contact_person'),
+      phone: formData.get('phone'),
+      email: formData.get('email'),
+      address: formData.get('address'),
+      notes: formData.get('notes'),
+      user_id: currentUser
+    };
+
+    try {
+      const saveButton = event.target.querySelector('button[type="submit"]');
+      Utils.showLoading(saveButton, '<i class="fas fa-spinner fa-spin mr-2"></i>保存中...');
+
+      // APIコール（既存のAPIを使用）
+      const response = await axios.post('/api/customers', customerData);
+
+      if (response.data.success) {
+        Utils.hideLoading(saveButton, '<i class="fas fa-save mr-2"></i>保存');
+        Utils.showSuccess('顧客を保存しました');
+        
+        Modal.close('masterCustomerModal');
+        event.target.reset();
+        
+        // 顧客リストを更新
+        await MasterManagement.loadCustomersList();
+      } else {
+        Utils.hideLoading(saveButton, '<i class="fas fa-save mr-2"></i>保存');
+        Utils.showError('顧客の保存に失敗しました: ' + (response.data.error || '不明なエラー'));
+      }
+    } catch (error) {
+      console.error('顧客保存エラー:', error);
+      const saveButton = event.target.querySelector('button[type="submit"]');
+      Utils.hideLoading(saveButton, '<i class="fas fa-save mr-2"></i>保存');
+      Utils.showError('顧客の保存中にエラーが発生しました');
+    }
+    
+    return false; // デフォルトフォーム送信を完全に防ぐ
   }
   };
 }
