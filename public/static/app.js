@@ -4928,7 +4928,12 @@ if (typeof MasterManagement === 'undefined') {
     const form = document.getElementById('masterCustomerForm');
     if (form) {
       form.reset();
-      console.log('✅ Master form reset completed (using onsubmit attribute for handling)');
+      console.log('✅ Master form reset completed');
+      
+      // イベントリスナーを直接追加（onsubmit属性のバックアップ）
+      form.removeEventListener('submit', MasterManagement.handleCustomerFormSubmitDirect);
+      form.addEventListener('submit', MasterManagement.handleCustomerFormSubmitDirect);
+      console.log('✅ Direct event listener added to form');
     }
     
     // モーダルタイトルを設定
@@ -5209,7 +5214,7 @@ if (typeof MasterManagement === 'undefined') {
   handleCustomerFormSubmitDirect: async (event) => {
     event.preventDefault();
     event.stopPropagation();
-    console.log('🎯 Direct customer form submit triggered (no duplicate handlers)');
+    console.log('顧客フォーム送信処理開始');
     
     const formData = new FormData(event.target);
     
@@ -5251,6 +5256,18 @@ if (typeof MasterManagement === 'undefined') {
     }
     
     return false; // デフォルトフォーム送信を完全に防ぐ
+  },
+
+  // デバッグ用：フォーム送信テスト
+  testCustomerFormSubmit: () => {
+    console.log('🧪 Testing customer form submit functionality');
+    const form = document.getElementById('masterCustomerForm');
+    if (form) {
+      console.log('✅ Form found:', form);
+      console.log('✅ Form onsubmit:', form.getAttribute('onsubmit'));
+    } else {
+      console.error('❌ Form not found');
+    }
   }
   };
 }
@@ -5261,6 +5278,7 @@ window.API = API;
 window.PostalCode = PostalCode;
 window.Modal = Modal;
 window.EstimateFlow = EstimateFlow;
+window.MasterManagement = MasterManagement; // 明示的に追加
 window.Table = Table;
 // MasterManagementオブジェクトをグローバル設定
 if (typeof MasterManagement !== 'undefined') {
