@@ -4063,8 +4063,10 @@ if (typeof MasterManagement === 'undefined') {
     }
     
     // データが既に入力されている場合は上書きしない（ユーザー入力保護）
+    // ただし、サービスタブではAPIデータを正しく反映する
     const testElement = document.getElementById('vehicle_2t_full_day_A');
-    if (testElement && testElement.value && testElement.value !== '0' && testElement.value !== '') {
+    const isServicesTab = MasterManagement.currentTab === 'services';
+    if (!isServicesTab && testElement && testElement.value && testElement.value !== '0' && testElement.value !== '') {
       console.log('⚠️ User data already exists, skipping populate to prevent overwrite');
       return;
     }
@@ -4335,8 +4337,16 @@ if (typeof MasterManagement === 'undefined') {
   // サービス設定表示
   displayServicesSettings: () => {
     if (!MasterManagement.masterSettings) {
-      // デフォルト値を設定（masterSettingsがない場合）
-      MasterManagement.setDefaultServicesPrices();
+      // APIデータのロードを待機してからデフォルト値を設定
+      console.log('⚠️ masterSettings not loaded yet, waiting for API data...');
+      setTimeout(() => {
+        if (MasterManagement.masterSettings) {
+          MasterManagement.displayServicesSettings();
+        } else {
+          console.log('⚠️ masterSettings still not loaded, using default values');
+          MasterManagement.setDefaultServicesPrices();
+        }
+      }, 500);
       return;
     }
 
@@ -4401,15 +4411,16 @@ if (typeof MasterManagement === 'undefined') {
     setInputValue('service_waste_small', 5000);
     setInputValue('service_waste_medium', 10000);
     setInputValue('service_waste_large', 20000);
-    setInputValue('service_protection_base', 8000);
-    setInputValue('service_protection_floor', 2000);
+    setInputValue('service_protection_base', 5000);
+    setInputValue('service_protection_floor', 3000);
     setInputValue('service_material_few', 3000);
     setInputValue('service_material_medium', 8000);
     setInputValue('service_material_many', 15000);
     setInputValue('service_construction_m2', 8000);
-    setInputValue('service_time_early', 1.15);
-    setInputValue('service_time_night', 1.25);
-    setInputValue('service_time_midnight', 1.5);
+    setInputValue('service_time_normal', 1.0);
+    setInputValue('service_time_early', 1.2);
+    setInputValue('service_time_night', 1.5);
+    setInputValue('service_time_midnight', 2.0);
     setInputValue('system_tax_rate', 0.10);
     setInputValue('system_estimate_prefix', 'EST');
   },
