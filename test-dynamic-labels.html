@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>動的ラベルテスト</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .test-section { 
+            border: 2px solid #3B82F6; 
+            margin: 20px; 
+            padding: 20px; 
+            border-radius: 8px; 
+        }
+    </style>
+</head>
+<body class="bg-gray-50 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6">🧪 動的ラベル更新機能テスト</h1>
+        
+        <div class="test-section">
+            <h2 class="text-xl font-bold mb-4">現在のマスター設定値</h2>
+            <div id="masterDataDisplay" class="bg-yellow-50 p-4 rounded">
+                <p>マスターデータを読み込み中...</p>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2 class="text-xl font-bold mb-4">Step4スタイルのラベルテスト</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-blue-50 p-4 rounded-lg">
+                    <label class="block text-sm font-medium text-blue-900 mb-2">
+                        <i class="fas fa-user-tie mr-2"></i>
+                        スーパーバイザー（<span id="rate-display-supervisor">40,000</span>円/日）
+                    </label>
+                    <input type="number" id="rate_supervisor" class="form-input w-full" min="0" step="1000" />
+                </div>
+
+                <div class="bg-green-50 p-4 rounded-lg">
+                    <label class="block text-sm font-medium text-green-900 mb-2">
+                        <i class="fas fa-user-cog mr-2"></i>
+                        リーダー以上（<span id="rate-display-leader">12,000</span>円/日）
+                    </label>
+                    <input type="number" id="rate_leader" class="form-input w-full" min="0" step="1000" />
+                </div>
+
+                <div class="bg-yellow-50 p-4 rounded-lg">
+                    <label class="block text-sm font-medium text-yellow-900 mb-2">
+                        <i class="fas fa-user mr-2"></i>
+                        M2スタッフ半日（<span id="rate-display-m2-half">6,000</span>円/半日）
+                    </label>
+                    <input type="number" id="rate_m2_half_day" class="form-input w-full" min="0" step="500" />
+                </div>
+
+                <div class="bg-yellow-50 p-4 rounded-lg">
+                    <label class="block text-sm font-medium text-yellow-900 mb-2">
+                        <i class="fas fa-user mr-2"></i>
+                        M2スタッフ終日（<span id="rate-display-m2-full">10,000</span>円/日）
+                    </label>
+                    <input type="number" id="rate_m2_full_day" class="form-input w-full" min="0" step="1000" />
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2 class="text-xl font-bold mb-4">テストボタン</h2>
+            <div class="space-x-4">
+                <button onclick="testMasterDataFetch()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                    マスターデータ取得テスト
+                </button>
+                <button onclick="testLabelUpdate()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+                    ラベル更新テスト
+                </button>
+                <button onclick="simulateStep4Init()" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">
+                    Step4初期化シミュレート
+                </button>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2 class="text-xl font-bold mb-4">テスト結果</h2>
+            <div id="testResults" class="bg-gray-50 p-4 rounded min-h-20">
+                <p class="text-gray-600">テストボタンを押してください</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+    <script>
+        // テスト用の関数群
+        
+        async function testMasterDataFetch() {
+            const resultsDiv = document.getElementById('testResults');
+            const masterDiv = document.getElementById('masterDataDisplay');
+            
+            try {
+                resultsDiv.innerHTML = '<p class="text-blue-600">🔄 マスターデータを取得中...</p>';
+                
+                const response = await axios.get('/api/master-settings');
+                
+                if (response.data.success && response.data.data && response.data.data.staff_rates) {
+                    const staffRates = response.data.data.staff_rates;
+                    
+                    masterDiv.innerHTML = `
+                        <h3 class="font-bold mb-2">📊 取得したマスターデータ:</h3>
+                        <ul class="space-y-1 text-sm">
+                            <li>• スーパーバイザー: ${staffRates.supervisor?.toLocaleString()}円/日</li>
+                            <li>• リーダー以上: ${staffRates.leader?.toLocaleString()}円/日</li>
+                            <li>• M2スタッフ半日: ${staffRates.m2_half_day?.toLocaleString()}円/半日</li>
+                            <li>• M2スタッフ終日: ${staffRates.m2_full_day?.toLocaleString()}円/日</li>
+                            <li>• 派遣スタッフ半日: ${staffRates.temp_half_day?.toLocaleString()}円/半日</li>
+                            <li>• 派遣スタッフ終日: ${staffRates.temp_full_day?.toLocaleString()}円/日</li>
+                        </ul>
+                    `;
+                    
+                    resultsDiv.innerHTML = '<p class="text-green-600">✅ マスターデータ取得成功！</p>';
+                    return staffRates;
+                } else {
+                    throw new Error('マスターデータが見つかりません');
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<p class="text-red-600">❌ エラー: ${error.message}</p>`;
+                console.error('マスターデータ取得エラー:', error);
+            }
+        }
+
+        async function testLabelUpdate() {
+            const resultsDiv = document.getElementById('testResults');
+            
+            try {
+                resultsDiv.innerHTML = '<p class="text-blue-600">🔄 ラベル更新をテスト中...</p>';
+                
+                const staffRates = await testMasterDataFetch();
+                
+                if (staffRates) {
+                    // ラベル更新処理（Step4Implementation.setMasterRatesToInputFields のロジックと同じ）
+                    const rateFields = [
+                        { id: 'rate_supervisor', value: staffRates.supervisor || 40000, displayId: 'rate-display-supervisor' },
+                        { id: 'rate_leader', value: staffRates.leader || 12000, displayId: 'rate-display-leader' },
+                        { id: 'rate_m2_half_day', value: staffRates.m2_half_day || 6000, displayId: 'rate-display-m2-half' },
+                        { id: 'rate_m2_full_day', value: staffRates.m2_full_day || 10000, displayId: 'rate-display-m2-full' }
+                    ];
+
+                    let updateCount = 0;
+                    rateFields.forEach(field => {
+                        // 入力フィールドの値を設定
+                        const inputElement = document.getElementById(field.id);
+                        if (inputElement) {
+                            inputElement.value = field.value;
+                            updateCount++;
+                        }
+                        
+                        // ラベル表示も更新
+                        const displayElement = document.getElementById(field.displayId);
+                        if (displayElement) {
+                            displayElement.textContent = field.value.toLocaleString();
+                            updateCount++;
+                            console.log(`✅ ${field.displayId}: ${field.value.toLocaleString()}円 表示更新完了`);
+                        }
+                    });
+
+                    resultsDiv.innerHTML = `<p class="text-green-600">✅ ラベル更新成功！ ${updateCount}個の要素を更新しました</p>`;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<p class="text-red-600">❌ ラベル更新エラー: ${error.message}</p>`;
+                console.error('ラベル更新エラー:', error);
+            }
+        }
+
+        async function simulateStep4Init() {
+            const resultsDiv = document.getElementById('testResults');
+            
+            resultsDiv.innerHTML = '<p class="text-blue-600">🔄 Step4初期化をシミュレート中...</p>';
+            
+            // Step4Implementation.setMasterRatesToInputFields の完全なロジックをテスト
+            try {
+                console.log('🔄 Step4: マスターデータを入力フィールド＆ラベル表示に自動設定開始');
+                
+                const masterResponse = await axios.get('/api/master-settings');
+                
+                if (masterResponse.data.success && masterResponse.data.data && masterResponse.data.data.staff_rates) {
+                    const masterStaffRates = masterResponse.data.data.staff_rates;
+                    
+                    const rateFields = [
+                        { id: 'rate_supervisor', value: masterStaffRates.supervisor || 40000, displayId: 'rate-display-supervisor' },
+                        { id: 'rate_leader', value: masterStaffRates.leader || 12000, displayId: 'rate-display-leader' },
+                        { id: 'rate_m2_half_day', value: masterStaffRates.m2_half_day || 6000, displayId: 'rate-display-m2-half' },
+                        { id: 'rate_m2_full_day', value: masterStaffRates.m2_full_day || 10000, displayId: 'rate-display-m2-full' }
+                    ];
+
+                    rateFields.forEach(field => {
+                        // 入力フィールドの値を設定
+                        const inputElement = document.getElementById(field.id);
+                        if (inputElement) {
+                            inputElement.value = field.value;
+                            console.log(`✅ ${field.id}: ${field.value}円 設定完了`);
+                        } else {
+                            console.warn(`⚠️ ${field.id} 要素が見つかりません`);
+                        }
+                        
+                        // ラベル表示も更新
+                        const displayElement = document.getElementById(field.displayId);
+                        if (displayElement) {
+                            displayElement.textContent = field.value.toLocaleString();
+                            console.log(`✅ ${field.displayId}: ${field.value.toLocaleString()}円 表示更新完了`);
+                        } else {
+                            console.warn(`⚠️ ${field.displayId} 表示要素が見つかりません`);
+                        }
+                    });
+
+                    console.log('✅ Step4: マスターデータの入力フィールド＆ラベル表示自動設定完了');
+                    resultsDiv.innerHTML = '<p class="text-green-600">✅ Step4初期化シミュレート成功！コンソールログを確認してください</p>';
+                } else {
+                    throw new Error('マスターデータの取得に失敗しました');
+                }
+            } catch (error) {
+                console.error('❌ Step4: マスターデータ自動設定エラー:', error);
+                resultsDiv.innerHTML = `<p class="text-red-600">❌ Step4初期化エラー: ${error.message}</p>`;
+            }
+        }
+
+        // ページ読み込み時に自動テスト
+        window.addEventListener('load', () => {
+            console.log('🧪 動的ラベルテストページ読み込み完了');
+            testMasterDataFetch();
+        });
+    </script>
+</body>
+</html>

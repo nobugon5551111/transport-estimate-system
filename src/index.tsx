@@ -414,7 +414,7 @@ app.get('/admin/backup', (c) => {
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/app.js?v=1760182366"></script>
+        <script src="/static/app-1760678720.js?v=1760678720&nocache=true"></script>
         <script>
             // バックアップ管理機能の実装
             const BackupManager = {
@@ -833,6 +833,647 @@ app.get('/admin/backup', (c) => {
     </body>
     </html>
   `)
+})
+
+// 正しいセッションデータでStep4動作確認ページ
+app.get('/test-step4-session', (c) => {
+  return c.html(`<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Step4 セッション付き動作確認 - 輸送見積もりシステム</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="/static/style.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50">
+    <div class="max-w-4xl mx-auto px-4 py-8">
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-4">
+                <i class="fas fa-cog mr-3 text-blue-600"></i>
+                Step4 セッション付き動作確認
+            </h1>
+            <div class="bg-blue-100 border-l-4 border-blue-500 p-4 mb-6">
+                <p class="text-blue-700">
+                    <i class="fas fa-database mr-2"></i>
+                    正しいセッションデータを設定してStep4の動的ラベル機能をテストします
+                </p>
+            </div>
+        </div>
+
+        <!-- セッションデータ設定 -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">
+                <i class="fas fa-database mr-2"></i>
+                セッションデータ設定
+            </h2>
+            <button id="setup-session" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition-colors">
+                <i class="fas fa-plus mr-2"></i>
+                Step4用セッションデータを設定
+            </button>
+            <button id="goto-step4" class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg transition-colors ml-4">
+                <i class="fas fa-arrow-right mr-2"></i>
+                Step4に移動
+            </button>
+        </div>
+
+        <!-- 結果表示 -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">
+                <i class="fas fa-clipboard-list mr-2"></i>
+                動作結果
+            </h2>
+            <div id="session-results" class="space-y-2">
+                <div class="text-gray-600">セッションデータを設定してStep4にアクセスしてください</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app-1760678720.js?v=1760678720&cache=bust"></script>
+    <script>
+        console.log('🧪 Step4 セッション付き動作確認開始');
+        
+        const sessionResults = document.getElementById('session-results');
+
+        function logResult(message, type = 'info') {
+            const colors = {
+                info: 'text-blue-600',
+                success: 'text-green-600', 
+                error: 'text-red-600',
+                warning: 'text-yellow-600'
+            };
+            const icons = {
+                info: 'fas fa-info-circle',
+                success: 'fas fa-check-circle',
+                error: 'fas fa-times-circle', 
+                warning: 'fas fa-exclamation-triangle'
+            };
+            
+            const div = document.createElement('div');
+            div.className = colors[type] || colors.info;
+            div.innerHTML = \`<i class="\${icons[type] || icons.info} mr-2"></i>\${message}\`;
+            sessionResults.appendChild(div);
+        }
+
+        // セッションデータ設定
+        document.getElementById('setup-session').addEventListener('click', () => {
+            try {
+                logResult('Step4用セッションデータを設定中...', 'info');
+                
+                const testFlowData = {
+                    step: 4,
+                    customer: { 
+                        id: 1, 
+                        name: 'テスト顧客株式会社' 
+                    },
+                    project: { 
+                        id: 1, 
+                        name: 'テストプロジェクト案件' 
+                    },
+                    delivery: { 
+                        address: '東京都渋谷区テスト1-2-3', 
+                        postal_code: '1500001', 
+                        area: 'A' 
+                    },
+                    vehicle: { 
+                        type: '2t車', 
+                        operation: '引越', 
+                        cost: 50000 
+                    }
+                };
+                
+                sessionStorage.setItem('estimateFlow', JSON.stringify(testFlowData));
+                
+                logResult('✅ セッションデータ設定完了', 'success');
+                logResult('📊 設定データ:', 'info');
+                logResult(\`　顧客: \${testFlowData.customer.name}\`, 'info');
+                logResult(\`　案件: \${testFlowData.project.name}\`, 'info');
+                logResult(\`　エリア: \${testFlowData.delivery.area}エリア\`, 'info');
+                logResult(\`　車両: \${testFlowData.vehicle.type}（\${testFlowData.vehicle.operation}）\`, 'info');
+                logResult('🚀 Step4にアクセスしてください', 'success');
+                
+            } catch (error) {
+                logResult(\`❌ セッションデータ設定失敗: \${error.message}\`, 'error');
+            }
+        });
+
+        // Step4に移動
+        document.getElementById('goto-step4').addEventListener('click', () => {
+            logResult('Step4に移動しています...', 'info');
+            window.open('/estimate/step4', '_blank');
+        });
+        
+        // ページロード完了時の状態確認
+        document.addEventListener('DOMContentLoaded', () => {
+            logResult('🚀 セッション付きテストページ初期化完了', 'success');
+            
+            // 現在のセッションデータ確認
+            const currentSession = sessionStorage.getItem('estimateFlow');
+            if (currentSession) {
+                try {
+                    const sessionData = JSON.parse(currentSession);
+                    logResult('📋 既存セッションデータ検出:', 'warning');
+                    logResult(\`　Step: \${sessionData.step || 'N/A'}\`, 'info');
+                    logResult(\`　顧客: \${sessionData.customer?.name || 'N/A'}\`, 'info');
+                    logResult('🔄 新しいセッションデータに更新することをお勧めします', 'warning');
+                } catch (error) {
+                    logResult('❌ 既存セッションデータが破損しています', 'error');
+                }
+            } else {
+                logResult('📋 セッションデータなし - セットアップが必要です', 'info');
+            }
+        });
+    </script>
+</body>
+</html>`)
+})
+
+// Step4動的ラベル修正テスト用ページ
+app.get('/test-step4-fixed', (c) => {
+  return c.html(`<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Step4 動的ラベル修正テスト - 輸送見積もりシステム</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="/static/style.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50">
+    <div class="max-w-4xl mx-auto px-4 py-8">
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-4">
+                <i class="fas fa-wrench mr-3 text-green-600"></i>
+                Step4 動的ラベル修正テスト
+            </h1>
+            <div class="bg-green-100 border-l-4 border-green-500 p-4 mb-6">
+                <p class="text-green-700">
+                    <i class="fas fa-check-circle mr-2"></i>
+                    HTML要素読み込み後の動的ラベル更新機能をテストします
+                </p>
+            </div>
+        </div>
+
+        <!-- 実際のStep4と同じHTML構造のスタッフ単価設定 -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">スタッフ単価設定</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="bg-blue-50 p-4 rounded-lg">
+                    <label class="block text-sm font-medium text-blue-900 mb-2">
+                        <i class="fas fa-user-tie mr-2"></i>
+                        スーパーバイザー（<span id="rate-display-supervisor">40,000</span>円/日）
+                    </label>
+                    <input type="number" id="rate_supervisor" class="form-input" min="0" step="1000" />
+                </div>
+
+                <div class="bg-green-50 p-4 rounded-lg">
+                    <label class="block text-sm font-medium text-green-900 mb-2">
+                        <i class="fas fa-user-cog mr-2"></i>
+                        リーダー以上（<span id="rate-display-leader">12,000</span>円/日）
+                    </label>
+                    <input type="number" id="rate_leader" class="form-input" min="0" step="1000" />
+                </div>
+
+                <div class="bg-yellow-50 p-4 rounded-lg">
+                    <label class="block text-sm font-medium text-yellow-900 mb-2">
+                        <i class="fas fa-user mr-2"></i>
+                        M2スタッフ半日（<span id="rate-display-m2-half">6,000</span>円/半日）
+                    </label>
+                    <input type="number" id="rate_m2_half_day" class="form-input" min="0" step="500" />
+                </div>
+
+                <div class="bg-yellow-50 p-4 rounded-lg">
+                    <label class="block text-sm font-medium text-yellow-900 mb-2">
+                        <i class="fas fa-user mr-2"></i>
+                        M2スタッフ終日（<span id="rate-display-m2-full">10,000</span>円/日）
+                    </label>
+                    <input type="number" id="rate_m2_full_day" class="form-input" min="0" step="1000" />
+                </div>
+
+                <div class="bg-purple-50 p-4 rounded-lg">
+                    <label class="block text-sm font-medium text-purple-900 mb-2">
+                        <i class="fas fa-user-clock mr-2"></i>
+                        派遣スタッフ半日（<span id="rate-display-temp-half">5,500</span>円/半日）
+                    </label>
+                    <input type="number" id="rate_temp_half_day" class="form-input" min="0" step="500" />
+                </div>
+
+                <div class="bg-purple-50 p-4 rounded-lg">
+                    <label class="block text-sm font-medium text-purple-900 mb-2">
+                        <i class="fas fa-user-clock mr-2"></i>
+                        派遣スタッフ終日（<span id="rate-display-temp-full">9,500</span>円/日）
+                    </label>
+                    <input type="number" id="rate_temp_full_day" class="form-input" min="0" step="1000" />
+                </div>
+            </div>
+        </div>
+
+        <!-- テスト実行ボタン -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">
+                <i class="fas fa-play mr-2"></i>
+                動的ラベル更新テスト
+            </h2>
+            <button id="test-dynamic-labels" class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg transition-colors">
+                <i class="fas fa-sync mr-2"></i>
+                Step4実装の動的ラベル更新を実行
+            </button>
+        </div>
+
+        <!-- テスト結果表示 -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">
+                <i class="fas fa-clipboard-check mr-2"></i>
+                テスト結果
+            </h2>
+            <div id="test-results" class="space-y-2">
+                <div class="text-gray-600">テスト実行前...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app-1760678720.js?v=1760678720&cache=bust"></script>
+    <script>
+        console.log('🧪 Step4動的ラベル修正テスト開始');
+        
+        const testResults = document.getElementById('test-results');
+
+        function logResult(message, type = 'info') {
+            const colors = {
+                info: 'text-blue-600',
+                success: 'text-green-600', 
+                error: 'text-red-600',
+                warning: 'text-yellow-600'
+            };
+            const icons = {
+                info: 'fas fa-info-circle',
+                success: 'fas fa-check-circle',
+                error: 'fas fa-times-circle', 
+                warning: 'fas fa-exclamation-triangle'
+            };
+            
+            const div = document.createElement('div');
+            div.className = colors[type] || colors.info;
+            div.innerHTML = \`<i class="\${icons[type] || icons.info} mr-2"></i>\${message}\`;
+            testResults.appendChild(div);
+        }
+
+        // 動的ラベル更新テスト
+        document.getElementById('test-dynamic-labels').addEventListener('click', async () => {
+            logResult('Step4実装の動的ラベル更新テスト開始...', 'info');
+            
+            try {
+                // Step4Implementationが利用可能かチェック
+                if (typeof Step4Implementation === 'undefined') {
+                    throw new Error('Step4Implementation オブジェクトが見つかりません');
+                }
+                
+                logResult('✅ Step4Implementation オブジェクト検出', 'success');
+                
+                // initializeMasterRatesメソッドが存在するかチェック
+                if (typeof Step4Implementation.initializeMasterRates !== 'function') {
+                    throw new Error('Step4Implementation.initializeMasterRates メソッドが見つかりません');
+                }
+                
+                logResult('✅ initializeMasterRates メソッド検出', 'success');
+                
+                // HTML要素の存在確認
+                const elements = [
+                    'rate-display-supervisor',
+                    'rate-display-leader', 
+                    'rate-display-m2-half',
+                    'rate-display-m2-full',
+                    'rate-display-temp-half',
+                    'rate-display-temp-full'
+                ];
+                
+                let allElementsFound = true;
+                elements.forEach(id => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        logResult(\`✅ 要素 #\${id} 検出済み\`, 'success');
+                    } else {
+                        logResult(\`❌ 要素 #\${id} 見つかりません\`, 'error');
+                        allElementsFound = false;
+                    }
+                });
+                
+                if (!allElementsFound) {
+                    throw new Error('必要なHTML要素が不足しています');
+                }
+                
+                logResult('🚀 動的ラベル更新処理を実行中...', 'info');
+                
+                // Step4の動的ラベル更新を実行
+                await Step4Implementation.initializeMasterRates();
+                
+                logResult('✅ 動的ラベル更新処理完了', 'success');
+                
+                // 更新結果を確認・表示
+                logResult('📊 更新後のラベル値:', 'info');
+                elements.forEach(id => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        logResult(\`　 #\${id}: \${element.textContent}\`, 'info');
+                    }
+                });
+                
+                logResult('🎉 Step4動的ラベル更新テスト成功！', 'success');
+                
+            } catch (error) {
+                logResult(\`❌ テスト失敗: \${error.message}\`, 'error');
+            }
+        });
+        
+        // ページロード完了時の初期状態レポート
+        document.addEventListener('DOMContentLoaded', () => {
+            logResult('🚀 テストページ初期化完了', 'success');
+            logResult('HTML要素とStep4実装の準備状況を確認中...', 'info');
+            
+            setTimeout(() => {
+                const supervisorElement = document.getElementById('rate-display-supervisor');
+                if (supervisorElement) {
+                    logResult(\`📋 初期値確認 - スーパーバイザー: \${supervisorElement.textContent}円\`, 'info');
+                }
+                
+                if (typeof Step4Implementation !== 'undefined') {
+                    logResult('✅ Step4Implementation 利用可能', 'success');
+                } else {
+                    logResult('❌ Step4Implementation 利用不可', 'error');
+                }
+                
+                logResult('🎯 テスト実行ボタンをクリックして動的ラベル更新をテストしてください', 'warning');
+            }, 500);
+        });
+    </script>
+</body>
+</html>`)
+})
+
+// 動的ラベルテスト用Step4ページ
+app.get('/test-step4-labels', (c) => {
+  return c.html(`<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Step4 動的ラベルテスト - 輸送見積もりシステム</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="/static/style.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50">
+    <div class="max-w-4xl mx-auto px-4 py-8">
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-4">
+                <i class="fas fa-flask mr-3 text-purple-600"></i>
+                Step4 動的ラベルテスト
+            </h1>
+            <div class="bg-blue-100 border-l-4 border-blue-500 p-4 mb-6">
+                <p class="text-blue-700">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    このページでは、Step4のマスター値動的ラベル表示機能をテストします
+                </p>
+            </div>
+        </div>
+
+        <!-- テスト結果表示エリア -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">
+                <i class="fas fa-chart-line mr-2"></i>
+                テスト結果
+            </h2>
+            <div id="test-results" class="space-y-2">
+                <div class="text-gray-600">テスト実行待ち...</div>
+            </div>
+        </div>
+
+        <!-- Step4スタイルのラベル表示テスト -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-6">
+                <i class="fas fa-users mr-2"></i>
+                スタッフ情報入力（Step4スタイル）
+            </h2>
+            
+            <!-- スーパーバイザー -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-blue-900 mb-2">
+                    <i class="fas fa-user-tie mr-2"></i>
+                    スーパーバイザー（<span id="rate-display-supervisor">40,000</span>円/日）
+                </label>
+                <input 
+                    type="number" 
+                    id="rate_supervisor" 
+                    name="rate_supervisor" 
+                    value="40000"
+                    min="0" 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="スーパーバイザー日当を入力"
+                >
+            </div>
+
+            <!-- リーダー -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-blue-900 mb-2">
+                    <i class="fas fa-user-cog mr-2"></i>
+                    リーダー（<span id="rate-display-leader">12,000</span>円/日）
+                </label>
+                <input 
+                    type="number" 
+                    id="rate_leader" 
+                    name="rate_leader" 
+                    value="12000"
+                    min="0" 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="リーダー日当を入力"
+                >
+            </div>
+        </div>
+
+        <!-- テスト実行ボタンエリア -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">
+                <i class="fas fa-play mr-2"></i>
+                テスト実行
+            </h2>
+            <div class="space-y-4">
+                <button id="test-master-api" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors">
+                    <i class="fas fa-database mr-2"></i>
+                    マスター設定API テスト
+                </button>
+                <button id="test-label-update" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition-colors">
+                    <i class="fas fa-tags mr-2"></i>
+                    ラベル更新機能 テスト
+                </button>
+                <button id="test-complete-flow" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg transition-colors">
+                    <i class="fas fa-cogs mr-2"></i>
+                    完全フロー テスト
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app-1760678720.js?v=1760678720&cache=bust"></script>
+    <script>
+        console.log('🧪 動的ラベルテストページ初期化開始');
+        
+        const testResults = document.getElementById('test-results');
+
+        function logTestResult(message, type = 'info') {
+            const colors = {
+                info: 'text-blue-600',
+                success: 'text-green-600', 
+                error: 'text-red-600',
+                warning: 'text-yellow-600'
+            };
+            const icons = {
+                info: 'fas fa-info-circle',
+                success: 'fas fa-check-circle',
+                error: 'fas fa-times-circle', 
+                warning: 'fas fa-exclamation-triangle'
+            };
+            
+            const div = document.createElement('div');
+            div.className = colors[type] || colors.info;
+            div.innerHTML = \`<i class="\${icons[type] || icons.info} mr-2"></i>\${message}\`;
+            testResults.appendChild(div);
+        }
+
+        // マスター設定APIテスト
+        document.getElementById('test-master-api').addEventListener('click', async () => {
+            logTestResult('マスター設定API テスト開始...', 'info');
+            
+            try {
+                const response = await fetch('/api/master-settings');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    logTestResult('✅ マスター設定API レスポンス成功', 'success');
+                    logTestResult(\`📊 取得データ: \${JSON.stringify(data, null, 2)}\`, 'info');
+                } else {
+                    logTestResult(\`❌ API エラー: \${data.error}\`, 'error');
+                }
+            } catch (error) {
+                logTestResult(\`❌ API 呼び出し失敗: \${error.message}\`, 'error');
+            }
+        });
+
+        // ラベル更新機能テスト
+        document.getElementById('test-label-update').addEventListener('click', async () => {
+            logTestResult('ラベル更新機能 テスト開始...', 'info');
+            
+            try {
+                // テスト用のマスターデータ
+                const testMasterData = {
+                    staff_rates: {
+                        supervisor: 45000,
+                        leader: 15000
+                    }
+                };
+                
+                logTestResult('🔧 テスト用マスターデータでラベル更新実行', 'info');
+                
+                // EstimateFlowが存在するかチェック
+                if (typeof EstimateFlow !== 'undefined' && EstimateFlow.setMasterRatesToInputFields) {
+                    EstimateFlow.setMasterRatesToInputFields(testMasterData.staff_rates);
+                    logTestResult('✅ setMasterRatesToInputFields 実行成功', 'success');
+                } else {
+                    logTestResult('❌ EstimateFlow.setMasterRatesToInputFields が見つかりません', 'error');
+                }
+                
+                // 結果確認
+                const supervisorDisplay = document.getElementById('rate-display-supervisor');
+                const leaderDisplay = document.getElementById('rate-display-leader');
+                
+                if (supervisorDisplay) {
+                    logTestResult(\`📋 スーパーバイザー表示値: \${supervisorDisplay.textContent}\`, 'info');
+                }
+                if (leaderDisplay) {
+                    logTestResult(\`📋 リーダー表示値: \${leaderDisplay.textContent}\`, 'info');
+                }
+                
+            } catch (error) {
+                logTestResult(\`❌ ラベル更新テスト失敗: \${error.message}\`, 'error');
+            }
+        });
+
+        // 完全フローテスト
+        document.getElementById('test-complete-flow').addEventListener('click', async () => {
+            logTestResult('完全フロー テスト開始...', 'info');
+            
+            try {
+                // 1. マスター設定API呼び出し
+                logTestResult('1️⃣ マスター設定API 呼び出し中...', 'info');
+                const response = await fetch('/api/master-settings');
+                const masterData = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(\`API エラー: \${masterData.error}\`);
+                }
+                
+                logTestResult('✅ マスター設定取得成功', 'success');
+                
+                // 2. ラベル更新実行
+                logTestResult('2️⃣ 動的ラベル更新実行中...', 'info');
+                
+                if (typeof EstimateFlow !== 'undefined' && EstimateFlow.setMasterRatesToInputFields) {
+                    EstimateFlow.setMasterRatesToInputFields(masterData.staff_rates);
+                    logTestResult('✅ 動的ラベル更新成功', 'success');
+                } else {
+                    throw new Error('EstimateFlow.setMasterRatesToInputFields が見つかりません');
+                }
+                
+                // 3. 結果確認と報告
+                logTestResult('3️⃣ 結果確認中...', 'info');
+                
+                const supervisorDisplay = document.getElementById('rate-display-supervisor');
+                const leaderDisplay = document.getElementById('rate-display-leader');
+                const supervisorInput = document.getElementById('rate_supervisor');
+                const leaderInput = document.getElementById('rate_leader');
+                
+                if (supervisorDisplay && leaderDisplay) {
+                    logTestResult(\`📊 最終表示結果:\`, 'success');
+                    logTestResult(\`　 🏷️ スーパーバイザーラベル: \${supervisorDisplay.textContent}円/日\`, 'success');
+                    logTestResult(\`　 🏷️ リーダーラベル: \${leaderDisplay.textContent}円/日\`, 'success');
+                    
+                    if (supervisorInput && leaderInput) {
+                        logTestResult(\`　 📝 スーパーバイザー入力値: \${supervisorInput.value}\`, 'info');
+                        logTestResult(\`　 📝 リーダー入力値: \${leaderInput.value}\`, 'info');
+                    }
+                    
+                    logTestResult('🎉 完全フローテスト 成功完了！', 'success');
+                } else {
+                    throw new Error('ラベル要素が見つかりません');
+                }
+                
+            } catch (error) {
+                logTestResult(\`❌ 完全フローテスト失敗: \${error.message}\`, 'error');
+            }
+        });
+        
+        // ページ読み込み完了時の初期状態レポート
+        document.addEventListener('DOMContentLoaded', () => {
+            logTestResult('🚀 動的ラベルテストページ 初期化完了', 'success');
+            logTestResult('EstimateFlow オブジェクトチェック中...', 'info');
+            
+            setTimeout(() => {
+                if (typeof EstimateFlow !== 'undefined') {
+                    logTestResult('✅ EstimateFlow オブジェクト 検出成功', 'success');
+                    if (EstimateFlow.setMasterRatesToInputFields) {
+                        logTestResult('✅ setMasterRatesToInputFields メソッド 利用可能', 'success');
+                    } else {
+                        logTestResult('❌ setMasterRatesToInputFields メソッド 見つかりません', 'error');
+                    }
+                } else {
+                    logTestResult('❌ EstimateFlow オブジェクト 見つかりません', 'error');
+                }
+            }, 1000);
+        });
+    </script>
+</body>
+</html>`)
 })
 
 // テスト用HTMLページ
@@ -2521,31 +3162,33 @@ app.post('/api/projects', async (c) => {
   try {
     const { env } = c
     const data = await c.req.json()
+    const userId = c.req.header('X-User-ID') || data.user_id || 'test-user-001'
     
-    // バリデーション
-    if (!data.name || !data.customer_id || !data.contact_person) {
+    // バリデーション（案件管理用に修正）
+    if (!data.name || !data.customer_id) {
       return c.json({ 
         success: false, 
-        error: '案件名、顧客ID、担当者名は必須です' 
+        error: '案件名と顧客IDは必須です' 
       }, 400)
     }
     
-    // データベースに挿入
+    // データベースに挿入（案件管理用フィールド）
     const result = await env.DB.prepare(`
-      INSERT INTO projects (customer_id, name, contact_person, description, status, user_id)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO projects (customer_id, name, description, status, priority, notes, user_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `).bind(
       data.customer_id,
-      data.name,
-      data.contact_person.trim(),
+      data.name.trim(),
       data.description || '',
       data.status || 'initial',
-      data.user_id || 'test-user-001'
+      data.priority || 'medium',
+      data.notes || '',
+      userId
     ).run()
     
     return c.json({
       success: true,
-      data: { id: result.meta.last_row_id, ...data },
+      data: { id: result.meta.last_row_id, ...data, user_id: userId },
       message: '案件を正常に追加しました'
     })
   } catch (error) {
@@ -4037,16 +4680,8 @@ app.get('/estimate/step4', (c) => {
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">STEP 4: スタッフ入力</h2>
-                <p className="mt-1 text-sm text-gray-600">必要なスタッフ人数を入力してください。AI最適化機能で推奨人数を自動提案します。</p>
+                <p className="mt-1 text-sm text-gray-600">必要なスタッフ人数を入力してください。</p>
               </div>
-              <button 
-                type="button"
-                onclick="AIFeatures.optimizeStaff()"
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg flex items-center space-x-2 shadow-lg"
-              >
-                <i className="fas fa-robot"></i>
-                <span>AI最適化</span>
-              </button>
             </div>
           </div>
 
@@ -4110,7 +4745,7 @@ app.get('/estimate/step4', (c) => {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       スーパーバイザー
-                      <span className="text-xs text-gray-500 ml-2">（¥15,000/日）</span>
+                      <span className="text-xs text-gray-500 ml-2">（¥<span id="rate-display-supervisor">40,000</span>/日）</span>
                     </label>
                     <div className="flex items-center space-x-3">
                       <input 
@@ -4130,7 +4765,7 @@ app.get('/estimate/step4', (c) => {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       リーダー以上
-                      <span className="text-xs text-gray-500 ml-2">（¥12,000/日）</span>
+                      <span className="text-xs text-gray-500 ml-2">（¥<span id="rate-display-leader">30,000</span>/日）</span>
                     </label>
                     <div className="flex items-center space-x-3">
                       <input 
@@ -4159,7 +4794,7 @@ app.get('/estimate/step4', (c) => {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         半日勤務
-                        <span className="text-xs text-gray-500 ml-2">（¥6,000/半日）</span>
+                        <span className="text-xs text-gray-500 ml-2">（¥<span id="rate-display-m2-half">10,000</span>/半日）</span>
                       </label>
                       <div className="flex items-center space-x-3">
                         <input 
@@ -4177,7 +4812,7 @@ app.get('/estimate/step4', (c) => {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         終日勤務
-                        <span className="text-xs text-gray-500 ml-2">（¥10,000/日）</span>
+                        <span className="text-xs text-gray-500 ml-2">（¥<span id="rate-display-m2-full">20,000</span>/日）</span>
                       </label>
                       <div className="flex items-center space-x-3">
                         <input 
@@ -4200,7 +4835,7 @@ app.get('/estimate/step4', (c) => {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         半日勤務
-                        <span className="text-xs text-gray-500 ml-2">（¥5,500/半日）</span>
+                        <span className="text-xs text-gray-500 ml-2">（¥<span id="rate-display-temp-half">9,000</span>/半日）</span>
                       </label>
                       <div className="flex items-center space-x-3">
                         <input 
@@ -4218,7 +4853,7 @@ app.get('/estimate/step4', (c) => {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         終日勤務
-                        <span className="text-xs text-gray-500 ml-2">（¥9,500/日）</span>
+                        <span className="text-xs text-gray-500 ml-2">（¥<span id="rate-display-temp-full">18,000</span>/日）</span>
                       </label>
                       <div className="flex items-center space-x-3">
                         <input 
@@ -4236,94 +4871,94 @@ app.get('/estimate/step4', (c) => {
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* スタッフ費用詳細表示（車両費用と同じスタイル） */}
-              <div id="staffPricingInfo" className="mb-8 p-4 bg-green-50 rounded-lg hidden">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">
-                  <i className="fas fa-users mr-2 text-green-600"></i>
-                  スタッフ費用詳細
-                </h3>
-                <div className="space-y-3">
-                  {/* 基本スタッフ費用 */}
-                  <div id="basicStaffSection" className="hidden">
-                    <h4 className="text-md font-medium text-green-800 mb-2">基本スタッフ</h4>
-                    
-                    <div id="supervisorPricing" className="flex justify-between items-center py-2 px-3 bg-white border border-green-200 rounded hidden">
-                      <div className="flex items-center">
-                        <i className="fas fa-user-tie mr-2 text-green-600"></i>
-                        <span className="text-sm font-medium text-gray-700">スーパーバイザー</span>
-                        <span id="supervisorDetails" className="text-xs text-gray-500 ml-2"></span>
-                      </div>
-                      <span id="supervisorCost" className="text-lg font-semibold text-green-700">¥0</span>
+            {/* スタッフ費用詳細表示（JavaScript制御・初期状態で非表示） */}
+            <div id="staffPricingInfo" className="mb-8 p-4 bg-green-50 rounded-lg" style="display: none;">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                <i className="fas fa-users mr-2 text-green-600"></i>
+                スタッフ費用詳細
+              </h3>
+              <div className="space-y-3">
+                {/* 基本スタッフ費用 */}
+                <div id="basicStaffSection" className="hidden">
+                  <h4 className="text-md font-medium text-green-800 mb-2">基本スタッフ</h4>
+                  
+                  <div id="supervisorPricing" className="flex justify-between items-center py-2 px-3 bg-white border border-green-200 rounded hidden">
+                    <div className="flex items-center">
+                      <i className="fas fa-user-tie mr-2 text-green-600"></i>
+                      <span className="text-sm font-medium text-gray-700">スーパーバイザー</span>
+                      <span id="supervisorDetails" className="text-xs text-gray-500 ml-2"></span>
                     </div>
-                    
-                    <div id="leaderPricing" className="flex justify-between items-center py-2 px-3 bg-white border border-green-200 rounded hidden">
-                      <div className="flex items-center">
-                        <i className="fas fa-user-cog mr-2 text-green-600"></i>
-                        <span className="text-sm font-medium text-gray-700">リーダー以上</span>
-                        <span id="leaderDetails" className="text-xs text-gray-500 ml-2"></span>
-                      </div>
-                      <span id="leaderCost" className="text-lg font-semibold text-green-700">¥0</span>
-                    </div>
+                    <span id="supervisorCost" className="text-lg font-semibold text-green-700">¥0</span>
                   </div>
-
-                  {/* M2スタッフ費用 */}
-                  <div id="m2StaffSection" className="hidden">
-                    <h4 className="text-md font-medium text-green-800 mb-2">M2スタッフ</h4>
-                    
-                    <div id="m2HalfDayPricing" className="flex justify-between items-center py-2 px-3 bg-white border border-green-200 rounded hidden">
-                      <div className="flex items-center">
-                        <i className="fas fa-user mr-2 text-green-600"></i>
-                        <span className="text-sm font-medium text-gray-700">M2スタッフ（半日）</span>
-                        <span id="m2HalfDayDetails" className="text-xs text-gray-500 ml-2"></span>
-                      </div>
-                      <span id="m2HalfDayCost" className="text-lg font-semibold text-green-700">¥0</span>
+                  
+                  <div id="leaderPricing" className="flex justify-between items-center py-2 px-3 bg-white border border-green-200 rounded hidden">
+                    <div className="flex items-center">
+                      <i className="fas fa-user-cog mr-2 text-green-600"></i>
+                      <span className="text-sm font-medium text-gray-700">リーダー以上</span>
+                      <span id="leaderDetails" className="text-xs text-gray-500 ml-2"></span>
                     </div>
-                    
-                    <div id="m2FullDayPricing" className="flex justify-between items-center py-2 px-3 bg-white border border-green-200 rounded hidden">
-                      <div className="flex items-center">
-                        <i className="fas fa-user mr-2 text-green-600"></i>
-                        <span className="text-sm font-medium text-gray-700">M2スタッフ（終日）</span>
-                        <span id="m2FullDayDetails" className="text-xs text-gray-500 ml-2"></span>
-                      </div>
-                      <span id="m2FullDayCost" className="text-lg font-semibold text-green-700">¥0</span>
-                    </div>
+                    <span id="leaderCost" className="text-lg font-semibold text-green-700">¥0</span>
                   </div>
+                </div>
 
-                  {/* 派遣スタッフ費用 */}
-                  <div id="tempStaffSection" className="hidden">
-                    <h4 className="text-md font-medium text-green-800 mb-2">派遣スタッフ</h4>
-                    
-                    <div id="tempHalfDayPricing" className="flex justify-between items-center py-2 px-3 bg-white border border-green-200 rounded hidden">
-                      <div className="flex items-center">
-                        <i className="fas fa-user-clock mr-2 text-green-600"></i>
-                        <span className="text-sm font-medium text-gray-700">派遣スタッフ（半日）</span>
-                        <span id="tempHalfDayDetails" className="text-xs text-gray-500 ml-2"></span>
-                      </div>
-                      <span id="tempHalfDayCost" className="text-lg font-semibold text-green-700">¥0</span>
+                {/* M2スタッフ費用 */}
+                <div id="m2StaffSection" className="hidden">
+                  <h4 className="text-md font-medium text-green-800 mb-2">M2スタッフ</h4>
+                  
+                  <div id="m2HalfDayPricing" className="flex justify-between items-center py-2 px-3 bg-white border border-green-200 rounded hidden">
+                    <div className="flex items-center">
+                      <i className="fas fa-user mr-2 text-green-600"></i>
+                      <span className="text-sm font-medium text-gray-700">M2スタッフ（半日）</span>
+                      <span id="m2HalfDayDetails" className="text-xs text-gray-500 ml-2"></span>
                     </div>
-                    
-                    <div id="tempFullDayPricing" className="flex justify-between items-center py-2 px-3 bg-white border border-green-200 rounded hidden">
-                      <div className="flex items-center">
-                        <i className="fas fa-user-clock mr-2 text-green-600"></i>
-                        <span className="text-sm font-medium text-gray-700">派遣スタッフ（終日）</span>
-                        <span id="tempFullDayDetails" className="text-xs text-gray-500 ml-2"></span>
-                      </div>
-                      <span id="tempFullDayCost" className="text-lg font-semibold text-green-700">¥0</span>
-                    </div>
+                    <span id="m2HalfDayCost" className="text-lg font-semibold text-green-700">¥0</span>
                   </div>
+                  
+                  <div id="m2FullDayPricing" className="flex justify-between items-center py-2 px-3 bg-white border border-green-200 rounded hidden">
+                    <div className="flex items-center">
+                      <i className="fas fa-user mr-2 text-green-600"></i>
+                      <span className="text-sm font-medium text-gray-700">M2スタッフ（終日）</span>
+                      <span id="m2FullDayDetails" className="text-xs text-gray-500 ml-2"></span>
+                    </div>
+                    <span id="m2FullDayCost" className="text-lg font-semibold text-green-700">¥0</span>
+                  </div>
+                </div>
 
-                  {/* スタッフ費用合計 */}
-                  <div className="border-t pt-3 mt-4">
-                    <div className="flex justify-between items-center p-4 bg-gradient-to-r from-green-100 to-emerald-100 border border-green-300 rounded-lg">
-                      <div>
-                        <span className="text-lg font-bold text-gray-900">スタッフ費用合計</span>
-                        <div id="totalStaffCount" className="text-sm text-gray-600">合計人数: 0人</div>
-                      </div>
-                      <div className="text-right">
-                        <span id="totalStaffCost" className="text-2xl font-bold text-green-600">¥0</span>
-                        <div className="text-xs text-gray-500">（税抜）</div>
-                      </div>
+                {/* 派遣スタッフ費用 */}
+                <div id="tempStaffSection" className="hidden">
+                  <h4 className="text-md font-medium text-green-800 mb-2">派遣スタッフ</h4>
+                  
+                  <div id="tempHalfDayPricing" className="flex justify-between items-center py-2 px-3 bg-white border border-green-200 rounded hidden">
+                    <div className="flex items-center">
+                      <i className="fas fa-user-clock mr-2 text-green-600"></i>
+                      <span className="text-sm font-medium text-gray-700">派遣スタッフ（半日）</span>
+                      <span id="tempHalfDayDetails" className="text-xs text-gray-500 ml-2"></span>
+                    </div>
+                    <span id="tempHalfDayCost" className="text-lg font-semibold text-green-700">¥0</span>
+                  </div>
+                  
+                  <div id="tempFullDayPricing" className="flex justify-between items-center py-2 px-3 bg-white border border-green-200 rounded hidden">
+                    <div className="flex items-center">
+                      <i className="fas fa-user-clock mr-2 text-green-600"></i>
+                      <span className="text-sm font-medium text-gray-700">派遣スタッフ（終日）</span>
+                      <span id="tempFullDayDetails" className="text-xs text-gray-500 ml-2"></span>
+                    </div>
+                    <span id="tempFullDayCost" className="text-lg font-semibold text-green-700">¥0</span>
+                  </div>
+                </div>
+
+                {/* スタッフ費用合計 */}
+                <div className="border-t pt-3 mt-4">
+                  <div className="flex justify-between items-center p-4 bg-gradient-to-r from-green-100 to-emerald-100 border border-green-300 rounded-lg">
+                    <div>
+                      <span className="text-lg font-bold text-gray-900">スタッフ費用合計</span>
+                      <div id="totalStaffCount" className="text-sm text-gray-600">合計人数: 0人</div>
+                    </div>
+                    <div className="text-right">
+                      <span id="totalStaffCost" className="text-2xl font-bold text-green-600">¥0</span>
+                      <div className="text-xs text-gray-500">（税抜）</div>
                     </div>
                   </div>
                 </div>
@@ -4612,7 +5247,7 @@ app.get('/estimate/step5', (c) => {
                         onChange="updateServicesCost()"
                       />
                       <span className="text-sm text-gray-600">時間</span>
-                      <span className="text-xs text-gray-500">（¥2,500/時間）</span>
+                      <span className="text-xs text-gray-500">（¥<span id="rate-display-parking-officer">2,500</span>/時間）</span>
                     </div>
                     <p className="text-xs text-gray-500 mt-1">違法駐車防止・交通整理</p>
                   </div>
@@ -4646,11 +5281,11 @@ app.get('/estimate/step5', (c) => {
                     <div className="space-y-2">
                       <label className="flex items-center">
                         <input type="radio" name="transport_distance_type" value="20km" className="mr-2" checked onChange="handleTransportDistanceChange()" />
-                        <span className="text-sm">20km圏内一律（¥15,000）</span>
+                        <span className="text-sm">20km圏内一律（¥<span id="rate-display-transport-20km">15,000</span>）</span>
                       </label>
                       <label className="flex items-center">
                         <input type="radio" name="transport_distance_type" value="custom" className="mr-2" onChange="handleTransportDistanceChange()" />
-                        <span className="text-sm">距離指定（¥150/km）</span>
+                        <span className="text-sm">距離指定（¥<span id="rate-display-transport-km">150</span>/km）</span>
                       </label>
                     </div>
                   </div>
@@ -4663,7 +5298,7 @@ app.get('/estimate/step5', (c) => {
                       </div>
                       <div className="flex items-center space-x-2">
                         <input type="number" id="transport_fuel_cost" className="form-input w-20" min="0" max="50000" onChange="updateServicesCost()" />
-                        <span className="text-xs text-gray-600">円（燃料費）</span>
+                        <span className="text-xs text-gray-600">円（燃料費 ¥<span id="rate-display-fuel">160</span>/L）</span>
                       </div>
                     </div>
                   </div>
@@ -4688,21 +5323,21 @@ app.get('/estimate/step5', (c) => {
                     <input type="radio" name="waste_disposal" value="small" className="mr-3" onChange="updateServicesCost()" />
                     <div>
                       <div className="font-medium">小</div>
-                      <div className="text-xs text-gray-500">¥8,000</div>
+                      <div className="text-xs text-gray-500">¥<span id="rate-display-waste-small">10,000</span></div>
                     </div>
                   </label>
                   <label className="flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50">
                     <input type="radio" name="waste_disposal" value="medium" className="mr-3" onChange="updateServicesCost()" />
                     <div>
                       <div className="font-medium">中</div>
-                      <div className="text-xs text-gray-500">¥15,000</div>
+                      <div className="text-xs text-gray-500">¥<span id="rate-display-waste-medium">15,000</span></div>
                     </div>
                   </label>
                   <label className="flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50">
                     <input type="radio" name="waste_disposal" value="large" className="mr-3" onChange="updateServicesCost()" />
                     <div>
                       <div className="font-medium">大</div>
-                      <div className="text-xs text-gray-500">¥25,000</div>
+                      <div className="text-xs text-gray-500">¥<span id="rate-display-waste-large">20,000</span></div>
                     </div>
                   </label>
                 </div>
@@ -4718,7 +5353,7 @@ app.get('/estimate/step5', (c) => {
                   <div>
                     <label className="flex items-center mb-3">
                       <input type="checkbox" id="protection_work" className="mr-2" onChange="handleProtectionWorkChange()" />
-                      <span className="text-sm font-medium">養生作業を実施する（基本料金¥5,000）</span>
+                      <span className="text-sm font-medium">養生作業を実施する（基本料金¥<span id="rate-display-protection-base">8,000</span>）</span>
                     </label>
                   </div>
                   <div id="protectionFloors" className="hidden">
@@ -4726,7 +5361,7 @@ app.get('/estimate/step5', (c) => {
                     <div className="flex items-center space-x-3">
                       <input type="number" id="protection_floors" className="form-input w-20" min="1" max="20" value="1" onChange="updateServicesCost()" />
                       <span className="text-sm text-gray-600">フロア</span>
-                      <span className="text-xs text-gray-500">（¥3,000/フロア）</span>
+                      <span className="text-xs text-gray-500">（¥<span id="rate-display-protection-floor">3,000</span>/フロア）</span>
                     </div>
                   </div>
                 </div>
@@ -4750,21 +5385,21 @@ app.get('/estimate/step5', (c) => {
                     <input type="radio" name="material_collection" value="few" className="mr-3" onChange="updateServicesCost()" />
                     <div>
                       <div className="font-medium">少</div>
-                      <div className="text-xs text-gray-500">¥6,000</div>
+                      <div className="text-xs text-gray-500">¥<span id="rate-display-material-few">5,000</span></div>
                     </div>
                   </label>
                   <label className="flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50">
                     <input type="radio" name="material_collection" value="medium" className="mr-3" onChange="updateServicesCost()" />
                     <div>
                       <div className="font-medium">中</div>
-                      <div className="text-xs text-gray-500">¥12,000</div>
+                      <div className="text-xs text-gray-500">¥<span id="rate-display-material-medium">10,000</span></div>
                     </div>
                   </label>
                   <label className="flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50">
                     <input type="radio" name="material_collection" value="many" className="mr-3" onChange="updateServicesCost()" />
                     <div>
                       <div className="font-medium">多</div>
-                      <div className="text-xs text-gray-500">¥20,000</div>
+                      <div className="text-xs text-gray-500">¥<span id="rate-display-material-many">15,000</span></div>
                     </div>
                   </label>
                 </div>
@@ -4825,7 +5460,7 @@ app.get('/estimate/step5', (c) => {
                       onChange="updateServicesCost()" 
                     />
                     <span className="text-sm text-gray-600">人</span>
-                    <span className="text-xs text-gray-500">（¥12,500/人）</span>
+                    <span className="text-xs text-gray-500">（¥<span id="rate-display-construction-m2">0</span>/人）</span>
                   </div>
                 </div>
                 
@@ -4922,20 +5557,6 @@ app.get('/estimate/step5', (c) => {
                 </div>
               </div>
 
-              {/* 備考 */}
-              <div className="border rounded-lg p-4">
-                <div className="flex items-center mb-4">
-                  <i className="fas fa-comment-dots text-gray-500 text-xl mr-3"></i>
-                  <h4 className="text-lg font-medium text-gray-900">備考</h4>
-                </div>
-                <textarea 
-                  id="notes" 
-                  className="form-textarea w-full" 
-                  rows="3" 
-                  placeholder="その他特記事項があればご記入ください"
-                ></textarea>
-              </div>
-
               {/* サービス費用表示 */}
               <div id="servicesCostDisplay" className="p-4 bg-orange-50 border border-orange-200 rounded-lg hidden">
                 <h4 className="text-lg font-medium text-orange-900 mb-2">
@@ -4956,6 +5577,20 @@ app.get('/estimate/step5', (c) => {
                     <p className="text-xs text-orange-600">サービス費用合計</p>
                   </div>
                 </div>
+              </div>
+
+              {/* 備考 */}
+              <div className="border rounded-lg p-4">
+                <div className="flex items-center mb-4">
+                  <i className="fas fa-comment-dots text-gray-500 text-xl mr-3"></i>
+                  <h4 className="text-lg font-medium text-gray-900">備考</h4>
+                </div>
+                <textarea 
+                  id="notes" 
+                  className="form-textarea w-full" 
+                  rows="3" 
+                  placeholder="その他特記事項があればご記入ください"
+                ></textarea>
               </div>
             </div>
 
@@ -4997,69 +5632,104 @@ app.get('/api/service-rates', async (c) => {
       ORDER BY subcategory, key
     `).bind(userId).all()
     
+    // Step5実装に適合した形式でサービス料金を構築
     const serviceRates = {
-      waste_disposal: {},
-      material_collection: {},
-      work_time_multiplier: {}
+      parking_officer_hourly: 0,
+      transport_vehicle_20km: 0,
+      transport_vehicle_per_km: 0,
+      fuel_per_liter: 0,
+      protection_work_base: 0,
+      protection_work_floor: 0,
+      construction_m2_staff: 0,
+      waste_disposal: {
+        'none': 0
+      },
+      material_collection: {
+        'none': 0
+      },
+      work_time_multiplier: {
+        'normal': 1.0
+      }
     }
     
     if (result.results) {
       result.results.forEach((row: any) => {
         const { subcategory, key, value } = row
-        const numericValue = parseFloat(value)
+        const numericValue = parseFloat(value) || 0
         
         if (subcategory === 'parking_officer' && key === 'hourly_rate') {
-          serviceRates['parking_officer_hourly'] = numericValue
+          serviceRates.parking_officer_hourly = numericValue
         } else if (subcategory === 'transport_vehicle' && key === 'base_rate_20km') {
-          serviceRates['transport_vehicle_20km'] = numericValue
+          serviceRates.transport_vehicle_20km = numericValue
         } else if (subcategory === 'transport_vehicle' && key === 'rate_per_km') {
-          serviceRates['transport_vehicle_per_km'] = numericValue
+          serviceRates.transport_vehicle_per_km = numericValue
         } else if (subcategory === 'fuel' && key === 'rate_per_liter') {
-          serviceRates['fuel_per_liter'] = numericValue
+          serviceRates.fuel_per_liter = numericValue
         } else if (subcategory === 'waste_disposal') {
           serviceRates.waste_disposal[key] = numericValue
         } else if (subcategory === 'protection_work' && key === 'base_rate') {
-          serviceRates['protection_work_base'] = numericValue
+          serviceRates.protection_work_base = numericValue
         } else if (subcategory === 'protection_work' && key === 'floor_rate') {
-          serviceRates['protection_work_floor'] = numericValue
+          serviceRates.protection_work_floor = numericValue
         } else if (subcategory === 'material_collection') {
           serviceRates.material_collection[key] = numericValue
         } else if (subcategory === 'construction' && key === 'm2_staff_rate') {
-          serviceRates['construction_m2_staff'] = numericValue
+          serviceRates.construction_m2_staff = numericValue
         } else if (subcategory === 'work_time') {
           serviceRates.work_time_multiplier[key] = numericValue
         }
       })
     }
     
-    // デフォルト値を設定（データがない場合）
+    console.log('📊 構築されたサービス料金:', serviceRates)
+    
+    // マスター未設定の場合のみデフォルト値を設定
     if (!serviceRates.parking_officer_hourly) {
-      serviceRates.parking_officer_hourly = 2500
+      serviceRates.parking_officer_hourly = 3000  // マスター値と同じ
     }
     if (!serviceRates.transport_vehicle_20km) {
-      serviceRates.transport_vehicle_20km = 15000
+      serviceRates.transport_vehicle_20km = 8000  // マスター値と同じ
     }
     if (!serviceRates.transport_vehicle_per_km) {
-      serviceRates.transport_vehicle_per_km = 150
+      serviceRates.transport_vehicle_per_km = 100  // マスター値と同じ
     }
     if (!serviceRates.protection_work_base) {
-      serviceRates.protection_work_base = 5000
+      serviceRates.protection_work_base = 5000  // マスター値と同じ
     }
     if (!serviceRates.protection_work_floor) {
-      serviceRates.protection_work_floor = 0
+      serviceRates.protection_work_floor = 3000  // マスター値と同じ
     }
     if (!serviceRates.construction_m2_staff) {
-      serviceRates.construction_m2_staff = 12500
+      serviceRates.construction_m2_staff = 8000  // マスター値と同じ
     }
-    if (Object.keys(serviceRates.waste_disposal).length === 0) {
-      serviceRates.waste_disposal = { small: 8000, medium: 15000, large: 25000 }
+    
+    // オブジェクト形式のデフォルト値（'none' キーは必ず含む）
+    if (Object.keys(serviceRates.waste_disposal).length <= 1) {
+      serviceRates.waste_disposal = { 
+        'none': 0,
+        'small': 5000,    // マスター値と同じ
+        'medium': 10000,  // マスター値と同じ
+        'large': 20000    // マスター値と同じ
+      }
     }
-    if (Object.keys(serviceRates.material_collection).length === 0) {
-      serviceRates.material_collection = { few: 6000, medium: 12000, many: 20000 }
+    if (Object.keys(serviceRates.material_collection).length <= 1) {
+      serviceRates.material_collection = { 
+        'none': 0,
+        'few': 3000,      // マスター値と同じ
+        'medium': 8000,   // マスター値と同じ  
+        'many': 15000     // マスター値と同じ
+      }
     }
-    if (Object.keys(serviceRates.work_time_multiplier).length === 0) {
-      serviceRates.work_time_multiplier = { normal: 1.0, early: 1.2, night: 1.5, midnight: 2.0 }
+    if (Object.keys(serviceRates.work_time_multiplier).length <= 1) {
+      serviceRates.work_time_multiplier = { 
+        'normal': 1.0,    // マスター値と同じ
+        'early': 1.2,     // マスター値と同じ
+        'night': 1.5,     // マスター値と同じ
+        'midnight': 2.0   // マスター値と同じ
+      }
     }
+    
+    console.log('🔧 最終的なサービス料金:', serviceRates)
     
     return c.json({
       success: true,
@@ -5796,7 +6466,7 @@ app.get('/masters', (c) => {
                     <div className="bg-blue-50 p-4 rounded-lg">
                       <label className="block text-sm font-medium text-blue-900 mb-2">
                         <i className="fas fa-user-tie mr-2"></i>
-                        スーパーバイザー（円/日）
+                        スーパーバイザー（<span id="rate-display-supervisor">40,000</span>円/日）
                       </label>
                       <input type="number" id="rate_supervisor" className="form-input" min="0" step="1000" />
                     </div>
@@ -5804,7 +6474,7 @@ app.get('/masters', (c) => {
                     <div className="bg-green-50 p-4 rounded-lg">
                       <label className="block text-sm font-medium text-green-900 mb-2">
                         <i className="fas fa-user-cog mr-2"></i>
-                        リーダー以上（円/日）
+                        リーダー以上（<span id="rate-display-leader">12,000</span>円/日）
                       </label>
                       <input type="number" id="rate_leader" className="form-input" min="0" step="1000" />
                     </div>
@@ -5812,7 +6482,7 @@ app.get('/masters', (c) => {
                     <div className="bg-yellow-50 p-4 rounded-lg">
                       <label className="block text-sm font-medium text-yellow-900 mb-2">
                         <i className="fas fa-user mr-2"></i>
-                        M2スタッフ半日（円/半日）
+                        M2スタッフ半日（<span id="rate-display-m2-half">6,000</span>円/半日）
                       </label>
                       <input type="number" id="rate_m2_half_day" className="form-input" min="0" step="500" />
                     </div>
@@ -5820,7 +6490,7 @@ app.get('/masters', (c) => {
                     <div className="bg-yellow-50 p-4 rounded-lg">
                       <label className="block text-sm font-medium text-yellow-900 mb-2">
                         <i className="fas fa-user mr-2"></i>
-                        M2スタッフ終日（円/日）
+                        M2スタッフ終日（<span id="rate-display-m2-full">10,000</span>円/日）
                       </label>
                       <input type="number" id="rate_m2_full_day" className="form-input" min="0" step="1000" />
                     </div>
@@ -5828,7 +6498,7 @@ app.get('/masters', (c) => {
                     <div className="bg-purple-50 p-4 rounded-lg">
                       <label className="block text-sm font-medium text-purple-900 mb-2">
                         <i className="fas fa-user-clock mr-2"></i>
-                        派遣スタッフ半日（円/半日）
+                        派遣スタッフ半日（<span id="rate-display-temp-half">5,500</span>円/半日）
                       </label>
                       <input type="number" id="rate_temp_half_day" className="form-input" min="0" step="500" />
                     </div>
@@ -5836,7 +6506,7 @@ app.get('/masters', (c) => {
                     <div className="bg-purple-50 p-4 rounded-lg">
                       <label className="block text-sm font-medium text-purple-900 mb-2">
                         <i className="fas fa-user-clock mr-2"></i>
-                        派遣スタッフ終日（円/日）
+                        派遣スタッフ終日（<span id="rate-display-temp-full">9,500</span>円/日）
                       </label>
                       <input type="number" id="rate_temp_full_day" className="form-input" min="0" step="1000" />
                     </div>
@@ -6063,7 +6733,7 @@ app.get('/masters', (c) => {
                       駐車対策員
                     </h4>
                     <div>
-                      <label className="block text-sm text-orange-800 mb-2">時間単価（円/時間）</label>
+                      <label className="block text-sm text-orange-800 mb-2">時間単価（<span id="rate-display-parking-hourly">3,000</span>円/時間）</label>
                       <input type="number" id="service_parking_officer_hourly" className="form-input" min="0" step="100" />
                     </div>
                   </div>
@@ -6076,15 +6746,15 @@ app.get('/masters', (c) => {
                     </h4>
                     <div className="space-y-3">
                       <div>
-                        <label className="block text-sm text-blue-800 mb-2">20km圏内基本料金（円）</label>
+                        <label className="block text-sm text-blue-800 mb-2">20km圏内基本料金（<span id="rate-display-transport-20km">8,000</span>円）</label>
                         <input type="number" id="service_transport_20km" className="form-input" min="0" step="1000" />
                       </div>
                       <div>
-                        <label className="block text-sm text-blue-800 mb-2">距離単価（円/km）</label>
+                        <label className="block text-sm text-blue-800 mb-2">距離単価（<span id="rate-display-transport-km">100</span>円/km）</label>
                         <input type="number" id="service_transport_per_km" className="form-input" min="0" step="10" />
                       </div>
                       <div>
-                        <label className="block text-sm text-blue-800 mb-2">燃料費（円/L）</label>
+                        <label className="block text-sm text-blue-800 mb-2">燃料費（<span id="rate-display-fuel">150</span>円/L）</label>
                         <input type="number" id="service_fuel_per_liter" className="form-input" min="0" step="10" />
                       </div>
                     </div>
@@ -6098,15 +6768,15 @@ app.get('/masters', (c) => {
                     </h4>
                     <div className="space-y-3">
                       <div>
-                        <label className="block text-sm text-red-800 mb-2">小（円）</label>
+                        <label className="block text-sm text-red-800 mb-2">小（<span id="rate-display-waste-small">5,000</span>円）</label>
                         <input type="number" id="service_waste_small" className="form-input" min="0" step="1000" />
                       </div>
                       <div>
-                        <label className="block text-sm text-red-800 mb-2">中（円）</label>
+                        <label className="block text-sm text-red-800 mb-2">中（<span id="rate-display-waste-medium">10,000</span>円）</label>
                         <input type="number" id="service_waste_medium" className="form-input" min="0" step="1000" />
                       </div>
                       <div>
-                        <label className="block text-sm text-red-800 mb-2">大（円）</label>
+                        <label className="block text-sm text-red-800 mb-2">大（<span id="rate-display-waste-large">20,000</span>円）</label>
                         <input type="number" id="service_waste_large" className="form-input" min="0" step="1000" />
                       </div>
                     </div>
@@ -6120,11 +6790,11 @@ app.get('/masters', (c) => {
                     </h4>
                     <div className="space-y-3">
                       <div>
-                        <label className="block text-sm text-yellow-800 mb-2">基本料金（円）</label>
+                        <label className="block text-sm text-yellow-800 mb-2">基本料金（<span id="rate-display-protection-base">5,000</span>円）</label>
                         <input type="number" id="service_protection_base" className="form-input" min="0" step="1000" />
                       </div>
                       <div>
-                        <label className="block text-sm text-yellow-800 mb-2">フロア単価（円/フロア）</label>
+                        <label className="block text-sm text-yellow-800 mb-2">フロア単価（<span id="rate-display-protection-floor">3,000</span>円/フロア）</label>
                         <input type="number" id="service_protection_floor" className="form-input" min="0" step="1000" />
                       </div>
                     </div>
@@ -6160,7 +6830,7 @@ app.get('/masters', (c) => {
                     </h4>
                     <div className="space-y-3">
                       <div>
-                        <label className="block text-sm text-purple-800 mb-2">施工M2スタッフ単価（円/人）</label>
+                        <label className="block text-sm text-purple-800 mb-2">施工M2スタッフ単価（<span id="rate-display-construction-m2">8,000</span>円/人）</label>
                         <input type="number" id="service_construction_m2_staff_rate" className="form-input" min="0" step="1000" />
                       </div>
                       <div>
@@ -13042,11 +13712,11 @@ app.put('/api/projects/:id', async (c) => {
     const userId = c.req.header('X-User-ID') || 'test-user-001'
     const data = await c.req.json()
     
-    // バリデーション
-    if (!data.name || !data.customer_id || !data.contact_person) {
+    // バリデーション（案件管理用に修正）
+    if (!data.name || !data.customer_id) {
       return c.json({ 
         success: false, 
-        error: '案件名、顧客ID、担当者名は必須です' 
+        error: '案件名と顧客IDは必須です' 
       }, 400)
     }
     
@@ -13062,16 +13732,18 @@ app.put('/api/projects/:id', async (c) => {
       }, 404)
     }
     
-    // 更新実行
+    // 更新実行（案件管理用フィールドを含む）
     const result = await env.DB.prepare(`
       UPDATE projects 
-      SET customer_id = ?, name = ?, description = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+      SET customer_id = ?, name = ?, description = ?, status = ?, priority = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND user_id = ?
     `).bind(
       data.customer_id,
-      data.name,
+      data.name.trim(),
       data.description || '',
       data.status || 'initial',
+      data.priority || 'medium',
+      data.notes || '',
       projectId,
       userId
     ).run()
@@ -13804,22 +14476,58 @@ app.post('/api/customers', async (c) => {
   }
 });
 
-// 案件作成APIエンドポイント
+// 案件作成APIエンドポイント - 重複防止機能付き
 app.post('/api/projects', async (c) => {
   try {
     const { env } = c;
     const data = await c.req.json();
+    const userId = c.req.header('X-User-ID') || data.user_id || 'test-user-001';
     
+    // 入力検証
+    if (!data.name || !data.customer_id) {
+      return c.json({ 
+        success: false, 
+        error: '案件名と顧客IDは必須です' 
+      }, 400);
+    }
+    
+    // 重複チェック（30秒以内の同一案件名・顧客IDの作成を防ぐ）
+    const duplicateCheck = await env.DB.prepare(`
+      SELECT id, created_at 
+      FROM projects 
+      WHERE name = ? AND customer_id = ? AND user_id = ?
+      AND created_at >= datetime('now', '-30 seconds')
+      ORDER BY created_at DESC
+      LIMIT 1
+    `).bind(data.name.trim(), data.customer_id, userId).first();
+    
+    if (duplicateCheck) {
+      console.warn('🚫 重複案件作成をブロック:', {
+        name: data.name,
+        customer_id: data.customer_id,
+        existing_id: duplicateCheck.id,
+        created_at: duplicateCheck.created_at
+      });
+      
+      return c.json({ 
+        success: false, 
+        error: '同じ案件が短時間で重複して作成されようとしました。少し時間をおいてから再度お試しください。',
+        duplicate_id: duplicateCheck.id
+      }, 409);
+    }
+    
+    // 案件作成
     const result = await env.DB.prepare(`
-      INSERT INTO projects (name, customer_id, contact_person, status, description, user_id)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO projects (customer_id, name, description, status, priority, notes, user_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `).bind(
-      data.name,
       data.customer_id,
-      data.contact_person || '',
+      data.name.trim(),
+      data.description || '',
       data.status || 'initial',
-      data.description || null,
-      'user001'
+      data.priority || 'medium',
+      data.notes || '',
+      userId
     ).run();
 
     if (result.success) {
@@ -13843,6 +14551,207 @@ app.post('/api/projects', async (c) => {
     });
   }
 });
+
+// 案件更新APIエンドポイント
+app.put('/api/projects/:id', async (c) => {
+  try {
+    const { env } = c
+    const projectId = c.req.param('id')
+    const userId = c.req.header('X-User-ID') || 'test-user-001'
+    const data = await c.req.json()
+    
+    // バリデーション
+    if (!data.name) {
+      return c.json({ 
+        success: false, 
+        error: '案件名は必須です' 
+      }, 400)
+    }
+    
+    // 更新実行
+    const result = await env.DB.prepare(`
+      UPDATE projects 
+      SET name = ?, customer_id = ?, status = ?, priority = ?, description = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ?
+    `).bind(
+      data.name,
+      data.customer_id,
+      data.status || 'initial',
+      data.priority || 'medium',
+      data.description || '',
+      data.notes || '',
+      projectId,
+      userId
+    ).run()
+    
+    if (!result.success) {
+      return c.json({ 
+        success: false, 
+        error: '案件の更新に失敗しました' 
+      }, 500)
+    }
+    
+    return c.json({
+      success: true,
+      message: '案件情報を正常に更新しました'
+    })
+  } catch (error) {
+    console.error('案件更新エラー:', error)
+    return c.json({ 
+      success: false, 
+      error: '案件の更新中にエラーが発生しました' 
+    }, 500)
+  }
+})
+
+// 案件論理削除APIエンドポイント  
+app.delete('/api/projects/:id', async (c) => {
+  try {
+    const { env } = c
+    const projectId = c.req.param('id')
+    const userId = c.req.header('X-User-ID') || 'test-user-001'
+    const data = await c.req.json()
+    
+    // 論理削除実行
+    const result = await env.DB.prepare(`
+      UPDATE projects 
+      SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP, deleted_reason = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ?
+    `).bind(
+      data.reason || '削除されました',
+      projectId,
+      userId
+    ).run()
+    
+    if (!result.success) {
+      return c.json({ 
+        success: false, 
+        error: '案件の削除に失敗しました' 
+      }, 500)
+    }
+    
+    return c.json({
+      success: true,
+      message: '案件を正常に削除しました'
+    })
+  } catch (error) {
+    console.error('案件削除エラー:', error)
+    return c.json({ 
+      success: false, 
+      error: '案件の削除中にエラーが発生しました' 
+    }, 500)
+  }
+})
+
+// 案件復元APIエンドポイント
+app.post('/api/projects/:id/restore', async (c) => {
+  try {
+    const { env } = c
+    const projectId = c.req.param('id')
+    const userId = c.req.header('X-User-ID') || 'test-user-001'
+    
+    // 復元実行
+    const result = await env.DB.prepare(`
+      UPDATE projects 
+      SET status = 'initial', deleted_at = NULL, deleted_reason = NULL, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ?
+    `).bind(projectId, userId).run()
+    
+    if (!result.success) {
+      return c.json({ 
+        success: false, 
+        error: '案件の復元に失敗しました' 
+      }, 500)
+    }
+    
+    return c.json({
+      success: true,
+      message: '案件を正常に復元しました'
+    })
+  } catch (error) {
+    console.error('案件復元エラー:', error)
+    return c.json({ 
+      success: false, 
+      error: '案件の復元中にエラーが発生しました' 
+    }, 500)
+  }
+})
+
+// 案件ステータス切り替えAPIエンドポイント
+app.post('/api/projects/:id/toggle-status', async (c) => {
+  try {
+    const { env } = c
+    const projectId = c.req.param('id')
+    const userId = c.req.header('X-User-ID') || 'test-user-001'
+    const data = await c.req.json()
+    
+    let newStatus = 'initial';
+    if (data.currentStatus === 'initial') {
+      newStatus = 'inactive';
+    } else if (data.currentStatus === 'inactive') {
+      newStatus = 'initial';
+    }
+    
+    // ステータス更新
+    const result = await env.DB.prepare(`
+      UPDATE projects 
+      SET status = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ?
+    `).bind(newStatus, projectId, userId).run()
+    
+    if (!result.success) {
+      return c.json({ 
+        success: false, 
+        error: 'ステータスの切り替えに失敗しました' 
+      }, 500)
+    }
+    
+    return c.json({
+      success: true,
+      message: 'ステータスを正常に切り替えました'
+    })
+  } catch (error) {
+    console.error('案件ステータス切り替えエラー:', error)
+    return c.json({ 
+      success: false, 
+      error: 'ステータスの切り替え中にエラーが発生しました' 
+    }, 500)
+  }
+})
+
+// 案件個別取得APIエンドポイント
+app.get('/api/projects/:id', async (c) => {
+  try {
+    const { env } = c
+    const projectId = c.req.param('id')
+    const userId = c.req.header('X-User-ID') || 'test-user-001'
+    
+    const result = await env.DB.prepare(`
+      SELECT p.*, c.name as customer_name 
+      FROM projects p
+      LEFT JOIN customers c ON p.customer_id = c.id
+      WHERE p.id = ? AND p.user_id = ?
+    `).bind(projectId, userId).first()
+    
+    if (!result) {
+      return c.json({ 
+        success: false, 
+        error: '案件が見つかりません' 
+      }, 404)
+    }
+    
+    return c.json({
+      success: true,
+      data: result
+    })
+  } catch (error) {
+    console.error('案件詳細取得エラー:', error)
+    return c.json({ 
+      success: false, 
+      error: '案件詳細の取得に失敗しました' 
+    }, 500)
+  }
+})
 
 // テスト機能ページ
 app.get('/test', (c) => {
@@ -14967,7 +15876,7 @@ app.get('/settings', (c) => {
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/app.js?v=1760182366"></script>
+        <script src="/static/app-1760678720.js?v=1760678720&nocache=true"></script>
         <script>
             // 設定機能の実装
             const Settings = {

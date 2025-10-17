@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>案件管理機能テスト</title>
+    <script>
+        function testProjectFunctionality() {
+            // 結果を表示するための要素
+            const output = document.getElementById('output');
+            
+            function log(message) {
+                console.log(message);
+                output.innerHTML += message + '<br>';
+            }
+            
+            log('=== 案件管理機能テスト開始 ===');
+            
+            // 案件タブをクリック
+            setTimeout(() => {
+                log('🎯 案件タブをクリック...');
+                if (window.MasterManagement && window.MasterManagement.switchTab) {
+                    window.MasterManagement.switchTab('projects');
+                    log('✅ 案件タブクリック完了');
+                    
+                    // 新規案件追加ボタンをクリック
+                    setTimeout(() => {
+                        log('🎯 新規案件追加ボタンをクリック...');
+                        if (window.MasterManagement && window.MasterManagement.openAddProjectModal) {
+                            window.MasterManagement.openAddProjectModal();
+                            log('✅ 新規案件追加ボタンクリック完了');
+                            
+                            // 顧客プルダウンをチェック
+                            setTimeout(() => {
+                                log('🎯 顧客プルダウンを確認...');
+                                const customerSelect = document.getElementById('masterProjectCustomerId');
+                                if (customerSelect) {
+                                    log(`✅ 顧客プルダウン要素見つかりました (ID: ${customerSelect.id})`);
+                                    log(`顧客オプション数: ${customerSelect.options.length}`);
+                                    
+                                    if (customerSelect.options.length > 1) {
+                                        log('✅ 顧客データが正常にロードされています');
+                                        for (let i = 1; i < Math.min(6, customerSelect.options.length); i++) {
+                                            log(`- 顧客 ${i}: ${customerSelect.options[i].text} (ID: ${customerSelect.options[i].value})`);
+                                        }
+                                    } else {
+                                        log('❌ 顧客データがロードされていません (デフォルトオプションのみ)');
+                                        // 手動で顧客データロードをテスト
+                                        log('🔄 手動で顧客データロードを実行...');
+                                        if (window.MasterManagement && window.MasterManagement.loadCustomersForSelect) {
+                                            window.MasterManagement.loadCustomersForSelect();
+                                            setTimeout(() => {
+                                                log(`再チェック - 顧客オプション数: ${customerSelect.options.length}`);
+                                            }, 2000);
+                                        }
+                                    }
+                                } else {
+                                    log('❌ 顧客プルダウン要素が見つかりません');
+                                }
+                                
+                                // フォーム送信テスト
+                                setTimeout(() => {
+                                    log('🎯 フォーム送信機能をテスト...');
+                                    const form = document.getElementById('masterProjectForm');
+                                    if (form) {
+                                        log('✅ 案件フォーム見つかりました');
+                                        const onsubmit = form.getAttribute('onsubmit');
+                                        if (onsubmit) {
+                                            log(`✅ onsubmit属性設定済み: ${onsubmit}`);
+                                        } else {
+                                            log('❌ onsubmit属性が設定されていません');
+                                        }
+                                        
+                                        // フォーム要素をチェック
+                                        const requiredFields = [
+                                            'masterProjectCustomerId',
+                                            'masterProjectName',
+                                            'masterProjectStatus',
+                                            'masterProjectPriority'
+                                        ];
+                                        
+                                        requiredFields.forEach(fieldId => {
+                                            const field = document.getElementById(fieldId);
+                                            if (field) {
+                                                log(`✅ フィールド ${fieldId} 見つかりました`);
+                                            } else {
+                                                log(`❌ フィールド ${fieldId} が見つかりません`);
+                                            }
+                                        });
+                                    } else {
+                                        log('❌ 案件フォームが見つかりません');
+                                    }
+                                    
+                                    log('=== テスト完了 ===');
+                                }, 1000);
+                                
+                            }, 3000);
+                        } else {
+                            log('❌ openAddProjectModal が見つかりません');
+                        }
+                    }, 2000);
+                } else {
+                    log('❌ MasterManagement.switchTab が見つかりません');
+                }
+            }, 1000);
+        }
+        
+        // ページロード後にテスト実行
+        window.addEventListener('load', () => {
+            setTimeout(testProjectFunctionality, 3000);
+        });
+    </script>
+</head>
+<body>
+    <h1>案件管理機能テスト</h1>
+    <div id="output"></div>
+    <br>
+    <button onclick="testProjectFunctionality()">手動テスト実行</button>
+    
+    <!-- 実際のサイトをiframe内で開いて同時実行 -->
+    <iframe src="https://3000-ip60pndnnf5e5cmovjufh-6532622b.e2b.dev/masters" width="100%" height="800"></iframe>
+</body>
+</html>

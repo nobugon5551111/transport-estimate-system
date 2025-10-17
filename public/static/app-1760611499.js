@@ -1,5 +1,6 @@
 // 輸送見積もりシステム - メインJavaScript
-// 🔄 キャッシュバスター直接フォーム制御: 1760195388
+// 🔄 Utils.escapeHtml修正済みバージョン: 1760197366
+console.log('🚀 JavaScript Version: 1760197366 - Utils.escapeHtml修正済み');
 
 // ===== 重複実行防止システム =====
 (function() {
@@ -69,8 +70,8 @@ if (typeof estimateFlow === 'undefined') {
 }
 
 // ユーティリティ関数（重複宣言を防ぐため条件付き）
-if (typeof Utils === 'undefined') {
-  const Utils = {
+if (typeof window.Utils === 'undefined') {
+  window.Utils = {
   // 数値をカンマ区切りでフォーマット
   formatNumber: (num) => {
     return new Intl.NumberFormat('ja-JP').format(num);
@@ -78,7 +79,7 @@ if (typeof Utils === 'undefined') {
 
   // 金額を円表示でフォーマット
   formatCurrency: (amount) => {
-    return `¥${Utils.formatNumber(amount)}`;
+    return `¥${window.Utils.formatNumber(amount)}`;
   },
 
   // 郵便番号のフォーマット（7桁 -> XXX-XXXX）
@@ -162,11 +163,18 @@ if (typeof Utils === 'undefined') {
         successDiv.remove();
       }
     }, 5000);
+  },
+
+  // HTMLエスケープ
+  escapeHtml: (text) => {
+    if (typeof text !== 'string') {
+      return text;
+    }
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 };
-  
-  // グローバル参照も設定
-  window.Utils = Utils;
 }
 
 // API呼び出し関数（重複宣言を防ぐため条件付き）
@@ -1945,24 +1953,60 @@ const Step4Implementation = {
     }
 
     try {
-      // スタッフ単価を取得
-      const ratesResponse = await API.get('/staff-rates');
-      if (ratesResponse.success && ratesResponse.data) {
-        Step4Implementation.staffRates = ratesResponse.data.staffRates;
-        console.log('✅ STEP4: スタッフ単価取得完了:', Step4Implementation.staffRates);
-      } else {
-        console.warn('⚠️ STEP4: スタッフ単価取得失敗、デフォルト値を使用');
+      // マスター設定からスタッフ単価を取得
+      console.log('🔄 マスター設定からスタッフ単価を取得中...');
+      const masterResponse = await API.get('/master-settings');
+      
+      if (masterResponse.success && masterResponse.data && masterResponse.data.staff_rates) {
+        const masterStaffRates = masterResponse.data.staff_rates;
+        
+        console.log('🔍 DEBUG: マスターAPIレスポンス全体:', masterResponse);
+        console.log('🔍 DEBUG: staff_rates部分:', masterStaffRates);
+        console.log('🔍 DEBUG: supervisor値 (API):', masterStaffRates.supervisor);
+        console.log('🔍 DEBUG: supervisor値の型 (API):', typeof masterStaffRates.supervisor);
+        
+        // Step4実装形式に変換（マスター登録済み値を直接使用）
         Step4Implementation.staffRates = {
-          supervisor_rate: 20000,
-          leader_rate: 17000,
-          m2_half_day_rate: 7000,
-          m2_full_day_rate: 12500,
-          temp_half_day_rate: 6500,
-          temp_full_day_rate: 11500
+          supervisor_rate: masterStaffRates.supervisor || 40000,     // マスター値: 40,000円
+          leader_rate: masterStaffRates.leader || 12000,           // マスター値: 12,000円
+          m2_half_day_rate: masterStaffRates.m2_half_day || 6000,  // マスター値: 6,000円
+          m2_full_day_rate: masterStaffRates.m2_full_day || 10000, // マスター値: 10,000円
+          temp_half_day_rate: masterStaffRates.temp_half_day || 5500, // マスター値: 5,500円
+          temp_full_day_rate: masterStaffRates.temp_full_day || 9500  // マスター値: 9,500円
+        };
+        
+        console.log('✅ マスター設定からスタッフ単価を正常取得:', Step4Implementation.staffRates);
+        console.log('🔍 DEBUG: 設定後のsupervisor_rate:', Step4Implementation.staffRates.supervisor_rate);
+        console.log('💰 使用するマスタースタッフ料金:');
+        console.log('  - スーパーバイザー:', Step4Implementation.staffRates.supervisor_rate, '円/日');
+        console.log('  - リーダー以上:', Step4Implementation.staffRates.leader_rate, '円/日');
+        console.log('  - M2スタッフ半日:', Step4Implementation.staffRates.m2_half_day_rate, '円/半日');
+        console.log('  - M2スタッフ終日:', Step4Implementation.staffRates.m2_full_day_rate, '円/日');
+        console.log('  - 派遣スタッフ半日:', Step4Implementation.staffRates.temp_half_day_rate, '円/半日');
+        console.log('  - 派遣スタッフ終日:', Step4Implementation.staffRates.temp_full_day_rate, '円/日');
+      } else {
+        console.warn('⚠️ マスター設定が空または取得失敗、マスター値ベースのデフォルト値を使用');
+        Step4Implementation.staffRates = {
+          supervisor_rate: 40000,  // マスター値と同じ
+          leader_rate: 12000,     // マスター値と同じ
+          m2_half_day_rate: 6000, // マスター値と同じ
+          m2_full_day_rate: 10000, // マスター値と同じ
+          temp_half_day_rate: 5500, // マスター値と同じ
+          temp_full_day_rate: 9500  // マスター値と同じ
         };
       }
     } catch (error) {
-      Utils.showError('スタッフ単価の取得に失敗しました: ' + error.message);
+      console.error('❌ マスター設定取得エラー:', error);
+      Utils.showError('マスタースタッフ単価の取得に失敗しました: ' + error.message);
+      // エラー時もマスター値ベースのデフォルトを使用
+      Step4Implementation.staffRates = {
+        supervisor_rate: 40000,
+        leader_rate: 12000,
+        m2_half_day_rate: 6000,
+        m2_full_day_rate: 10000,
+        temp_half_day_rate: 5500,
+        temp_full_day_rate: 9500
+      };
     }
 
     // 入力フィールドのイベントリスナーを設定
@@ -2012,7 +2056,8 @@ const Step4Implementation = {
     console.log('📊 スタッフ費用計算開始');
     
     if (!Step4Implementation.staffRates) {
-      console.log('⚠️ スタッフ単価データがありません');
+      console.error('❌ スタッフ単価データがありません - マスター設定を確認してください');
+      Utils.showError('スタッフ単価データの取得に失敗しました。マスター設定を確認してください。');
       return;
     }
 
@@ -2028,15 +2073,23 @@ const Step4Implementation = {
       supervisorCount, leaderCount, m2HalfDay, m2FullDay, tempHalfDay, tempFullDay
     });
 
-    // 各費用計算（統一されたデータベース単価でフォールバック）
+    // デバッグ：現在のstaffRatesの状態を確認
+    console.log('🔍 DEBUG: Step4Implementation.staffRates の現在の値:', Step4Implementation.staffRates);
+    console.log('🔍 DEBUG: supervisor_rate の値:', Step4Implementation.staffRates?.supervisor_rate);
+    console.log('🔍 DEBUG: supervisor_rate の型:', typeof Step4Implementation.staffRates?.supervisor_rate);
+    
+    // 各費用計算（マスターデータと一致するフォールバック値に修正）
     const rates = {
-      supervisor: Step4Implementation.staffRates.supervisor_rate || 20000,
-      leader: Step4Implementation.staffRates.leader_rate || 17000,
-      m2_half_day: Step4Implementation.staffRates.m2_half_day_rate || 7000,
-      m2_full_day: Step4Implementation.staffRates.m2_full_day_rate || 12500,
-      temp_half_day: Step4Implementation.staffRates.temp_half_day_rate || 6500,
-      temp_full_day: Step4Implementation.staffRates.temp_full_day_rate || 11500
+      supervisor: Step4Implementation.staffRates.supervisor_rate || 40000,      // マスターデータ一致: 40,000円
+      leader: Step4Implementation.staffRates.leader_rate || 12000,             // マスターデータ一致: 12,000円
+      m2_half_day: Step4Implementation.staffRates.m2_half_day_rate || 6000,    // マスターデータ一致: 6,000円
+      m2_full_day: Step4Implementation.staffRates.m2_full_day_rate || 10000,   // マスターデータ一致: 10,000円
+      temp_half_day: Step4Implementation.staffRates.temp_half_day_rate || 5500, // マスターデータ一致: 5,500円
+      temp_full_day: Step4Implementation.staffRates.temp_full_day_rate || 9500  // マスターデータ一致: 9,500円
     };
+    
+    console.log('🔍 DEBUG: 使用される単価 rates:', rates);
+    console.log('🔍 DEBUG: スーパーバイザー単価 (マスター40000円 vs 実際の使用値):', rates.supervisor);
 
     const costs = {
       supervisor: supervisorCount * rates.supervisor,
@@ -2197,6 +2250,156 @@ const Step4Implementation = {
     
     if (totalStaffCountElement) totalStaffCountElement.textContent = `合計人数: ${totalStaff}人`;
     if (totalStaffCostElement) totalStaffCostElement.textContent = Utils.formatCurrency(totalCost);
+    
+    // Step2と同様の詳細表示エリアを更新
+    Step4Implementation.updateDetailedBreakdown(costs, rates, counts, totalCost, totalStaff);
+  },
+
+  // Step2と同様の項目別詳細表示（新規追加）
+  updateDetailedBreakdown: (costs, rates, counts, totalCost, totalStaff) => {
+    console.log('📋 Step4項目別詳細表示を更新中...');
+    
+    // 詳細表示エリアを取得または作成
+    let detailsDiv = document.getElementById('staffDetailedBreakdown');
+    if (!detailsDiv) {
+      // 詳細表示エリアが存在しない場合はstaffPricingInfoの後に追加
+      const pricingDiv = document.getElementById('staffPricingInfo');
+      if (pricingDiv) {
+        detailsDiv = document.createElement('div');
+        detailsDiv.id = 'staffDetailedBreakdown';
+        detailsDiv.className = 'mt-6 bg-gray-50 rounded-lg p-4';
+        pricingDiv.parentNode.insertBefore(detailsDiv, pricingDiv.nextSibling);
+      } else {
+        console.warn('⚠️ staffPricingInfo要素が見つかりません');
+        return;
+      }
+    }
+    
+    if (totalCost > 0 && totalStaff > 0) {
+      detailsDiv.classList.remove('hidden');
+      
+      // 詳細項目を構築
+      const details = [];
+      
+      // マスター料金を明示
+      details.push(`<div class="mb-4">
+        <h4 class="text-sm font-medium text-gray-900 mb-2">
+          <i class="fas fa-users mr-2"></i>スタッフ料金詳細（マスター登録済み単価）
+        </h4>
+      </div>`);
+      
+      // 各スタッフ種類の詳細
+      if (counts.supervisorCount > 0) {
+        details.push(`
+          <div class="flex justify-between py-2 px-4 bg-blue-50 rounded mb-2">
+            <div class="flex items-center">
+              <i class="fas fa-user-tie mr-2 text-blue-600"></i>
+              <span class="font-medium">スーパーバイザー</span>
+            </div>
+            <div class="text-right">
+              <div class="text-sm text-gray-600">${counts.supervisorCount}人 × ¥${rates.supervisor.toLocaleString()}/日</div>
+              <div class="font-medium">${Utils.formatCurrency(costs.supervisor)}</div>
+            </div>
+          </div>
+        `);
+      }
+      
+      if (counts.leaderCount > 0) {
+        details.push(`
+          <div class="flex justify-between py-2 px-4 bg-green-50 rounded mb-2">
+            <div class="flex items-center">
+              <i class="fas fa-user-cog mr-2 text-green-600"></i>
+              <span class="font-medium">リーダー以上</span>
+            </div>
+            <div class="text-right">
+              <div class="text-sm text-gray-600">${counts.leaderCount}人 × ¥${rates.leader.toLocaleString()}/日</div>
+              <div class="font-medium">${Utils.formatCurrency(costs.leader)}</div>
+            </div>
+          </div>
+        `);
+      }
+      
+      if (counts.m2HalfDay > 0) {
+        details.push(`
+          <div class="flex justify-between py-2 px-4 bg-yellow-50 rounded mb-2">
+            <div class="flex items-center">
+              <i class="fas fa-user mr-2 text-yellow-600"></i>
+              <span class="font-medium">M2スタッフ（半日）</span>
+            </div>
+            <div class="text-right">
+              <div class="text-sm text-gray-600">${counts.m2HalfDay}人 × ¥${rates.m2_half_day.toLocaleString()}/半日</div>
+              <div class="font-medium">${Utils.formatCurrency(costs.m2_half_day)}</div>
+            </div>
+          </div>
+        `);
+      }
+      
+      if (counts.m2FullDay > 0) {
+        details.push(`
+          <div class="flex justify-between py-2 px-4 bg-yellow-50 rounded mb-2">
+            <div class="flex items-center">
+              <i class="fas fa-user mr-2 text-yellow-600"></i>
+              <span class="font-medium">M2スタッフ（終日）</span>
+            </div>
+            <div class="text-right">
+              <div class="text-sm text-gray-600">${counts.m2FullDay}人 × ¥${rates.m2_full_day.toLocaleString()}/日</div>
+              <div class="font-medium">${Utils.formatCurrency(costs.m2_full_day)}</div>
+            </div>
+          </div>
+        `);
+      }
+      
+      if (counts.tempHalfDay > 0) {
+        details.push(`
+          <div class="flex justify-between py-2 px-4 bg-purple-50 rounded mb-2">
+            <div class="flex items-center">
+              <i class="fas fa-user-clock mr-2 text-purple-600"></i>
+              <span class="font-medium">派遣スタッフ（半日）</span>
+            </div>
+            <div class="text-right">
+              <div class="text-sm text-gray-600">${counts.tempHalfDay}人 × ¥${rates.temp_half_day.toLocaleString()}/半日</div>
+              <div class="font-medium">${Utils.formatCurrency(costs.temp_half_day)}</div>
+            </div>
+          </div>
+        `);
+      }
+      
+      if (counts.tempFullDay > 0) {
+        details.push(`
+          <div class="flex justify-between py-2 px-4 bg-purple-50 rounded mb-2">
+            <div class="flex items-center">
+              <i class="fas fa-user-clock mr-2 text-purple-600"></i>
+              <span class="font-medium">派遣スタッフ（終日）</span>
+            </div>
+            <div class="text-right">
+              <div class="text-sm text-gray-600">${counts.tempFullDay}人 × ¥${rates.temp_full_day.toLocaleString()}/日</div>
+              <div class="font-medium">${Utils.formatCurrency(costs.temp_full_day)}</div>
+            </div>
+          </div>
+        `);
+      }
+      
+      // 合計
+      details.push(`
+        <div class="border-t pt-3 mt-3">
+          <div class="flex justify-between py-2 px-4 bg-gray-100 rounded font-medium">
+            <div class="flex items-center">
+              <i class="fas fa-calculator mr-2 text-gray-700"></i>
+              <span>スタッフ費用合計</span>
+            </div>
+            <div class="text-right">
+              <div class="text-sm text-gray-600">合計 ${totalStaff}人</div>
+              <div class="text-lg font-bold text-gray-900">${Utils.formatCurrency(totalCost)}</div>
+            </div>
+          </div>
+        </div>
+      `);
+      
+      detailsDiv.innerHTML = details.join('');
+      console.log('✅ Step4項目別詳細表示完了');
+    } else {
+      detailsDiv.classList.add('hidden');
+    }
   },
 
   // AI最適化リクエスト
@@ -2422,13 +2625,61 @@ const Step5Implementation = {
     Step5Implementation.flowData = flowData;
 
     try {
-      // サービス料金を取得
-      const ratesResponse = await API.get('/service-rates');
-      if (ratesResponse.success) {
-        Step5Implementation.serviceRates = ratesResponse.data;
+      // マスター設定からサービス料金を取得
+      console.log('🔄 マスターデータから登録済み料金を取得中...');
+      const masterResponse = await API.get('/master-settings');
+      
+      if (masterResponse.success && masterResponse.data && masterResponse.data.service_rates) {
+        const masterRates = masterResponse.data.service_rates;
+        
+        // Step5実装形式に変換
+        Step5Implementation.serviceRates = {
+          parking_officer_hourly: masterRates.parking_officer_hourly || 3000,
+          transport_vehicle_20km: masterRates.transport_20km || 8000,
+          transport_vehicle_per_km: masterRates.transport_per_km || 100,
+          fuel_per_liter: masterRates.fuel_per_liter || 150,
+          protection_work_base: masterRates.protection_base || 5000,
+          protection_work_floor: masterRates.protection_floor || 3000,
+          construction_m2_staff: masterRates.construction_m2_staff_rate || 8000,
+          waste_disposal: {
+            'none': 0,
+            'small': masterRates.waste_small || 5000,
+            'medium': masterRates.waste_medium || 10000,
+            'large': masterRates.waste_large || 20000
+          },
+          material_collection: {
+            'none': 0,
+            'few': masterRates.material_few || 3000,
+            'medium': masterRates.material_medium || 8000,
+            'many': masterRates.material_many || 15000
+          },
+          work_time_multiplier: {
+            'normal': masterRates.time_normal || 1.0,
+            'early': masterRates.time_early || 1.2,
+            'night': masterRates.time_night || 1.5,
+            'midnight': masterRates.time_midnight || 2.0
+          }
+        };
+        
+        console.log('✅ マスター設定から料金を正常取得・変換しました:', Step5Implementation.serviceRates);
+        
+        // マスターデータの内容をログ出力
+        console.log('💰 取得したマスター料金:');
+        console.log('  - 駐車対策員時給:', Step5Implementation.serviceRates.parking_officer_hourly);
+        console.log('  - 人員輸送車両(20km):', Step5Implementation.serviceRates.transport_vehicle_20km);
+        console.log('  - 廃棄物処理:', Step5Implementation.serviceRates.waste_disposal);
+        console.log('  - 残材回収:', Step5Implementation.serviceRates.material_collection);
+        console.log('  - 養生作業基本:', Step5Implementation.serviceRates.protection_work_base);
+        console.log('  - 施工M2スタッフ:', Step5Implementation.serviceRates.construction_m2_staff);
+      } else {
+        console.warn('⚠️ マスター設定が空または取得失敗、緊急デフォルト値を使用します');
+        console.log('📋 APIレスポンス:', masterResponse);
+        Step5Implementation.initializeDefaultRates();
       }
     } catch (error) {
-      Utils.showError('サービス料金の取得に失敗しました: ' + error.message);
+      console.error('❌ マスター設定取得エラー:', error);
+      Utils.showError('マスター料金データの取得に失敗しました: ' + error.message);
+      Step5Implementation.initializeDefaultRates();
     }
 
     // 既存のサービス情報があれば復元
@@ -2527,39 +2778,49 @@ const Step5Implementation = {
     Step5Implementation.updateServicesCost();
   },
 
+  // デフォルトサービスレートを初期化（最後の手段として）
+  initializeDefaultRates: () => {
+    console.warn('⚠️ マスターデータの取得に失敗したため、緊急デフォルト値を使用します');
+    Step5Implementation.serviceRates = {
+      parking_officer_hourly: 2500,
+      transport_vehicle_20km: 15000,
+      transport_vehicle_per_km: 150,
+      waste_disposal: {
+        'none': 0,
+        'small': 8000,
+        'medium': 15000,
+        'large': 25000
+      },
+      protection_work_base: 5000,
+      protection_work_floor: 0,
+      material_collection: {
+        'none': 0,
+        'few': 6000,
+        'medium': 12000,
+        'many': 20000
+      },
+      construction_m2_staff: 12500,
+      work_time_multiplier: {
+        'normal': 1.0,
+        'early': 1.2,
+        'late': 1.3,
+        'night': 1.5,
+        'holiday': 1.3
+      }
+    };
+  },
+
   // サービス費用の更新
   updateServicesCost: () => {
     if (!Step5Implementation.serviceRates) {
-      console.warn('サービスレートが取得できていません。デフォルト値を使用します。');
-      // ユーザー指定のデフォルトサービスレートを設定
-      Step5Implementation.serviceRates = {
-        parking_officer_hourly: 2500,
-        transport_vehicle_20km: 15000, // 20km圏内一律
-        transport_vehicle_per_km: 150,  // 距離指定（¥150/km）
-        waste_disposal: {
-          'none': 0,
-          'small': 8000,   // 小 ¥8,000
-          'medium': 15000, // 中 ¥15,000
-          'large': 25000   // 大 ¥25,000
-        },
-        protection_work_base: 5000, // 基本料金¥5,000
-        protection_work_floor: 0,   // フロア単価（基本料金に含む）
-        material_collection: {
-          'none': 0,
-          'few': 6000,   // 少 ¥6,000
-          'medium': 12000, // 中 ¥12,000
-          'many': 20000    // 多 ¥20,000
-        },
-        construction_m2_staff: 12500, // M2スタッフ単価
-        work_time_multiplier: {
-          'normal': 1.0,
-          'early': 1.2,
-          'late': 1.3,
-          'night': 1.5,
-          'holiday': 1.3
-        }
-      };
+      console.warn('⚠️ サービスレートが未初期化です。緊急デフォルト値で初期化します。');
+      Step5Implementation.initializeDefaultRates();
     }
+    
+    console.log('💰 Step5費用計算 - 使用中のマスター料金:');
+    console.log('  駐車対策員時給:', Step5Implementation.serviceRates.parking_officer_hourly);
+    console.log('  廃棄物処理料金:', Step5Implementation.serviceRates.waste_disposal);
+    console.log('  残材回収料金:', Step5Implementation.serviceRates.material_collection);
 
     // 各サービスの値を取得
     const parkingOfficerHours = parseFloat(document.getElementById('parking_officer_hours').value) || 0;
@@ -2587,13 +2848,13 @@ const Step5Implementation = {
     const parkingFee = parseInt(document.getElementById('parking_fee').value) || 0;
     const highwayFee = parseInt(document.getElementById('highway_fee').value) || 0;
 
-    // 各費用計算
+    // 各費用計算（安全なアクセスを使用）
     const costs = {
-      parking_officer: parkingOfficerHours * Step5Implementation.serviceRates.parking_officer_hourly,
+      parking_officer: parkingOfficerHours * (Step5Implementation.serviceRates.parking_officer_hourly || 2500),
       transport_vehicle: 0,
-      waste_disposal: Step5Implementation.serviceRates.waste_disposal[wasteDisposal] || 0,
+      waste_disposal: (Step5Implementation.serviceRates.waste_disposal && Step5Implementation.serviceRates.waste_disposal[wasteDisposal]) || 0,
       protection_work: 0,
-      material_collection: Step5Implementation.serviceRates.material_collection[materialCollection] || 0,
+      material_collection: (Step5Implementation.serviceRates.material_collection && Step5Implementation.serviceRates.material_collection[materialCollection]) || 0,
       construction: constructionCost,
       parking_fee: parkingFee,
       highway_fee: highwayFee
@@ -2602,23 +2863,23 @@ const Step5Implementation = {
     // 人員輸送車両費用計算
     if (transportVehicles > 0) {
       if (transportDistanceType === '20km') {
-        costs.transport_vehicle = transportVehicles * Step5Implementation.serviceRates.transport_vehicle_20km;
+        costs.transport_vehicle = transportVehicles * (Step5Implementation.serviceRates.transport_vehicle_20km || 15000);
       } else if (transportDistanceType === 'custom' && transportDistance > 0) {
         // 距離指定の場合：（距離 × ¥150/km + 燃料費）× 台数
-        costs.transport_vehicle = transportVehicles * (transportDistance * Step5Implementation.serviceRates.transport_vehicle_per_km + transportFuelCost);
+        costs.transport_vehicle = transportVehicles * (transportDistance * (Step5Implementation.serviceRates.transport_vehicle_per_km || 150) + transportFuelCost);
       }
     }
 
     // 養生作業費用計算（基本料金¥5,000）
     if (protectionWork) {
-      costs.protection_work = Step5Implementation.serviceRates.protection_work_base;
+      costs.protection_work = Step5Implementation.serviceRates.protection_work_base || 5000;
       document.getElementById('protectionFloors').classList.remove('hidden');
     } else {
       document.getElementById('protectionFloors').classList.add('hidden');
     }
 
     // 作業時間帯割増計算（車両・スタッフ費用に適用）
-    const workTimeMultiplier = Step5Implementation.serviceRates.work_time_multiplier[workTimeType] || 1.0;
+    const workTimeMultiplier = (Step5Implementation.serviceRates.work_time_multiplier && Step5Implementation.serviceRates.work_time_multiplier[workTimeType]) || 1.0;
     const baseVehicleCost = Step5Implementation.flowData.vehicle.cost || 0;
     const baseStaffCost = Step5Implementation.flowData.staff.total_cost || 0;
     
@@ -2950,35 +3211,60 @@ const Step6Implementation = {
       staff_cost: staff.staff_cost
     });
     
-    // スタッフ単価をAPIから取得（データベースと同じフォールバック値）
+    // スタッフ単価をAPIから取得（マスターデータと一致するフォールバック値）
     let staffRates = {
-      supervisor: 20000,
-      leader: 17000,
-      m2_half_day: 7000,
-      m2_full_day: 12500,
-      temp_half_day: 6500,
-      temp_full_day: 11500
+      supervisor: 40000,  // マスターデータ一致: 40,000円
+      leader: 12000,     // マスターデータ一致: 12,000円
+      m2_half_day: 6000, // マスターデータ一致: 6,000円
+      m2_full_day: 10000, // マスターデータ一致: 10,000円
+      temp_half_day: 5500, // マスターデータ一致: 5,500円
+      temp_full_day: 9500  // マスターデータ一致: 9,500円
     };
     
     try {
       console.log('📊 STEP6: スタッフ単価取得開始');
-      const ratesResponse = await API.get('/staff-rates');
-      if (ratesResponse.success && ratesResponse.data && ratesResponse.data.staffRates) {
-        const dbRates = ratesResponse.data.staffRates;
+      // Step4と同じマスター設定APIを使用
+      const masterResponse = await API.get('/master-settings');
+      if (masterResponse.success && masterResponse.data && masterResponse.data.staff_rates) {
+        const dbRates = masterResponse.data.staff_rates;
+        
+        console.log('🔍 STEP6 DEBUG: マスターAPIレスポンス:', masterResponse);
+        console.log('🔍 STEP6 DEBUG: staff_rates部分:', dbRates);
+        
+        // Step4と同じマスターデータ一致のフォールバック値
         staffRates = {
-          supervisor: dbRates.supervisor_rate || 20000,
-          leader: dbRates.leader_rate || 17000,
-          m2_half_day: dbRates.m2_half_day_rate || 7000,
-          m2_full_day: dbRates.m2_full_day_rate || 12500,
-          temp_half_day: dbRates.temp_half_day_rate || 6500,
-          temp_full_day: dbRates.temp_full_day_rate || 11500
+          supervisor: dbRates.supervisor || 40000,      // マスターデータ一致: 40,000円
+          leader: dbRates.leader || 12000,             // マスターデータ一致: 12,000円
+          m2_half_day: dbRates.m2_half_day || 6000,    // マスターデータ一致: 6,000円
+          m2_full_day: dbRates.m2_full_day || 10000,   // マスターデータ一致: 10,000円
+          temp_half_day: dbRates.temp_half_day || 5500, // マスターデータ一致: 5,500円
+          temp_full_day: dbRates.temp_full_day || 9500  // マスターデータ一致: 9,500円
         };
         console.log('✅ STEP6: スタッフ単価取得完了:', staffRates);
+        console.log('🔍 STEP6 DEBUG: スーパーバイザー単価確認:', staffRates.supervisor);
       } else {
-        console.warn('⚠️ STEP6: スタッフ単価取得失敗、フォールバック使用');
+        console.warn('⚠️ STEP6: スタッフ単価取得失敗、マスター値ベースのフォールバック使用');
+        // マスター値と同じフォールバック値を使用
+        staffRates = {
+          supervisor: 40000,  // マスター値と同じ
+          leader: 12000,     // マスター値と同じ
+          m2_half_day: 6000, // マスター値と同じ
+          m2_full_day: 10000, // マスター値と同じ
+          temp_half_day: 5500, // マスター値と同じ
+          temp_full_day: 9500  // マスター値と同じ
+        };
       }
     } catch (error) {
       console.error('❌ STEP6: スタッフ単価取得エラー:', error);
+      // エラー時もマスター値ベースのフォールバックを使用
+      staffRates = {
+        supervisor: 40000,
+        leader: 12000,
+        m2_half_day: 6000,
+        m2_full_day: 10000,
+        temp_half_day: 5500,
+        temp_full_day: 9500
+      };
     }
     
     let totalCalculatedCost = 0;
@@ -3022,8 +3308,8 @@ const Step6Implementation = {
     // 計算結果と保存された値の整合性をチェック
     const savedStaffCost = staff.total_cost || 0;
     if (Math.abs(totalCalculatedCost - savedStaffCost) > 1) {
-      console.warn(`スタッフ費用計算の差異: 再計算=${totalCalculatedCost}, 保存値=${savedStaffCost}`);
-      details.push(`<div class="text-xs text-red-600 mt-1">※ 計算結果と保存値に差異があります（保存値: ${Utils.formatCurrency(savedStaffCost)}）</div>`);
+      console.info(`💡 STEP6スタッフ費用: 最新マスター単価で再計算=${totalCalculatedCost}, 保存値=${savedStaffCost}`);
+      details.push(`<div class="text-xs text-blue-600 mt-1"><i class="fas fa-info-circle mr-1"></i>最新マスター単価で再計算されました（保存時: ${Utils.formatCurrency(savedStaffCost)}）</div>`);
     }
     
     document.getElementById('staffDetails').innerHTML = Step6Implementation.applyZebraStripes(details).join('');
@@ -3082,10 +3368,12 @@ const Step6Implementation = {
 
     try {
       console.log('📊 STEP6: サービス単価マスターデータ取得開始');
-      const ratesResponse = await API.get('/service-rates');
-      if (ratesResponse.success && ratesResponse.data) {
-        serviceMasterRates = { ...serviceMasterRates, ...ratesResponse.data };
+      // Step5と同じmaster-settingsAPIを使用
+      const masterResponse = await API.get('/master-settings');
+      if (masterResponse.success && masterResponse.data && masterResponse.data.service_rates) {
+        serviceMasterRates = { ...serviceMasterRates, ...masterResponse.data.service_rates };
         console.log('✅ STEP6: サービス単価マスター取得完了:', serviceMasterRates);
+        console.log('🔍 STEP6 DEBUG: master-settings API使用、service_rates:', masterResponse.data.service_rates);
       } else {
         console.warn('⚠️ STEP6: サービス単価マスター取得失敗、フォールバック使用');
       }
@@ -3152,17 +3440,30 @@ const Step6Implementation = {
     document.getElementById('servicesSection').classList.remove('hidden');
     const details = [];
     let totalServicesCost = 0;
+    let itemCalculations = []; // 各項目の計算詳細を記録
     
     // 1. 駐車対策員（マスター単価連携）
     if (services.parking_officer_hours > 0 || services.parking_officer_cost > 0) {
-      const masterRate = serviceMasterRates.parking_officer_hourly_rate;
+      const masterRate = serviceMasterRates.parking_officer_hourly;
       const calculatedCost = services.parking_officer_hours * masterRate;
+      const savedCost = services.parking_officer_cost;
+      const priceDifference = calculatedCost - savedCost;
+      
       details.push(`<div class="flex justify-between px-4 py-2">
         <span>駐車対策員 ${services.parking_officer_hours}時間 (¥${masterRate.toLocaleString()}/時間)</span>
         <span>${Utils.formatCurrency(calculatedCost)}</span>
       </div>`);
       totalServicesCost += calculatedCost;
-      console.log('📊 駐車対策員:', { hours: services.parking_officer_hours, masterRate, calculatedCost, savedCost: services.parking_officer_cost });
+      itemCalculations.push({ name: '駐車対策員', calculated: calculatedCost, saved: savedCost, difference: priceDifference });
+      
+      console.log('📊 駐車対策員詳細:', {
+        hours: services.parking_officer_hours,
+        masterRate: masterRate,
+        calculatedCost: calculatedCost,
+        savedCost: savedCost,
+        difference: priceDifference,
+        masterRateInfo: '現在のマスター単価'
+      });
     }
     
     // 2. 人員輸送車両
@@ -3178,6 +3479,7 @@ const Step6Implementation = {
         <span>${Utils.formatCurrency(services.transport_cost)}</span>
       </div>`);
       totalServicesCost += services.transport_cost;
+      itemCalculations.push({ name: '人員輸送車両', calculated: services.transport_cost, saved: services.transport_cost });
       console.log('🚐 人員輸送車両:', { vehicles: services.transport_vehicles, cost: services.transport_cost });
     }
     
@@ -3189,6 +3491,7 @@ const Step6Implementation = {
         <span>${Utils.formatCurrency(services.waste_disposal_cost)}</span>
       </div>`);
       totalServicesCost += services.waste_disposal_cost;
+      itemCalculations.push({ name: '引き取り廃棄', calculated: services.waste_disposal_cost, saved: services.waste_disposal_cost });
       console.log('🗑️ 引き取り廃棄:', { size: services.waste_disposal_size, cost: services.waste_disposal_cost });
     }
     
@@ -3199,6 +3502,7 @@ const Step6Implementation = {
         <span>${Utils.formatCurrency(services.protection_cost)}</span>
       </div>`);
       totalServicesCost += services.protection_cost;
+      itemCalculations.push({ name: '養生作業', calculated: services.protection_cost, saved: services.protection_cost });
       console.log('🛡️ 養生作業:', { floors: services.protection_floors, cost: services.protection_cost });
     }
     
@@ -3210,6 +3514,7 @@ const Step6Implementation = {
         <span>${Utils.formatCurrency(services.material_collection_cost)}</span>
       </div>`);
       totalServicesCost += services.material_collection_cost;
+      itemCalculations.push({ name: '残材回収', calculated: services.material_collection_cost, saved: services.material_collection_cost });
       console.log('♻️ 残材回収:', { size: services.material_collection_size, cost: services.material_collection_cost });
     }
     
@@ -3227,6 +3532,7 @@ const Step6Implementation = {
         </div>`);
       }
       totalServicesCost += services.construction_cost;
+      itemCalculations.push({ name: '施工', calculated: services.construction_cost, saved: services.construction_cost });
       console.log('🔨 施工:', { m2_staff: services.construction_m2_staff, partner: services.construction_partner, cost: services.construction_cost });
     }
     
@@ -3239,6 +3545,7 @@ const Step6Implementation = {
         <span>${Utils.formatCurrency(multiplierCost)}</span>
       </div>`);
       totalServicesCost += multiplierCost;
+      itemCalculations.push({ name: '作業時間帯割増', calculated: multiplierCost, saved: multiplierCost });
       console.log('⏰ 作業時間帯割増:', { type: services.work_time_type, multiplier: services.work_time_multiplier, cost: multiplierCost });
     }
     
@@ -3249,6 +3556,7 @@ const Step6Implementation = {
         <span>${Utils.formatCurrency(services.parking_fee)}</span>
       </div>`);
       totalServicesCost += services.parking_fee;
+      itemCalculations.push({ name: '実費：駐車料金', calculated: services.parking_fee, saved: services.parking_fee });
     }
     
     if (services.highway_fee > 0) {
@@ -3257,6 +3565,7 @@ const Step6Implementation = {
         <span>${Utils.formatCurrency(services.highway_fee)}</span>
       </div>`);
       totalServicesCost += services.highway_fee;
+      itemCalculations.push({ name: '実費：高速料金', calculated: services.highway_fee, saved: services.highway_fee });
     }
     
     // サービス費用合計を表示
@@ -3268,12 +3577,33 @@ const Step6Implementation = {
       
       // 保存値との整合性チェック
       if (services.total_cost && Math.abs(totalServicesCost - services.total_cost) > 1) {
-        console.warn(`サービス費用計算の差異: 再計算=${totalServicesCost}, 保存値=${services.total_cost}`);
-        details.push(`<div class="text-xs text-red-600 mt-1">※ 計算結果と保存値に差異があります（保存値: ${Utils.formatCurrency(services.total_cost)}）</div>`);
+        console.info(`💡 STEP6サービス費用: 最新マスター単価で再計算=${totalServicesCost}, 保存値=${services.total_cost}`);
+        console.log('🔍 STEP6サービス項目別計算詳細:');
+        itemCalculations.forEach((item, index) => {
+          console.log(`  ${index + 1}. ${item.name}: 計算値=${item.calculated}, 保存値=${item.saved}, 差額=${item.calculated - (item.saved || 0)}`);
+        });
+        
+        // 各項目の差異をチェック
+        const differences = itemCalculations.filter(item => 
+          item.saved && Math.abs(item.calculated - item.saved) > 1
+        );
+        if (differences.length > 0) {
+          console.log('⚠️ STEP6差異のある項目:');
+          differences.forEach((item, index) => {
+            const diff = item.calculated - item.saved;
+            console.log(`  ${index + 1}. ${item.name}: 計算値=${item.calculated}, 保存値=${item.saved}, 差額=${diff}`);
+          });
+        }
+        
+        details.push(`<div class="text-xs text-blue-600 mt-1"><i class="fas fa-info-circle mr-1"></i>最新マスター単価で再計算されました（保存時: ${Utils.formatCurrency(services.total_cost)}）</div>`);
       }
     }
     
     console.log('💰 サービス費用合計:', totalServicesCost, '保存値:', services.total_cost);
+    console.log('🔍 全サービス項目計算詳細:');
+    itemCalculations.forEach((item, index) => {
+      console.log(`  ${index + 1}. ${item.name}: 計算値=${item.calculated}, 保存値=${item.saved || 'なし'}`);
+    });
     document.getElementById('servicesDetails').innerHTML = Step6Implementation.applyZebraStripes(details).join('');
   },
 
@@ -10734,70 +11064,79 @@ const ProjectManagement = {
       </div>
       
       <!-- 案件モーダル -->
-      <div id="projectModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
-        <div class="flex items-center justify-center min-h-screen p-4">
-          <div class="bg-white rounded-lg w-full max-w-md">
-            <div class="flex justify-between items-center p-6 border-b">
-              <h3 id="projectModalTitle" class="text-lg font-semibold text-gray-800">新規案件追加</h3>
-              <button id="closeProjectModal" class="text-gray-400 hover:text-gray-600">
-                <i class="fas fa-times"></i>
+      <div id="projectModal" class="modal-backdrop" style="display: none;">
+        <div class="modal-content max-w-4xl">
+          <div class="px-6 py-4 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+              <h3 id="projectModalTitle" class="text-lg font-medium text-gray-900">新規案件追加</h3>
+              <button id="closeProjectModal" type="button" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times text-lg"></i>
               </button>
             </div>
-            
-            <form id="masterProjectForm" class="p-6 space-y-4" onsubmit="ProjectManagement.handleProjectFormSubmit(event)">
-              <div>
-                <label for="masterProjectCustomerId" class="block text-sm font-medium text-gray-700 mb-1">顧客 <span class="text-red-500">*</span></label>
-                <select id="masterProjectCustomerId" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-                  <option value="">選択してください</option>
-                </select>
-              </div>
-              
-              <div>
-                <label for="masterProjectName" class="block text-sm font-medium text-gray-700 mb-1">案件名 <span class="text-red-500">*</span></label>
-                <input type="text" id="masterProjectName" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-              </div>
-              
-              <div>
-                <label for="masterProjectDescription" class="block text-sm font-medium text-gray-700 mb-1">説明</label>
-                <textarea id="masterProjectDescription" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
-              </div>
-              
-              <div>
-                <label for="masterProjectStatus" class="block text-sm font-medium text-gray-700 mb-1">ステータス</label>
-                <select id="masterProjectStatus" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="initial">初期</option>
-                  <option value="active">アクティブ</option>
-                  <option value="completed">完了</option>
-                  <option value="on_hold">保留</option>
-                </select>
-              </div>
-              
-              <div>
-                <label for="masterProjectPriority" class="block text-sm font-medium text-gray-700 mb-1">優先度</label>
-                <select id="masterProjectPriority" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="low">低</option>
-                  <option value="medium">中</option>
-                  <option value="high">高</option>
-                  <option value="urgent">緊急</option>
-                </select>
-              </div>
-              
-              <div>
-                <label for="masterProjectNotes" class="block text-sm font-medium text-gray-700 mb-1">備考</label>
-                <textarea id="masterProjectNotes" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
-              </div>
-              
-              <div class="flex justify-end space-x-3 pt-4">
-                <button type="button" id="cancelProjectBtn" class="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors">
-                  キャンセル
-                </button>
-                <button type="submit" id="saveProjectBtn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors">
-                  <i class="fas fa-save mr-2"></i>
-                  保存
-                </button>
-              </div>
-            </form>
           </div>
+          
+          <form id="masterProjectForm" class="p-6" onsubmit="ProjectManagement.handleProjectFormSubmit(event)">
+            <!-- 横並び2列レイアウト -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <!-- 左側の列 -->
+              <div class="space-y-4">
+                <div>
+                  <label for="masterProjectCustomerId" class="block text-sm font-medium text-gray-700 mb-1">顧客 <span class="text-red-500">*</span></label>
+                  <select id="masterProjectCustomerId" class="form-input" required>
+                    <option value="">選択してください</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label for="masterProjectName" class="block text-sm font-medium text-gray-700 mb-1">案件名 <span class="text-red-500">*</span></label>
+                  <input type="text" id="masterProjectName" class="form-input" required>
+                </div>
+                
+                <div>
+                  <label for="masterProjectStatus" class="block text-sm font-medium text-gray-700 mb-1">ステータス</label>
+                  <select id="masterProjectStatus" class="form-input">
+                    <option value="initial">初期</option>
+                    <option value="active">アクティブ</option>
+                    <option value="completed">完了</option>
+                    <option value="on_hold">保留</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label for="masterProjectPriority" class="block text-sm font-medium text-gray-700 mb-1">優先度</label>
+                  <select id="masterProjectPriority" class="form-input">
+                    <option value="low">低</option>
+                    <option value="medium">中</option>
+                    <option value="high">高</option>
+                    <option value="urgent">緊急</option>
+                  </select>
+                </div>
+              </div>
+              
+              <!-- 右側の列 -->
+              <div class="space-y-4">
+                <div>
+                  <label for="masterProjectDescription" class="block text-sm font-medium text-gray-700 mb-1">説明</label>
+                  <textarea id="masterProjectDescription" rows="6" class="form-input" placeholder="案件の詳細説明を入力してください"></textarea>
+                </div>
+                
+                <div>
+                  <label for="masterProjectNotes" class="block text-sm font-medium text-gray-700 mb-1">備考</label>
+                  <textarea id="masterProjectNotes" rows="6" class="form-input" placeholder="その他備考やメモを入力してください"></textarea>
+                </div>
+              </div>
+            </div>
+            
+            <!-- ボタンエリア - 確実に表示 -->
+            <div class="mt-6 pt-4 border-t border-gray-200 flex justify-end space-x-3">
+              <button type="button" id="cancelProjectBtn" class="btn-secondary">
+                <i class="fas fa-times mr-2"></i>キャンセル
+              </button>
+              <button type="submit" id="saveProjectBtn" class="btn-primary">
+                <i class="fas fa-save mr-2"></i>保存
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     `;
@@ -10949,7 +11288,7 @@ const ProjectManagement = {
     await ProjectManagement.loadCustomersForSelect();
     console.log('✅ 顧客データロード完了、モーダル表示');
     
-    document.getElementById('projectModal').classList.remove('hidden');
+    document.getElementById('projectModal').style.display = 'flex';
   },
 
   // 案件編集モーダルを開く
@@ -10973,7 +11312,7 @@ const ProjectManagement = {
         await ProjectManagement.loadCustomersForSelect();
         document.getElementById('masterProjectCustomerId').value = project.customer_id || '';
         
-        document.getElementById('projectModal').classList.remove('hidden');
+        document.getElementById('projectModal').style.display = 'flex';
       }
     } catch (error) {
       console.error('❌ 案件データ取得エラー:', error);
@@ -10984,7 +11323,7 @@ const ProjectManagement = {
   // モーダルを閉じる
   closeProjectModal: () => {
     console.log('🔄 closeProjectModal called');
-    document.getElementById('projectModal').classList.add('hidden');
+    document.getElementById('projectModal').style.display = 'none';
     ProjectManagement.currentProjectId = null;
   },
 

@@ -192,7 +192,7 @@
   background-color: #ffffff;
   border-radius: 0.5rem;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  max-width: 32rem;
+  max-width: 56rem; /* 32rem から 56rem に変更（プロジェクトフォーム用） */
   width: 90%;
   max-height: 90vh;
   overflow-y: auto;
@@ -568,11 +568,22 @@
   color: #047857 !important;
 }
 
+/* プロジェクトモーダル専用スタイル - TailwindCSSの max-w-4xl を確実に適用 */
+#projectModal .modal-content {
+  max-width: 56rem !important; /* TailwindCSS の max-w-4xl と同じ（56rem = 896px） */
+}
+
 /* レスポンシブ対応 */
 @media (max-width: 640px) {
   .modal-content {
     width: 95%;
     margin: 0.5rem;
+  }
+  
+  /* プロジェクトモーダルもスマホで適切に表示 */
+  #projectModal .modal-content {
+    max-width: 95% !important;
+    width: 95% !important;
   }
   
   #statusDropdownMenu {

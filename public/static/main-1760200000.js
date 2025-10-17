@@ -69,8 +69,8 @@ if (typeof estimateFlow === 'undefined') {
 }
 
 // ユーティリティ関数（重複宣言を防ぐため条件付き）
-if (typeof Utils === 'undefined') {
-  const Utils = {
+if (typeof window.Utils === 'undefined') {
+  window.Utils = {
   // 数値をカンマ区切りでフォーマット
   formatNumber: (num) => {
     return new Intl.NumberFormat('ja-JP').format(num);
@@ -78,7 +78,7 @@ if (typeof Utils === 'undefined') {
 
   // 金額を円表示でフォーマット
   formatCurrency: (amount) => {
-    return `¥${Utils.formatNumber(amount)}`;
+    return `¥${window.Utils.formatNumber(amount)}`;
   },
 
   // 郵便番号のフォーマット（7桁 -> XXX-XXXX）
@@ -162,11 +162,18 @@ if (typeof Utils === 'undefined') {
         successDiv.remove();
       }
     }, 5000);
+  },
+
+  // HTMLエスケープ
+  escapeHtml: (text) => {
+    if (typeof text !== 'string') {
+      return text;
+    }
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 };
-  
-  // グローバル参照も設定
-  window.Utils = Utils;
 }
 
 // API呼び出し関数（重複宣言を防ぐため条件付き）
