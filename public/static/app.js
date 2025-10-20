@@ -2426,9 +2426,35 @@ const Step5Implementation = {
       const ratesResponse = await API.get('/service-rates');
       if (ratesResponse.success) {
         Step5Implementation.serviceRates = ratesResponse.data;
+      } else {
+        // API取得失敗時のデフォルト値を設定
+        Step5Implementation.serviceRates = {
+          parking_officer_hourly: 2500,
+          transport_vehicle_20km: 15000,
+          transport_vehicle_per_km: 150,
+          waste_disposal: { none: 0, small: 10000, medium: 15000, large: 20000 },
+          protection_work_base: 5000,
+          protection_work_per_floor: 3000,
+          material_collection: { none: 0, small: 5000, medium: 10000, large: 15000 },
+          construction_m2_staff: 12500,
+          work_time_multiplier: { normal: 1.0, evening: 1.25, night: 1.5 }
+        };
+        console.warn('⚠️ サービス料金APIエラー、デフォルト値を使用します');
       }
     } catch (error) {
-      Utils.showError('サービス料金の取得に失敗しました: ' + error.message);
+      // エラー時のデフォルト値を設定
+      Step5Implementation.serviceRates = {
+        parking_officer_hourly: 2500,
+        transport_vehicle_20km: 15000,
+        transport_vehicle_per_km: 150,
+        waste_disposal: { none: 0, small: 10000, medium: 15000, large: 20000 },
+        protection_work_base: 5000,
+        protection_work_per_floor: 3000,
+        material_collection: { none: 0, small: 5000, medium: 10000, large: 15000 },
+        construction_m2_staff: 12500,
+        work_time_multiplier: { normal: 1.0, evening: 1.25, night: 1.5 }
+      };
+      console.error('❌ サービス料金の取得に失敗しました、デフォルト値を使用します:', error);
     }
 
     // 既存のサービス情報があれば復元
@@ -2530,34 +2556,18 @@ const Step5Implementation = {
   // サービス費用の更新
   updateServicesCost: () => {
     if (!Step5Implementation.serviceRates) {
-      console.warn('サービスレートが取得できていません。デフォルト値を使用します。');
-      // ユーザー指定のデフォルトサービスレートを設定
+      console.warn('⚠️ サービスレートが取得できていません。デフォルト値を使用します。');
+      // 統一されたデフォルトサービスレートを設定
       Step5Implementation.serviceRates = {
         parking_officer_hourly: 2500,
-        transport_vehicle_20km: 15000, // 20km圏内一律
-        transport_vehicle_per_km: 150,  // 距離指定（¥150/km）
-        waste_disposal: {
-          'none': 0,
-          'small': 8000,   // 小 ¥8,000
-          'medium': 15000, // 中 ¥15,000
-          'large': 25000   // 大 ¥25,000
-        },
-        protection_work_base: 5000, // 基本料金¥5,000
-        protection_work_floor: 0,   // フロア単価（基本料金に含む）
-        material_collection: {
-          'none': 0,
-          'few': 6000,   // 少 ¥6,000
-          'medium': 12000, // 中 ¥12,000
-          'many': 20000    // 多 ¥20,000
-        },
-        construction_m2_staff: 12500, // M2スタッフ単価
-        work_time_multiplier: {
-          'normal': 1.0,
-          'early': 1.2,
-          'late': 1.3,
-          'night': 1.5,
-          'holiday': 1.3
-        }
+        transport_vehicle_20km: 15000,
+        transport_vehicle_per_km: 150,
+        waste_disposal: { none: 0, small: 10000, medium: 15000, large: 20000 },
+        protection_work_base: 5000,
+        protection_work_per_floor: 3000,
+        material_collection: { none: 0, small: 5000, medium: 10000, large: 15000 },
+        construction_m2_staff: 12500,
+        work_time_multiplier: { normal: 1.0, evening: 1.25, night: 1.5 }
       };
     }
 
