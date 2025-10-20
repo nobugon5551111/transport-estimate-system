@@ -3605,7 +3605,11 @@ const Step6Implementation = {
         delivery_area: Step6Implementation.estimateData.delivery.area,
         
         // 車両情報（複数車両対応）
-        vehicle_type: Step6Implementation.estimateData.vehicle.type,
+        vehicle_type: Step6Implementation.estimateData.vehicle.type || (
+          Step6Implementation.estimateData.vehicle.uses_multiple_vehicles ? 
+          '複数車両' : 
+          '2t車' // デフォルト値
+        ),
         operation_type: Step6Implementation.estimateData.vehicle.operation,
         vehicle_cost: Step6Implementation.estimateData.vehicle.cost,
         // 複数車両用フィールド
