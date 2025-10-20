@@ -2597,13 +2597,14 @@ const Step5Implementation = {
     const parkingFee = parseInt(document.getElementById('parking_fee').value) || 0;
     const highwayFee = parseInt(document.getElementById('highway_fee').value) || 0;
 
-    // 各費用計算
+    // 各費用計算（安全なアクセス）
+    const rates = Step5Implementation.serviceRates || {};
     const costs = {
-      parking_officer: parkingOfficerHours * Step5Implementation.serviceRates.parking_officer_hourly,
+      parking_officer: parkingOfficerHours * (rates.parking_officer_hourly || 2500),
       transport_vehicle: 0,
-      waste_disposal: Step5Implementation.serviceRates.waste_disposal[wasteDisposal] || 0,
+      waste_disposal: (rates.waste_disposal && rates.waste_disposal[wasteDisposal]) || 0,
       protection_work: 0,
-      material_collection: Step5Implementation.serviceRates.material_collection[materialCollection] || 0,
+      material_collection: (rates.material_collection && rates.material_collection[materialCollection]) || 0,
       construction: constructionCost,
       parking_fee: parkingFee,
       highway_fee: highwayFee
@@ -2612,23 +2613,23 @@ const Step5Implementation = {
     // 人員輸送車両費用計算
     if (transportVehicles > 0) {
       if (transportDistanceType === '20km') {
-        costs.transport_vehicle = transportVehicles * Step5Implementation.serviceRates.transport_vehicle_20km;
+        costs.transport_vehicle = transportVehicles * (rates.transport_vehicle_20km || 15000);
       } else if (transportDistanceType === 'custom' && transportDistance > 0) {
         // 距離指定の場合：（距離 × ¥150/km + 燃料費）× 台数
-        costs.transport_vehicle = transportVehicles * (transportDistance * Step5Implementation.serviceRates.transport_vehicle_per_km + transportFuelCost);
+        costs.transport_vehicle = transportVehicles * (transportDistance * (rates.transport_vehicle_per_km || 150) + transportFuelCost);
       }
     }
 
     // 養生作業費用計算（基本料金¥5,000）
     if (protectionWork) {
-      costs.protection_work = Step5Implementation.serviceRates.protection_work_base;
+      costs.protection_work = rates.protection_work_base || 5000;
       document.getElementById('protectionFloors').classList.remove('hidden');
     } else {
       document.getElementById('protectionFloors').classList.add('hidden');
     }
 
     // 作業時間帯割増計算（車両・スタッフ費用に適用）
-    const workTimeMultiplier = Step5Implementation.serviceRates.work_time_multiplier[workTimeType] || 1.0;
+    const workTimeMultiplier = (rates.work_time_multiplier && rates.work_time_multiplier[workTimeType]) || 1.0;
     const baseVehicleCost = Step5Implementation.flowData.vehicle.cost || 0;
     const baseStaffCost = Step5Implementation.flowData.staff.total_cost || 0;
     
