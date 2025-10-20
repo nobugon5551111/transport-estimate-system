@@ -3230,16 +3230,26 @@ const Step6Implementation = {
       console.log('🔨 施工:', { m2_staff: services.construction_m2_staff, partner: services.construction_partner, cost: services.construction_cost });
     }
     
-    // 7. 作業時間帯割増
+    // 7. 作業時間帯割増（再計算された車両・スタッフ費用を使用）
     if (services.work_time_multiplier && services.work_time_multiplier > 1.0) {
-      const multiplierCost = (Step6Implementation.estimateData.vehicle.cost + Step6Implementation.estimateData.staff.total_cost) * (services.work_time_multiplier - 1.0);
+      // 再計算された車両・スタッフ費用を取得
+      const recalculatedVehicleCost = Step6Implementation.estimateData.totals?.recalculated_vehicle_cost || Step6Implementation.estimateData.vehicle.cost || 0;
+      const recalculatedStaffCost = Step6Implementation.estimateData.totals?.recalculated_staff_cost || Step6Implementation.estimateData.staff.total_cost || 0;
+      
+      const multiplierCost = (recalculatedVehicleCost + recalculatedStaffCost) * (services.work_time_multiplier - 1.0);
       const multiplierPercent = Math.round((services.work_time_multiplier - 1.0) * 100);
       details.push(`<div class="flex justify-between">
         <span>作業時間帯割増（${services.work_time_type}：+${multiplierPercent}%）</span>
         <span>${Utils.formatCurrency(multiplierCost)}</span>
       </div>`);
       totalServicesCost += multiplierCost;
-      console.log('⏰ 作業時間帯割増:', { type: services.work_time_type, multiplier: services.work_time_multiplier, cost: multiplierCost });
+      console.log('⏰ 作業時間帯割増:', { 
+        type: services.work_time_type, 
+        multiplier: services.work_time_multiplier, 
+        vehicleCost: recalculatedVehicleCost,
+        staffCost: recalculatedStaffCost,
+        cost: multiplierCost 
+      });
     }
     
     // 8. 実費項目
@@ -3259,21 +3269,26 @@ const Step6Implementation = {
       totalServicesCost += services.highway_fee;
     }
     
-    // サービス費用合計を表示
+    // サービス費用合計を表示（再計算された費用を優先）
     if (details.length > 0) {
+      // 再計算された費用があればそれを使用、なければ表示用に計算した値を使用
+      const finalServicesCost = Step6Implementation.estimateData.totals?.recalculated_services_cost || totalServicesCost;
+      
       details.push(`<div class="flex justify-between border-t pt-2 mt-2 font-bold">
         <span>その他サービス費用合計</span>
-        <span>${Utils.formatCurrency(totalServicesCost)}</span>
+        <span>${Utils.formatCurrency(finalServicesCost)}</span>
       </div>`);
       
-      // 保存値との整合性チェック
-      if (services.total_cost && Math.abs(totalServicesCost - services.total_cost) > 1) {
-        console.warn(`サービス費用計算の差異: 再計算=${totalServicesCost}, 保存値=${services.total_cost}`);
-        details.push(`<div class="text-xs text-red-600 mt-1">※ 計算結果と保存値に差異があります（保存値: ${Utils.formatCurrency(services.total_cost)}）</div>`);
+      // 表示計算値と再計算値の整合性チェック
+      if (Step6Implementation.estimateData.totals?.recalculated_services_cost) {
+        const diff = Math.abs(totalServicesCost - Step6Implementation.estimateData.totals.recalculated_services_cost);
+        if (diff > 1) {
+          console.warn(`⚠️ サービス費用表示の差異: 表示計算=${totalServicesCost}, 再計算=${Step6Implementation.estimateData.totals.recalculated_services_cost}, 差分=${diff}`);
+        }
       }
     }
     
-    console.log('💰 サービス費用合計:', totalServicesCost, '保存値:', services.total_cost);
+    console.log('💰 サービス費用合計（表示）:', totalServicesCost, '保存値:', services.total_cost, '再計算値:', Step6Implementation.estimateData.totals?.recalculated_services_cost);
     document.getElementById('servicesDetails').innerHTML = Step6Implementation.applyZebraStripes(details).join('');
   },
 
@@ -3374,24 +3389,38 @@ const Step6Implementation = {
 
     // 3. サービス費用の計算（Step5の値を優先）
     let servicesTotalCost = 0;
+    let timeMultiplierCost = 0;
+    
     if (services) {
-      servicesTotalCost = (services.parking_officer_cost || 0) + 
-                         (services.transport_cost || 0) + 
-                         (services.waste_disposal_cost || 0) + 
-                         (services.protection_cost || 0) + 
-                         (services.material_collection_cost || 0) + 
-                         (services.construction_cost || 0) + 
-                         (services.parking_fee || 0) + 
-                         (services.highway_fee || 0);
+      // 基本サービス費用（割増を除く）
+      const baseServicesCost = (services.parking_officer_cost || 0) + 
+                               (services.transport_cost || 0) + 
+                               (services.waste_disposal_cost || 0) + 
+                               (services.protection_cost || 0) + 
+                               (services.material_collection_cost || 0) + 
+                               (services.construction_cost || 0) + 
+                               (services.parking_fee || 0) + 
+                               (services.highway_fee || 0);
       
-      // 作業時間帯割増費用を計算（再計算された車両・スタッフ費用に適用）
+      // 作業時間帯割増費用を再計算（再計算された車両・スタッフ費用に適用）
       if (services.work_time_multiplier && services.work_time_multiplier > 1.0) {
-        const timeMultiplierCost = (finalVehicleCost + finalStaffCost) * (services.work_time_multiplier - 1.0);
-        servicesTotalCost += timeMultiplierCost;
+        timeMultiplierCost = (finalVehicleCost + finalStaffCost) * (services.work_time_multiplier - 1.0);
       }
+      
+      servicesTotalCost = baseServicesCost + timeMultiplierCost;
+      
+      console.log('🔧 サービス費用再計算:', {
+        baseServicesCost,
+        vehicleCost: finalVehicleCost,
+        staffCost: finalStaffCost,
+        multiplier: services.work_time_multiplier,
+        timeMultiplierCost,
+        servicesTotalCost
+      });
     }
 
-    const finalServicesCost = (services.total_cost !== undefined && services.total_cost !== null) ? services.total_cost : servicesTotalCost;
+    // Step5で保存されたtotal_costではなく、再計算された値を使用
+    const finalServicesCost = servicesTotalCost;
 
     console.log('🔢 STEP6最終金額計算:', {
       vehicleCost: finalVehicleCost,
@@ -3440,6 +3469,9 @@ const Step6Implementation = {
     };
     
     console.log('💰 STEP6合計金額計算完了（修正版）:', Step6Implementation.estimateData.totals);
+    
+    // サービス詳細を再表示（再計算された費用を反映）
+    Step6Implementation.displayServicesDetails();
   },
 
   // 値引き変更処理

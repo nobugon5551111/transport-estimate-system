@@ -1,0 +1,221 @@
+name: 🔄 System Backup & Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  schedule:
+    # 毎日午前3時（JST 12時）に自動バックアップ
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      backup_type:
+        description: 'Backup Type'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - code-only
+          - database-only
+
+jobs:
+  backup:
+    name: 📦 Create System Backup
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 🚀 Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: 📅 Set Timestamp
+        id: timestamp
+        run: |
+          echo "date=$(date +'%Y%m%d_%H%M%S')" >> $GITHUB_OUTPUT
+          echo "human_date=$(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_OUTPUT
+      
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: 📦 Install Dependencies
+        run: npm ci
+      
+      - name: 🏗️ Build Project
+        run: npm run build
+      
+      - name: 📊 System Information
+        id: sysinfo
+        run: |
+          echo "node_version=$(node --version)" >> $GITHUB_OUTPUT
+          echo "npm_version=$(npm --version)" >> $GITHUB_OUTPUT
+          echo "commit_hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "branch_name=$(git branch --show-current)" >> $GITHUB_OUTPUT
+          
+          # ファイル数カウント
+          echo "total_files=$(find . -type f | wc -l)" >> $GITHUB_OUTPUT
+          echo "js_files=$(find . -name '*.js' -o -name '*.ts' -o -name '*.tsx' | wc -l)" >> $GITHUB_OUTPUT
+      
+      - name: 📋 Create Backup Manifest
+        run: |
+          cat > BACKUP_MANIFEST_${{ steps.timestamp.outputs.date }}.md << 'EOF'
+          # 🔄 Automated System Backup
+          
+          ## 📅 Backup Information
+          - **Date**: ${{ steps.timestamp.outputs.human_date }}
+          - **Trigger**: ${{ github.event_name }}
+          - **Branch**: ${{ steps.sysinfo.outputs.branch_name }}
+          - **Commit**: ${{ steps.sysinfo.outputs.commit_hash }}
+          
+          ## 📊 System Details
+          - **Node.js**: ${{ steps.sysinfo.outputs.node_version }}
+          - **npm**: ${{ steps.sysinfo.outputs.npm_version }}
+          - **Total Files**: ${{ steps.sysinfo.outputs.total_files }}
+          - **JS/TS Files**: ${{ steps.sysinfo.outputs.js_files }}
+          
+          ## 🗂️ Backup Contents
+          - ✅ Source code (src/, public/)
+          - ✅ Configuration files
+          - ✅ Documentation
+          - ✅ Build artifacts (dist/)
+          - ✅ Database schemas
+          
+          ## 📦 Archive Information
+          - **Size**: $(du -sh . | cut -f1)
+          - **Compression**: tar.gz
+          - **Integrity**: SHA256 checksum included
+          
+          EOF
+      
+      - name: 🗜️ Create Archive
+        run: |
+          # 不要なファイルを除外してアーカイブ作成
+          tar --exclude='.git' \
+              --exclude='node_modules' \
+              --exclude='*.tar.gz' \
+              --exclude='.wrangler' \
+              -czf system_backup_${{ steps.timestamp.outputs.date }}.tar.gz \
+              .
+          
+          # チェックサム生成
+          sha256sum system_backup_${{ steps.timestamp.outputs.date }}.tar.gz > system_backup_${{ steps.timestamp.outputs.date }}.sha256
+      
+      - name: 📤 Upload Backup Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: system-backup-${{ steps.timestamp.outputs.date }}
+          path: |
+            system_backup_${{ steps.timestamp.outputs.date }}.tar.gz
+            system_backup_${{ steps.timestamp.outputs.date }}.sha256
+            BACKUP_MANIFEST_${{ steps.timestamp.outputs.date }}.md
+          retention-days: 90
+      
+      # タグプッシュ時のみリリース作成
+      - name: 🏷️ Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: 🚀 Release ${{ github.ref_name }}
+          body: |
+            ## 📋 System Backup Release
+            
+            **Date**: ${{ steps.timestamp.outputs.human_date }}
+            **Commit**: ${{ steps.sysinfo.outputs.commit_hash }}
+            
+            ### ✅ Contents
+            - Complete source code
+            - Configuration files
+            - Build artifacts
+            - Documentation
+            - Database schemas
+            
+            ### 📦 Download
+            - [System Backup Archive](system_backup_${{ steps.timestamp.outputs.date }}.tar.gz)
+            - [SHA256 Checksum](system_backup_${{ steps.timestamp.outputs.date }}.sha256)
+            
+            ### 🔄 Restoration
+            See `COMPLETE_RESTORATION_GUIDE_*.md` for detailed instructions.
+          draft: false
+          prerelease: false
+
+  # データベースバックアップ専用ジョブ
+  database-backup:
+    name: 🗃️ Database Backup
+    runs-on: ubuntu-latest
+    if: github.event.inputs.backup_type == 'full' || github.event.inputs.backup_type == 'database-only' || github.event_name == 'schedule'
+    
+    steps:
+      - name: 🚀 Checkout Repository
+        uses: actions/checkout@v4
+      
+      - name: 📅 Set Timestamp
+        id: timestamp
+        run: echo "date=$(date +'%Y%m%d_%H%M%S')" >> $GITHUB_OUTPUT
+      
+      - name: 🔧 Setup Wrangler
+        run: npm install -g wrangler
+      
+      # 注意: 実際の本番環境では認証情報が必要
+      - name: 📊 Database Schema Export
+        run: |
+          echo "-- Database Schema Export $(date)" > database_schema_${{ steps.timestamp.outputs.date }}.sql
+          echo "-- Generated by GitHub Actions" >> database_schema_${{ steps.timestamp.outputs.date }}.sql
+          echo "-- Repository: ${{ github.repository }}" >> database_schema_${{ steps.timestamp.outputs.date }}.sql
+          echo "-- Commit: ${{ github.sha }}" >> database_schema_${{ steps.timestamp.outputs.date }}.sql
+          echo "" >> database_schema_${{ steps.timestamp.outputs.date }}.sql
+          
+          # スキーマファイルが存在する場合はコピー
+          if [ -f "migrations/0001_initial_schema.sql" ]; then
+            cat migrations/*.sql >> database_schema_${{ steps.timestamp.outputs.date }}.sql
+          fi
+      
+      - name: 📤 Upload Database Backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-backup-${{ steps.timestamp.outputs.date }}
+          path: database_schema_${{ steps.timestamp.outputs.date }}.sql
+          retention-days: 180
+
+  # セキュリティスキャン
+  security-check:
+    name: 🔒 Security & Quality Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 🚀 Checkout Repository
+        uses: actions/checkout@v4
+      
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: 🔍 Audit Dependencies
+        run: |
+          npm audit --audit-level moderate || true
+          npm audit --json > security_audit_$(date +'%Y%m%d_%H%M%S').json || true
+      
+      - name: 📊 Code Quality Check
+        run: |
+          # ファイルサイズチェック
+          find . -name "*.js" -size +1M -exec ls -lh {} \; || true
+          
+          # 重複ファイルチェック
+          find . -name "*.js" -exec basename {} \; | sort | uniq -d || true
+      
+      - name: 📤 Upload Security Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-report-$(date +'%Y%m%d_%H%M%S')
+          path: security_audit_*.json
+          retention-days: 30

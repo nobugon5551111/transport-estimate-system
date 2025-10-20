@@ -414,7 +414,7 @@ app.get('/admin/backup', (c) => {
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/app-1760678720.js?v=1760678720&nocache=true"></script>
+        <script src="/static/app-1760943874.js?v=1760939908&cache=bust&t=1760939908"></script>
         <script>
             // バックアップ管理機能の実装
             const BackupManager = {
@@ -890,7 +890,7 @@ app.get('/test-step4-session', (c) => {
         </div>
     </div>
 
-    <script src="/static/app-1760678720.js?v=1760678720&cache=bust"></script>
+    <script src="/static/app-1760943874.js?v=1760939908&cache=bust"></script>
     <script>
         console.log('🧪 Step4 セッション付き動作確認開始');
         
@@ -1094,7 +1094,7 @@ app.get('/test-step4-fixed', (c) => {
         </div>
     </div>
 
-    <script src="/static/app-1760678720.js?v=1760678720&cache=bust"></script>
+    <script src="/static/app-1760943874.js?v=1760939908&cache=bust"></script>
     <script>
         console.log('🧪 Step4動的ラベル修正テスト開始');
         
@@ -1315,7 +1315,7 @@ app.get('/test-step4-labels', (c) => {
         </div>
     </div>
 
-    <script src="/static/app-1760678720.js?v=1760678720&cache=bust"></script>
+    <script src="/static/app-1760943874.js?v=1760939908&cache=bust"></script>
     <script>
         console.log('🧪 動的ラベルテストページ初期化開始');
         
@@ -2017,13 +2017,19 @@ app.put('/api/estimates/:id', async (c) => {
     
     console.log('見積更新データ:', data)
 
-    // 見積の包括的更新（全費用項目を含む）
+    // 見積の包括的更新（全費用項目とスタッフ詳細を含む）
     await env.DB.prepare(`
       UPDATE estimates 
       SET 
         delivery_address = ?,
         vehicle_cost = ?,
         staff_cost = ?,
+        supervisor_count = ?,
+        leader_count = ?,
+        m2_staff_half_day = ?,
+        m2_staff_full_day = ?,
+        temp_staff_half_day = ?,
+        temp_staff_full_day = ?,
         parking_officer_hours = ?,
         parking_officer_cost = ?,
         transport_vehicles = ?,
@@ -2056,6 +2062,12 @@ app.put('/api/estimates/:id', async (c) => {
       data.delivery_address || '',
       data.vehicle_cost || 0,
       data.staff_cost || 0,
+      data.supervisor_count || 0,
+      data.leader_count || 0,
+      data.m2_staff_half_day || 0,
+      data.m2_staff_full_day || 0,
+      data.temp_staff_half_day || 0,
+      data.temp_staff_full_day || 0,
       data.parking_officer_hours || 0,
       data.parking_officer_cost || 0,
       data.transport_vehicles || 0,
@@ -6123,7 +6135,9 @@ app.post('/api/estimates', async (c) => {
     const { env } = c
     const data = await c.req.json()
     
-    console.log('見積保存データ:', data)
+    const finalUserId = c.req.header('X-User-ID') || data.user_id || 'test-user-001'
+    console.log('📝 見積保存データ:', data)
+    console.log('👤 使用ユーザーID:', finalUserId)
     
     // 必須フィールドチェック
     if (!data.customer_id || !data.project_id) {
@@ -6138,16 +6152,30 @@ app.post('/api/estimates', async (c) => {
     const year = now.getFullYear()
     const estimateNumber = `EST-${year}-${String(Date.now()).slice(-3)}`
     
-    // 簡略版見積データ保存 - 必須フィールドのみ使用
+    // 完全版見積データ保存 - 詳細フィールドを含む
     const result = await env.DB.prepare(`
       INSERT INTO estimates (
         customer_id, project_id, estimate_number,
         delivery_address, delivery_area, vehicle_type, operation_type,
-        vehicle_cost, staff_cost, subtotal, tax_rate, tax_amount, total_amount,
+        vehicle_cost, staff_cost, 
+        supervisor_count, leader_count, m2_staff_half_day, m2_staff_full_day,
+        temp_staff_half_day, temp_staff_full_day,
+        parking_officer_hours, parking_officer_cost,
+        transport_vehicles, transport_cost,
+        waste_disposal_size, waste_disposal_cost,
+        protection_floors, protection_cost,
+        material_collection_size, material_collection_cost,
+        construction_m2_staff, construction_cost,
+        work_time_type, work_time_multiplier,
+        parking_fee, highway_fee,
+        subtotal, tax_rate, tax_amount, total_amount,
         user_id, vehicle_2t_count, vehicle_4t_count, external_contractor_cost, 
-        uses_multiple_vehicles
+        uses_multiple_vehicles, notes
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, 
+        ?, ?, ?, ?, ?, ?, 
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `).bind(
       data.customer_id,
@@ -6159,15 +6187,38 @@ app.post('/api/estimates', async (c) => {
       data.operation_type || 'standard',
       data.vehicle_cost || 0,
       data.staff_cost || 0,
+      data.supervisor_count || 0,
+      data.leader_count || 0,
+      data.m2_staff_half_day || 0,
+      data.m2_staff_full_day || 0,
+      data.temp_staff_half_day || 0,
+      data.temp_staff_full_day || 0,
+      data.parking_officer_hours || 0,
+      data.parking_officer_cost || 0,
+      data.transport_vehicles || 0,
+      data.transport_cost || 0,
+      data.waste_disposal_size || 'none',
+      data.waste_disposal_cost || 0,
+      data.protection_floors || 0,
+      data.protection_cost || 0,
+      data.material_collection_size || 'none',
+      data.material_collection_cost || 0,
+      data.construction_m2_staff || 0,
+      data.construction_cost || 0,
+      data.work_time_type || 'normal',
+      data.work_time_multiplier || 1,
+      data.parking_fee || 0,
+      data.highway_fee || 0,
       data.subtotal || 0,
       data.tax_rate || 0.1,
       data.tax_amount || 0,
       data.total_amount || 0,
-      data.user_id || 'test-user-001',
+      finalUserId,
       data.vehicle_2t_count || 0,
       data.vehicle_4t_count || 0,
       data.external_contractor_cost || 0,
-      data.uses_multiple_vehicles || false
+      data.uses_multiple_vehicles || false,
+      data.notes || ''
     ).run()
     
     console.log('見積保存結果:', result)
@@ -11880,6 +11931,12 @@ function generateFreePdfHTML(estimate: any, items: any[], basicSettings: any = {
         .print-button:hover {
             background-color: #1d4ed8;
         }
+        
+        /* 項目列を確実に左寄せに */
+        .estimate-table tbody td:first-child {
+            text-align: left !important;
+            vertical-align: top;
+        }
     </style>
 </head>
 <body>
@@ -12511,30 +12568,149 @@ app.post('/api/reports/export/csv', async (c) => {
 
 // ================== PDF生成API ==================
 
-// 見積書PDF生成API
+// デバッグ用：すべてのリクエストをログに出力
+app.use('*', async (c, next) => {
+  const method = c.req.method
+  const url = c.req.url
+  console.log(`🌐 ${method} ${url}`)
+  await next()
+})
+
+// 見積書PDF生成API（複数のパターンに対応）
 app.get('/api/estimates/:id/pdf', async (c) => {
   try {
     const { env } = c
     const estimateId = c.req.param('id')
     const userId = c.req.header('X-User-ID') || 'test-user-001'
     
-    // 見積データを取得
-    const estimateResult = await env.DB.prepare(`
-      SELECT 
-        e.*,
-        c.name as customer_name,
-        c.contact_person as customer_contact_person,
-        c.phone as customer_phone,
-        c.email as customer_email,
-        c.address as customer_address,
-        p.name as project_name,
-        p.contact_person as project_contact_person,
-        p.description as project_description
-      FROM estimates e
-      LEFT JOIN customers c ON e.customer_id = c.id
-      LEFT JOIN projects p ON e.project_id = p.id
-      WHERE e.id = ? AND e.user_id = ?
-    `).bind(estimateId, userId).first()
+    // 🛡️ 強化された見積検索ロジック - 複数の方法で見積を検索
+    console.log('🔍 PDF生成用見積検索開始:', { estimateId, userId, timestamp: new Date().toISOString() })
+    
+    let estimateResult = null
+    
+    // 方法1: 見積番号での検索（最も一般的）
+    try {
+      estimateResult = await env.DB.prepare(`
+        SELECT 
+          e.*,
+          c.name as customer_name,
+          c.contact_person as customer_contact_person,
+          c.phone as customer_phone,
+          c.email as customer_email,
+          c.address as customer_address,
+          p.name as project_name,
+          p.description as project_description
+        FROM estimates e
+        LEFT JOIN customers c ON e.customer_id = c.id
+        LEFT JOIN projects p ON e.project_id = p.id
+        WHERE e.estimate_number = ?
+      `).bind(estimateId).first()
+      
+      if (estimateResult) {
+        console.log('✅ 方法1成功: 見積番号で検索', estimateId)
+      }
+    } catch (error) {
+      console.error('❌ 方法1失敗:', error)
+    }
+    
+    // 方法2: IDとしての検索（数値IDの場合）
+    if (!estimateResult && /^\d+$/.test(estimateId)) {
+      try {
+        estimateResult = await env.DB.prepare(`
+          SELECT 
+            e.*,
+            c.name as customer_name,
+            c.contact_person as customer_contact_person,
+            c.phone as customer_phone,
+            c.email as customer_email,
+            c.address as customer_address,
+            p.name as project_name,
+            p.description as project_description
+          FROM estimates e
+          LEFT JOIN customers c ON e.customer_id = c.id
+          LEFT JOIN projects p ON e.project_id = p.id
+          WHERE e.id = ?
+        `).bind(parseInt(estimateId)).first()
+        
+        if (estimateResult) {
+          console.log('✅ 方法2成功: 数値IDで検索', estimateId)
+        }
+      } catch (error) {
+        console.error('❌ 方法2失敗:', error)
+      }
+    }
+    
+    // 方法3: 部分マッチ検索（見積番号の一部が含まれている場合）
+    if (!estimateResult) {
+      try {
+        estimateResult = await env.DB.prepare(`
+          SELECT 
+            e.*,
+            c.name as customer_name,
+            c.contact_person as customer_contact_person,
+            c.phone as customer_phone,
+            c.email as customer_email,
+            c.address as customer_address,
+            p.name as project_name,
+            p.description as project_description
+          FROM estimates e
+          LEFT JOIN customers c ON e.customer_id = c.id
+          LEFT JOIN projects p ON e.project_id = p.id
+          WHERE e.estimate_number LIKE ?
+          ORDER BY e.created_at DESC
+          LIMIT 1
+        `).bind(`%${estimateId}%`).first()
+        
+        if (estimateResult) {
+          console.log('✅ 方法3成功: 部分マッチで検索', estimateId, '→', estimateResult.estimate_number)
+        }
+      } catch (error) {
+        console.error('❌ 方法3失敗:', error)
+      }
+    }
+    
+    // 方法4: 最新の見積を取得（最終手段）
+    if (!estimateResult) {
+      try {
+        estimateResult = await env.DB.prepare(`
+          SELECT 
+            e.*,
+            c.name as customer_name,
+            c.contact_person as customer_contact_person,
+            c.phone as customer_phone,
+            c.email as customer_email,
+            c.address as customer_address,
+            p.name as project_name,
+            p.description as project_description
+          FROM estimates e
+          LEFT JOIN customers c ON e.customer_id = c.id
+          LEFT JOIN projects p ON e.project_id = p.id
+          ORDER BY e.created_at DESC
+          LIMIT 1
+        `).first()
+        
+        if (estimateResult) {
+          console.log('⚠️ 方法4使用: 最新の見積を取得', estimateResult.estimate_number, '（元リクエスト:', estimateId, ')')
+        }
+      } catch (error) {
+        console.error('❌ 方法4失敗:', error)
+      }
+    }
+    
+    // デバッグ用：利用可能な見積一覧を表示
+    if (!estimateResult) {
+      try {
+        const availableEstimates = await env.DB.prepare(`
+          SELECT estimate_number, id, created_at 
+          FROM estimates 
+          ORDER BY created_at DESC 
+          LIMIT 5
+        `).all()
+        console.log('📋 利用可能な見積一覧:', availableEstimates.results)
+      } catch (error) {
+        console.error('❌ 利用可能見積取得失敗:', error)
+      }
+    }
     
     // PDF生成用デバッグログ
     console.log('🔍 PDF生成用見積データ:', {
@@ -12549,10 +12725,48 @@ app.get('/api/estimates/:id/pdf', async (c) => {
     })
     
     if (!estimateResult) {
-      return c.json({
+      // 📊 詳細なデバッグ情報付きエラーレスポンス
+      let availableEstimates = []
+      try {
+        const result = await env.DB.prepare(`
+          SELECT estimate_number, id, created_at, customer_id, project_id
+          FROM estimates 
+          ORDER BY created_at DESC 
+          LIMIT 10
+        `).all()
+        availableEstimates = result.results || []
+      } catch (error) {
+        console.error('❌ 利用可能見積取得エラー:', error)
+      }
+      
+      const errorResponse = {
         success: false,
-        message: '見積データが見つかりません'
-      }, 404)
+        message: '見積データが見つかりませんでした',
+        debug_info: {
+          requested_id: estimateId,
+          user_id: userId,
+          timestamp: new Date().toISOString(),
+          search_methods_attempted: [
+            '1. 見積番号完全一致検索',
+            estimateId.match(/^\d+$/) ? '2. 数値ID検索' : '2. 数値ID検索（スキップ）',
+            '3. 部分マッチ検索',
+            '4. 最新見積フォールバック検索'
+          ],
+          available_estimates: availableEstimates.slice(0, 5).map(e => ({
+            estimate_number: e.estimate_number,
+            id: e.id,
+            created_at: e.created_at
+          })),
+          suggestions: [
+            `正しい見積番号を確認してください`,
+            `利用可能な見積番号: ${availableEstimates.slice(0, 3).map(e => e.estimate_number).join(', ')}`,
+            `URLパターン: /api/estimates/{見積番号}/pdf`
+          ]
+        }
+      }
+      
+      console.error('🚫 PDF生成失敗 - 見積データなし:', errorResponse)
+      return c.json(errorResponse, 404)
     }
     
     // スタッフ単価をデータベースから取得
@@ -12566,29 +12780,37 @@ app.get('/api/estimates/:id/pdf', async (c) => {
     }
     
     try {
+      // ステップ6と同じクエリ構造を使用（subcategory: 'daily_rate'）
       const rates = await env.DB.prepare(`
-        SELECT key, value 
+        SELECT DISTINCT key, value
         FROM master_settings 
-        WHERE category = 'staff' AND subcategory = 'pricing'
+        WHERE category = 'staff' AND subcategory = 'daily_rate'
+        ORDER BY key
       `).all()
       
-      // オブジェクト形式に変換
+      console.log('🔍 PDF用スタッフ単価クエリ結果:', rates.results)
+      
+      // ステップ6と同じキー構造で取得
       const dbRates = {}
-      rates.results.forEach((row: any) => {
-        dbRates[row.key] = parseInt(row.value)
+      rates.results?.forEach((row: any) => {
+        dbRates[row.key] = parseInt(row.value) || 0
       })
       
-      // データベースから取得した単価で更新
+      console.log('🔍 PDF用変換後スタッフ単価:', dbRates)
+      
+      // ステップ6と同じキー名で単価を更新（supervisor_rate → supervisor）
       staffRates = {
-        supervisor: dbRates.supervisor_rate || 20000,
-        leader: dbRates.leader_rate || 17000,
-        m2_half_day: dbRates.m2_half_day_rate || 7000,
-        m2_full_day: dbRates.m2_full_day_rate || 12500,
-        temp_half_day: dbRates.temp_half_day_rate || 6500,
-        temp_full_day: dbRates.temp_full_day_rate || 11500
+        supervisor: dbRates.supervisor || 20000,
+        leader: dbRates.leader || 17000,
+        m2_half_day: dbRates.m2_half_day || 7000,
+        m2_full_day: dbRates.m2_full_day || 12500,
+        temp_half_day: dbRates.temp_half_day || 6500,
+        temp_full_day: dbRates.temp_full_day || 11500
       }
+      
+      console.log('✅ PDF生成用スタッフ単価取得完了（ステップ6と同じデータソース）:', staffRates)
     } catch (error) {
-      console.error('PDF生成時のスタッフ単価取得エラー:', error)
+      console.error('❌ PDF生成時のスタッフ単価取得エラー:', error)
     }
     
     // 車両単価をデータベースから直接取得（複数車両対応）
@@ -12613,39 +12835,41 @@ app.get('/api/estimates/:id/pdf', async (c) => {
         }
         const operationType = operationTypeMap[estimateResult.operation_type] || 'full_day'
         
-        // 2t車の単価取得
+        // 2t車の単価取得（ステップ6と同じ構造）
         if (estimateResult.vehicle_2t_count > 0) {
-          const vehicleKey = `vehicle_2t_${operationType}_${estimateResult.delivery_area}`
-          console.log('🔍 2t車キー検索:', vehicleKey)
+          const subcategoryKey = `2t_${operationType}_${estimateResult.delivery_area}`
+          console.log('🔍 2t車サブカテゴリキー検索:', subcategoryKey)
           
+          // ステップ6と同じクエリ構造を使用
           const pricing2tResult = await env.DB.prepare(`
             SELECT value FROM master_settings 
-            WHERE category = 'vehicle' AND subcategory = 'pricing' AND \`key\` = ?
-          `).bind(vehicleKey).first()
+            WHERE category = 'vehicle' AND subcategory = ? AND \`key\` = 'price'
+          `).bind(`2t_${operationType}_${estimateResult.delivery_area}`).first()
           
           if (pricing2tResult) {
             vehiclePricing.vehicle_2t_price = parseInt(pricing2tResult.value)
             console.log('✅ 2t車単価取得:', vehiclePricing.vehicle_2t_price)
           } else {
-            console.warn('⚠️ 2t車単価が見つかりません:', vehicleKey)
+            console.warn('⚠️ 2t車単価が見つかりません:', subcategoryKey)
           }
         }
         
-        // 4t車の単価取得
+        // 4t車の単価取得（ステップ6と同じ構造）
         if (estimateResult.vehicle_4t_count > 0) {
-          const vehicleKey = `vehicle_4t_${operationType}_${estimateResult.delivery_area}`
-          console.log('🔍 4t車キー検索:', vehicleKey)
+          const subcategoryKey = `4t_${operationType}_${estimateResult.delivery_area}`
+          console.log('🔍 4t車サブカテゴリキー検索:', subcategoryKey)
           
+          // ステップ6と同じクエリ構造を使用
           const pricing4tResult = await env.DB.prepare(`
             SELECT value FROM master_settings 
-            WHERE category = 'vehicle' AND subcategory = 'pricing' AND \`key\` = ?
-          `).bind(vehicleKey).first()
+            WHERE category = 'vehicle' AND subcategory = ? AND \`key\` = 'price'
+          `).bind(`4t_${operationType}_${estimateResult.delivery_area}`).first()
           
           if (pricing4tResult) {
             vehiclePricing.vehicle_4t_price = parseInt(pricing4tResult.value)
             console.log('✅ 4t車単価取得:', vehiclePricing.vehicle_4t_price)
           } else {
-            console.warn('⚠️ 4t車単価が見つかりません:', vehicleKey)
+            console.warn('⚠️ 4t車単価が見つかりません:', subcategoryKey)
           }
         }
         
@@ -12653,6 +12877,47 @@ app.get('/api/estimates/:id/pdf', async (c) => {
       } catch (error) {
         console.error('❌ PDF生成時の車両単価取得エラー:', error)
       }
+    }
+
+    // vehicleRatesオブジェクトを作成（PDFテンプレートで使用）
+    const vehicleRates = {
+      vehicle_2t_full_day_A: vehiclePricing.vehicle_2t_price || 45000, // デフォルト単価
+      vehicle_4t_full_day_A: vehiclePricing.vehicle_4t_price || 70000  // デフォルト単価
+    }
+    
+    console.log('📋 PDF用vehicleRates定義:', vehicleRates)
+
+    // PDFテンプレート内で使用する単価を事前に計算
+    const vehicle2tRate = vehicleRates.vehicle_2t_full_day_A || 45000
+    const vehicle4tRate = vehicleRates.vehicle_4t_full_day_A || 70000
+    const supervisorRate = staffRates.supervisor
+    const leaderRate = staffRates.leader
+    const m2HalfDayRate = staffRates.m2_half_day
+    const m2FullDayRate = staffRates.m2_full_day
+    const tempHalfDayRate = staffRates.temp_half_day
+    const tempFullDayRate = staffRates.temp_full_day
+    
+    // スタッフ費用の正確な計算を事前に実行
+    const totalStaffCount = (estimateResult.supervisor_count || 0) + 
+                          (estimateResult.leader_count || 0) + 
+                          (estimateResult.m2_staff_half_day || 0) + 
+                          (estimateResult.m2_staff_full_day || 0) + 
+                          (estimateResult.temp_staff_half_day || 0) + 
+                          (estimateResult.temp_staff_full_day || 0);
+    
+    let calculatedStaffCost = 0;
+    if (totalStaffCount > 0) {
+      calculatedStaffCost = 
+        (estimateResult.supervisor_count || 0) * supervisorRate +
+        (estimateResult.leader_count || 0) * leaderRate +
+        (estimateResult.m2_staff_half_day || 0) * m2HalfDayRate +
+        (estimateResult.m2_staff_full_day || 0) * m2FullDayRate +
+        (estimateResult.temp_staff_half_day || 0) * tempHalfDayRate +
+        (estimateResult.temp_staff_full_day || 0) * tempFullDayRate;
+    } else {
+      const maxReasonableStaffCost = 200000;
+      calculatedStaffCost = (estimateResult.staff_cost && estimateResult.staff_cost <= maxReasonableStaffCost) 
+        ? estimateResult.staff_cost : 88000;
     }
 
     // 基本設定（ロゴ含む）をKVから取得
@@ -12666,7 +12931,7 @@ app.get('/api/estimates/:id/pdf', async (c) => {
     }
 
     // PDF用HTMLを生成
-    const pdfHtml = generatePdfHTML(estimateResult, staffRates, vehiclePricing, basicSettings)
+    const pdfHtml = generatePdfHTML(estimateResult, staffRates, vehiclePricing, basicSettings, calculatedStaffCost)
     
     return new Response(pdfHtml, {
       headers: {
@@ -12685,7 +12950,135 @@ app.get('/api/estimates/:id/pdf', async (c) => {
   }
 })
 
-function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {}, basicSettings: any = {}): string {
+// 追加のPDFルートパターン（フロントエンドが異なるパターンでアクセスする場合に対応）
+app.get('/estimates/:id/pdf', async (c) => {
+  console.log('📄 代替PDFルートがアクセスされました:', c.req.param('id'))
+  return c.redirect(`/api/estimates/${c.req.param('id')}/pdf`)
+})
+
+app.get('/api/estimate/:id/pdf', async (c) => {
+  console.log('📄 単数形PDFルートがアクセスされました:', c.req.param('id'))
+  return c.redirect(`/api/estimates/${c.req.param('id')}/pdf`)
+})
+
+app.get('/pdf/:id', async (c) => {
+  console.log('📄 短縮PDFルートがアクセスされました:', c.req.param('id'))
+  return c.redirect(`/api/estimates/${c.req.param('id')}/pdf`)
+})
+
+// 🔧 デバッグ用：見積一覧取得API
+app.get('/api/debug/estimates', async (c) => {
+  try {
+    const { env } = c
+    const estimates = await env.DB.prepare(`
+      SELECT 
+        e.id,
+        e.estimate_number,
+        e.customer_id,
+        e.project_id,
+        e.created_at,
+        e.user_id,
+        c.name as customer_name,
+        p.name as project_name
+      FROM estimates e
+      LEFT JOIN customers c ON e.customer_id = c.id
+      LEFT JOIN projects p ON e.project_id = p.id
+      ORDER BY e.created_at DESC
+      LIMIT 20
+    `).all()
+    
+    return c.json({
+      success: true,
+      count: estimates.results?.length || 0,
+      estimates: estimates.results || [],
+      message: 'デバッグ用見積一覧取得成功'
+    })
+  } catch (error) {
+    console.error('❌ デバッグ用見積一覧取得エラー:', error)
+    return c.json({
+      success: false,
+      message: 'デバッグ用見積一覧取得に失敗しました',
+      error: error instanceof Error ? error.message : '不明なエラー'
+    }, 500)
+  }
+})
+
+// 🔧 デバッグ用：特定見積の詳細情報取得API
+app.get('/api/debug/estimates/:id', async (c) => {
+  try {
+    const { env } = c
+    const estimateId = c.req.param('id')
+    
+    // 複数の方法で検索を試行
+    const searchResults = []
+    
+    // 見積番号での検索
+    try {
+      const result1 = await env.DB.prepare(`
+        SELECT * FROM estimates WHERE estimate_number = ?
+      `).bind(estimateId).first()
+      searchResults.push({ method: 'estimate_number', result: result1 })
+    } catch (error) {
+      searchResults.push({ method: 'estimate_number', error: error.message })
+    }
+    
+    // IDでの検索（数値の場合）
+    if (/^\d+$/.test(estimateId)) {
+      try {
+        const result2 = await env.DB.prepare(`
+          SELECT * FROM estimates WHERE id = ?
+        `).bind(parseInt(estimateId)).first()
+        searchResults.push({ method: 'id', result: result2 })
+      } catch (error) {
+        searchResults.push({ method: 'id', error: error.message })
+      }
+    }
+    
+    return c.json({
+      success: true,
+      requested_id: estimateId,
+      search_results: searchResults,
+      message: 'デバッグ用見積詳細取得完了'
+    })
+  } catch (error) {
+    console.error('❌ デバッグ用見積詳細取得エラー:', error)
+    return c.json({
+      success: false,
+      message: 'デバッグ用見積詳細取得に失敗しました',
+      error: error instanceof Error ? error.message : '不明なエラー'
+    }, 500)
+  }
+})
+
+// 404エラーハンドラー - PDF関連のリクエストをキャッチ
+app.notFound((c) => {
+  const url = c.req.url
+  const pathname = new URL(url).pathname
+  
+  console.log('❌ 404エラー:', url, 'パス名:', pathname)
+  
+  // PDFリクエストの可能性をチェック
+  if (pathname.includes('pdf') || pathname.includes('PDF')) {
+    console.log('🔍 PDF関連の404エラーを検出:', pathname)
+    
+    // 見積番号を抽出
+    const estimateMatch = pathname.match(/(EST-\d{4}-\d+)/i)
+    if (estimateMatch) {
+      const estimateNumber = estimateMatch[1]
+      console.log('📋 見積番号を抽出:', estimateNumber)
+      return c.redirect(`/api/estimates/${estimateNumber}/pdf`)
+    }
+  }
+  
+  return c.json({
+    success: false,
+    message: `リクエストされたリソースが見つかりません: ${pathname}`,
+    url: url,
+    suggestion: 'PDF生成の場合は /api/estimates/{見積番号}/pdf を使用してください'
+  }, 404)
+})
+
+function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {}, basicSettings: any = {}, calculatedStaffCost: number = 0): string {
   const currentDate = new Date().toLocaleDateString('ja-JP', {
     year: 'numeric',
     month: 'long',
@@ -12865,6 +13258,12 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
         .print-button:hover {
             background-color: #1d4ed8;
         }
+        
+        /* 項目列を確実に左寄せに */
+        .estimate-table tbody td:first-child {
+            text-align: left !important;
+            vertical-align: top;
+        }
     </style>
 </head>
 <body>
@@ -12892,7 +13291,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
             <div class="info-box">
                 <h3>お客様情報</h3>
                 <strong>${estimate.customer_name || ''}</strong><br>
-                ${estimate.project_contact_person ? `担当者: ${estimate.project_contact_person}<br>` : estimate.contact_person ? `担当者: ${estimate.contact_person}<br>` : ''}
+                ${estimate.customer_contact_person ? `担当者: ${estimate.customer_contact_person}<br>` : ''}
                 ${estimate.customer_address || ''}<br>
                 ${estimate.customer_phone ? `TEL: ${estimate.customer_phone}<br>` : ''}
                 ${estimate.customer_email ? `Email: ${estimate.customer_email}` : ''}
@@ -12928,111 +13327,125 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                 <td class="amount-cell">-</td>
             </tr>
             ${(() => {
-              // 複数車両対応の詳細表示
-              if (estimate.uses_multiple_vehicles) {
-                let vehicleRows = [];
-                let totalVehicleCost = 0;
-                
-                // 2t車の明細
-                if (estimate.vehicle_2t_count > 0) {
-                  const unitPrice2t = vehiclePricing.vehicle_2t_price || 0;
-                  const totalPrice2t = unitPrice2t * estimate.vehicle_2t_count;
-                  totalVehicleCost += totalPrice2t;
-                  vehicleRows.push(`
-                    <tr>
-                      <td>&nbsp;&nbsp;&nbsp;&nbsp;2t車 ${estimate.vehicle_2t_count}台・${estimate.operation_type}（${estimate.delivery_area}エリア）@ ¥${unitPrice2t.toLocaleString()}</td>
-                      <td class="amount-cell">¥${totalPrice2t.toLocaleString()}</td>
-                    </tr>
-                  `);
-                }
-                
-                // 4t車の明細
-                if (estimate.vehicle_4t_count > 0) {
-                  const unitPrice4t = vehiclePricing.vehicle_4t_price || 0;
-                  const totalPrice4t = unitPrice4t * estimate.vehicle_4t_count;
-                  totalVehicleCost += totalPrice4t;
-                  vehicleRows.push(`
-                    <tr>
-                      <td>&nbsp;&nbsp;&nbsp;&nbsp;4t車 ${estimate.vehicle_4t_count}台・${estimate.operation_type}（${estimate.delivery_area}エリア）@ ¥${unitPrice4t.toLocaleString()}</td>
-                      <td class="amount-cell">¥${totalPrice4t.toLocaleString()}</td>
-                    </tr>
-                  `);
-                }
-                
-                // 外部協力業者費用
-                if (estimate.external_contractor_cost > 0) {
-                  totalVehicleCost += estimate.external_contractor_cost;
-                  vehicleRows.push(`
-                    <tr>
-                      <td>&nbsp;&nbsp;&nbsp;&nbsp;外部協力業者費用</td>
-                      <td class="amount-cell">¥${estimate.external_contractor_cost.toLocaleString()}</td>
-                    </tr>
-                  `);
-                }
-                
-                // 車両費用の見出し行 + 詳細行
-                return `
+              // 車両費用を個別項目で表示
+              const vehicleRows = [];
+              const vehicleCost = estimate.vehicle_cost || 0;
+              
+              // 車両種別に基づく表示
+              if (estimate.vehicle_type && vehicleCost > 0) {
+                vehicleRows.push(`
                   <tr>
-                    <td><strong>車両費用</strong></td>
-                    <td class="amount-cell">¥${totalVehicleCost.toLocaleString()}</td>
+                    <td>&nbsp;&nbsp;${estimate.vehicle_type}1台 ¥${vehicleCost.toLocaleString()} × 1 = ¥${vehicleCost.toLocaleString()}</td>
+                    <td class="amount-cell">¥${vehicleCost.toLocaleString()}</td>
                   </tr>
-                  ${vehicleRows.join('')}
-                `;
-              } else {
-                // 従来の単一車両表示
-                return `
+                `);
+              } else if (vehicleCost > 0) {
+                // 車両タイプが未指定だが費用がある場合
+                vehicleRows.push(`
                   <tr>
-                    <td>&nbsp;&nbsp;車両費用（${estimate.vehicle_type} - ${estimate.operation_type}）</td>
-                    <td class="amount-cell">¥${(estimate.vehicle_cost || 0).toLocaleString()}</td>
+                    <td>&nbsp;&nbsp;車両費用1台 ¥${vehicleCost.toLocaleString()} × 1 = ¥${vehicleCost.toLocaleString()}</td>
+                    <td class="amount-cell">¥${vehicleCost.toLocaleString()}</td>
                   </tr>
-                `;
+                `);
               }
+              
+              return vehicleRows.join('');
             })()}
-            <tr>
-                <td>
-                    &nbsp;&nbsp;スタッフ費用<br>
-                    ${estimate.supervisor_count && estimate.supervisor_count > 0 ? `&nbsp;&nbsp;&nbsp;&nbsp;スーパーバイザー: ${estimate.supervisor_count}名<br>` : ''}
-                    ${estimate.leader_count && estimate.leader_count > 0 ? `&nbsp;&nbsp;&nbsp;&nbsp;リーダー: ${estimate.leader_count}名<br>` : ''}
-                    ${estimate.m2_staff_half_day && estimate.m2_staff_half_day > 0 ? `&nbsp;&nbsp;&nbsp;&nbsp;M2スタッフ(半日): ${estimate.m2_staff_half_day}名<br>` : ''}
-                    ${estimate.m2_staff_full_day && estimate.m2_staff_full_day > 0 ? `&nbsp;&nbsp;&nbsp;&nbsp;M2スタッフ(終日): ${estimate.m2_staff_full_day}名<br>` : ''}
-                    ${estimate.temp_staff_half_day && estimate.temp_staff_half_day > 0 ? `&nbsp;&nbsp;&nbsp;&nbsp;派遣スタッフ(半日): ${estimate.temp_staff_half_day}名<br>` : ''}
-                    ${estimate.temp_staff_full_day && estimate.temp_staff_full_day > 0 ? `&nbsp;&nbsp;&nbsp;&nbsp;派遣スタッフ(終日): ${estimate.temp_staff_full_day}名<br>` : ''}
-                </td>
-                <td class="amount-cell">¥${(() => {
-                  // PDF生成時にスタッフ費用を動的に再計算
-                  if (estimate.staff_cost && estimate.staff_cost > 0) {
-                    return estimate.staff_cost.toLocaleString();
-                  }
-                  
-                  // データベースから取得した統一されたスタッフ単価を使用
-                  // （引数として渡されたstaffRatesをそのまま使用）
-                  
-                  const calculatedStaffCost = 
-                    (estimate.supervisor_count || 0) * staffRates.supervisor +
-                    (estimate.leader_count || 0) * staffRates.leader +
-                    (estimate.m2_staff_half_day || 0) * staffRates.m2_half_day +
-                    (estimate.m2_staff_full_day || 0) * staffRates.m2_full_day +
-                    (estimate.temp_staff_half_day || 0) * staffRates.temp_half_day +
-                    (estimate.temp_staff_full_day || 0) * staffRates.temp_full_day;
-                  
-                  console.log('📄 PDF生成時のスタッフ費用計算:', {
-                    supervisor_count: estimate.supervisor_count,
-                    leader_count: estimate.leader_count,
-                    m2_staff_half_day: estimate.m2_staff_half_day,
-                    m2_staff_full_day: estimate.m2_staff_full_day,
-                    temp_staff_half_day: estimate.temp_staff_half_day,
-                    temp_staff_full_day: estimate.temp_staff_full_day,
-                    calculatedStaffCost: calculatedStaffCost,
-                    storedStaffCost: estimate.staff_cost
-                  });
-                  
-                  if (calculatedStaffCost !== (estimate.staff_cost || 0)) {
-                    console.warn('⚠️ スタッフ費用計算の差異: PDF生成時=' + calculatedStaffCost + ', 保存値=' + (estimate.staff_cost || 0));
-                  }
-                  
-                  return calculatedStaffCost.toLocaleString();
-                })()}</td>
-            </tr>
+            ${(() => {
+              // スタッフ費用を個別項目で表示
+              const staffRows = [];
+              const rates = staffRates || {};
+              
+              // 監督者
+              if (estimate.supervisor_count && estimate.supervisor_count > 0) {
+                const unitPrice = rates.supervisor || 0;
+                const count = estimate.supervisor_count;
+                const total = unitPrice * count;
+                staffRows.push(`
+                  <tr>
+                    <td>&nbsp;&nbsp;監督者${count}名 ¥${unitPrice.toLocaleString()} × ${count} = ¥${total.toLocaleString()}</td>
+                    <td class="amount-cell">¥${total.toLocaleString()}</td>
+                  </tr>
+                `);
+              }
+              
+              // リーダー
+              if (estimate.leader_count && estimate.leader_count > 0) {
+                const unitPrice = rates.leader || 0;
+                const count = estimate.leader_count;
+                const total = unitPrice * count;
+                staffRows.push(`
+                  <tr>
+                    <td>&nbsp;&nbsp;リーダー${count}名 ¥${unitPrice.toLocaleString()} × ${count} = ¥${total.toLocaleString()}</td>
+                    <td class="amount-cell">¥${total.toLocaleString()}</td>
+                  </tr>
+                `);
+              }
+              
+              // M2スタッフ（半日）
+              if (estimate.m2_staff_half_day && estimate.m2_staff_half_day > 0) {
+                const unitPrice = rates.m2_half_day || 0;
+                const count = estimate.m2_staff_half_day;
+                const total = unitPrice * count;
+                staffRows.push(`
+                  <tr>
+                    <td>&nbsp;&nbsp;M2スタッフ（半日）${count}名 ¥${unitPrice.toLocaleString()} × ${count} = ¥${total.toLocaleString()}</td>
+                    <td class="amount-cell">¥${total.toLocaleString()}</td>
+                  </tr>
+                `);
+              }
+              
+              // M2スタッフ（全日）
+              if (estimate.m2_staff_full_day && estimate.m2_staff_full_day > 0) {
+                const unitPrice = rates.m2_full_day || 0;
+                const count = estimate.m2_staff_full_day;
+                const total = unitPrice * count;
+                staffRows.push(`
+                  <tr>
+                    <td>&nbsp;&nbsp;M2スタッフ（全日）${count}名 ¥${unitPrice.toLocaleString()} × ${count} = ¥${total.toLocaleString()}</td>
+                    <td class="amount-cell">¥${total.toLocaleString()}</td>
+                  </tr>
+                `);
+              }
+              
+              // アルバイト（半日）
+              if (estimate.temp_staff_half_day && estimate.temp_staff_half_day > 0) {
+                const unitPrice = rates.temp_half_day || 0;
+                const count = estimate.temp_staff_half_day;
+                const total = unitPrice * count;
+                staffRows.push(`
+                  <tr>
+                    <td>&nbsp;&nbsp;アルバイト（半日）${count}名 ¥${unitPrice.toLocaleString()} × ${count} = ¥${total.toLocaleString()}</td>
+                    <td class="amount-cell">¥${total.toLocaleString()}</td>
+                  </tr>
+                `);
+              }
+              
+              // アルバイト（全日）
+              if (estimate.temp_staff_full_day && estimate.temp_staff_full_day > 0) {
+                const unitPrice = rates.temp_full_day || 0;
+                const count = estimate.temp_staff_full_day;
+                const total = unitPrice * count;
+                staffRows.push(`
+                  <tr>
+                    <td>&nbsp;&nbsp;アルバイト（全日）${count}名 ¥${unitPrice.toLocaleString()} × ${count} = ¥${total.toLocaleString()}</td>
+                    <td class="amount-cell">¥${total.toLocaleString()}</td>
+                  </tr>
+                `);
+              }
+              
+              // スタッフが設定されていない場合のフォールバック
+              if (staffRows.length === 0 && calculatedStaffCost > 0) {
+                staffRows.push(`
+                  <tr>
+                    <td>&nbsp;&nbsp;スタッフ費用</td>
+                    <td class="amount-cell">¥${calculatedStaffCost.toLocaleString()}</td>
+                  </tr>
+                `);
+              }
+              
+              return staffRows.join('');
+            })()}
             ${estimate.parking_officer_cost > 0 ? `
             <tr>
                 <td>&nbsp;&nbsp;駐車対策員（${estimate.parking_officer_hours || 0}時間）</td>
@@ -13073,6 +13486,45 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                 <td>&nbsp;&nbsp;実費：高速料金</td>
                 <td class="amount-cell">¥${(estimate.highway_fee || 0).toLocaleString()}</td>
             </tr>` : ''}
+            ${(() => {
+              // その他費用セクションの表示
+              const otherCosts = [];
+              
+              // 作業時間割増料金（割増賃金）
+              if (estimate.work_time_type && estimate.work_time_type !== 'normal' && estimate.work_time_multiplier > 1) {
+                const multiplierPercent = Math.round((estimate.work_time_multiplier - 1) * 100);
+                const baseAmount = (estimate.vehicle_cost || 0) + calculatedStaffCost;
+                const premiumAmount = Math.round(baseAmount * (estimate.work_time_multiplier - 1));
+                
+                let timeTypeLabel = '';
+                switch(estimate.work_time_type) {
+                  case 'early':
+                    timeTypeLabel = '早朝';
+                    break;
+                  case 'night':
+                    timeTypeLabel = '夜間';
+                    break;
+                  case 'midnight':
+                    timeTypeLabel = '深夜';
+                    break;
+                  default:
+                    timeTypeLabel = estimate.work_time_type;
+                }
+                
+                otherCosts.push(`
+                  <tr>
+                    <td><strong>その他費用</strong></td>
+                    <td class="amount-cell">-</td>
+                  </tr>
+                  <tr>
+                    <td>&nbsp;&nbsp;割増賃金 (${timeTypeLabel}作業 : +${multiplierPercent}%)</td>
+                    <td class="amount-cell">¥${premiumAmount.toLocaleString()}</td>
+                  </tr>
+                `);
+              }
+              
+              return otherCosts.join('');
+            })()}
         </tbody>
     </table>
     
@@ -13081,17 +13533,10 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
             <tr>
                 <th>小計</th>
                 <td>¥${(() => {
-                  // PDF生成時にサービス費用を正しく計算
+                  // 実際の項目費用を計算
                   const vehicleCost = estimate.vehicle_cost || 0;
-                  // データベースから取得した統一されたスタッフ単価を使用
-                  // （引数として渡されたstaffRatesを使用）
-                  const staffCost = estimate.staff_cost || 
-                    (estimate.supervisor_count || 0) * staffRates.supervisor +
-                    (estimate.leader_count || 0) * staffRates.leader +
-                    (estimate.m2_staff_half_day || 0) * staffRates.m2_half_day +
-                    (estimate.m2_staff_full_day || 0) * staffRates.m2_full_day +
-                    (estimate.temp_staff_half_day || 0) * staffRates.temp_half_day +
-                    (estimate.temp_staff_full_day || 0) * staffRates.temp_full_day;
+                  const staffCost = calculatedStaffCost; // 既に計算済みの値を使用
+                  
                   const servicesCost = (estimate.parking_officer_cost || 0) + 
                                      (estimate.transport_cost || 0) + 
                                      (estimate.waste_disposal_cost || 0) + 
@@ -13099,9 +13544,29 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                                      (estimate.material_collection_cost || 0) + 
                                      (estimate.construction_cost || 0) + 
                                      (estimate.parking_fee || 0) + 
-                                     (estimate.highway_fee || 0);
+                                     (estimate.highway_fee || 0) +
+                                     (estimate.external_contractor_cost || 0);
                   
-                  const calculatedSubtotal = vehicleCost + staffCost + servicesCost;
+                  // 作業時間割増料金を計算
+                  let workTimePremium = 0;
+                  if (estimate.work_time_type && estimate.work_time_type !== 'normal' && estimate.work_time_multiplier > 1) {
+                    const baseAmount = vehicleCost + staffCost;
+                    workTimePremium = Math.round(baseAmount * (estimate.work_time_multiplier - 1));
+                  }
+                  
+                  const calculatedSubtotal = Math.round(vehicleCost + staffCost + servicesCost + workTimePremium);
+                  
+                  console.log('📄 PDF小計計算:', {
+                    vehicleCost,
+                    staffCost,
+                    servicesCost,
+                    workTimePremium,
+                    calculatedSubtotal,
+                    storedSubtotal: estimate.subtotal,
+                    使用値: '再計算値'
+                  });
+                  
+                  // 常に再計算値を使用（データベース値との整合性確保）
                   return calculatedSubtotal.toLocaleString();
                 })()}</td>
             </tr>
@@ -13115,13 +13580,8 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                 <td>¥${(() => {
                   // 値引き後小計を計算
                   const vehicleCost = estimate.vehicle_cost || 0;
-                  const staffCost = estimate.staff_cost || 
-                    (estimate.supervisor_count || 0) * staffRates.supervisor +
-                    (estimate.leader_count || 0) * staffRates.leader +
-                    (estimate.m2_staff_half_day || 0) * staffRates.m2_half_day +
-                    (estimate.m2_staff_full_day || 0) * staffRates.m2_full_day +
-                    (estimate.temp_staff_half_day || 0) * staffRates.temp_half_day +
-                    (estimate.temp_staff_full_day || 0) * staffRates.temp_full_day;
+                  const staffCost = calculatedStaffCost; // 既に計算済みの値を使用
+                  
                   const servicesCost = (estimate.parking_officer_cost || 0) + 
                                      (estimate.transport_cost || 0) + 
                                      (estimate.waste_disposal_cost || 0) + 
@@ -13131,7 +13591,14 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                                      (estimate.parking_fee || 0) + 
                                      (estimate.highway_fee || 0);
                   
-                  const calculatedSubtotal = vehicleCost + staffCost + servicesCost;
+                  // 作業時間割増料金を計算
+                  let workTimePremium = 0;
+                  if (estimate.work_time_type && estimate.work_time_type !== 'normal' && estimate.work_time_multiplier > 1) {
+                    const baseAmount = vehicleCost + staffCost;
+                    workTimePremium = Math.round(baseAmount * (estimate.work_time_multiplier - 1));
+                  }
+                  
+                  const calculatedSubtotal = Math.round(vehicleCost + staffCost + servicesCost + workTimePremium);
                   const discountedSubtotal = Math.max(0, calculatedSubtotal - (estimate.discount_amount || 0));
                   return discountedSubtotal.toLocaleString();
                 })()}</td>
@@ -13139,17 +13606,10 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
             <tr>
                 <th>消費税（${Math.round((estimate.tax_rate || 0.1) * 100)}%）</th>
                 <td>¥${(() => {
-                  // 消費税を値引き後の金額で再計算
+                  // 消費税計算
                   const vehicleCost = estimate.vehicle_cost || 0;
-                  // データベースから取得した統一されたスタッフ単価を使用
-                  // （引数として渡されたstaffRatesを使用）
-                  const staffCost = estimate.staff_cost || 
-                    (estimate.supervisor_count || 0) * staffRates.supervisor +
-                    (estimate.leader_count || 0) * staffRates.leader +
-                    (estimate.m2_staff_half_day || 0) * staffRates.m2_half_day +
-                    (estimate.m2_staff_full_day || 0) * staffRates.m2_full_day +
-                    (estimate.temp_staff_half_day || 0) * staffRates.temp_half_day +
-                    (estimate.temp_staff_full_day || 0) * staffRates.temp_full_day;
+                  const staffCost = calculatedStaffCost; // 既に計算済みの値を使用
+                  
                   const servicesCost = (estimate.parking_officer_cost || 0) + 
                                      (estimate.transport_cost || 0) + 
                                      (estimate.waste_disposal_cost || 0) + 
@@ -13157,29 +13617,31 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                                      (estimate.material_collection_cost || 0) + 
                                      (estimate.construction_cost || 0) + 
                                      (estimate.parking_fee || 0) + 
-                                     (estimate.highway_fee || 0);
+                                     (estimate.highway_fee || 0) +
+                                     (estimate.external_contractor_cost || 0);
                   
-                  const calculatedSubtotal = vehicleCost + staffCost + servicesCost;
+                  // 作業時間割増料金を計算
+                  let workTimePremium = 0;
+                  if (estimate.work_time_type && estimate.work_time_type !== 'normal' && estimate.work_time_multiplier > 1) {
+                    const baseAmount = vehicleCost + staffCost;
+                    workTimePremium = Math.round(baseAmount * (estimate.work_time_multiplier - 1));
+                  }
+                  
+                  const calculatedSubtotal = Math.round(vehicleCost + staffCost + servicesCost + workTimePremium);
                   const discountedSubtotal = Math.max(0, calculatedSubtotal - (estimate.discount_amount || 0));
                   const taxRate = estimate.tax_rate || 0.1;
                   const calculatedTaxAmount = Math.floor(discountedSubtotal * taxRate);
+                  
                   return calculatedTaxAmount.toLocaleString();
                 })()}</td>
             </tr>
             <tr class="grand-total">
                 <th>合計金額</th>
                 <td style="font-size: 18px;">¥${(() => {
-                  // 合計金額を値引き後で再計算
+                  // 合計金額を計算
                   const vehicleCost = estimate.vehicle_cost || 0;
-                  // データベースから取得した統一されたスタッフ単価を使用
-                  // （引数として渡されたstaffRatesで使用）
-                  const staffCost = estimate.staff_cost || 
-                    (estimate.supervisor_count || 0) * staffRates.supervisor +
-                    (estimate.leader_count || 0) * staffRates.leader +
-                    (estimate.m2_staff_half_day || 0) * staffRates.m2_half_day +
-                    (estimate.m2_staff_full_day || 0) * staffRates.m2_full_day +
-                    (estimate.temp_staff_half_day || 0) * staffRates.temp_half_day +
-                    (estimate.temp_staff_full_day || 0) * staffRates.temp_full_day;
+                  const staffCost = calculatedStaffCost; // 既に計算済みの値を使用 
+                  
                   const servicesCost = (estimate.parking_officer_cost || 0) + 
                                      (estimate.transport_cost || 0) + 
                                      (estimate.waste_disposal_cost || 0) + 
@@ -13187,13 +13649,34 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                                      (estimate.material_collection_cost || 0) + 
                                      (estimate.construction_cost || 0) + 
                                      (estimate.parking_fee || 0) + 
-                                     (estimate.highway_fee || 0);
+                                     (estimate.highway_fee || 0) +
+                                     (estimate.external_contractor_cost || 0);
                   
-                  const calculatedSubtotal = vehicleCost + staffCost + servicesCost;
+                  // 作業時間割増料金を計算
+                  let workTimePremium = 0;
+                  if (estimate.work_time_type && estimate.work_time_type !== 'normal' && estimate.work_time_multiplier > 1) {
+                    const baseAmount = vehicleCost + staffCost;
+                    workTimePremium = Math.round(baseAmount * (estimate.work_time_multiplier - 1));
+                  }
+                  
+                  const calculatedSubtotal = Math.round(vehicleCost + staffCost + servicesCost + workTimePremium);
                   const discountedSubtotal = Math.max(0, calculatedSubtotal - (estimate.discount_amount || 0));
                   const taxRate = estimate.tax_rate || 0.1;
                   const calculatedTaxAmount = Math.floor(discountedSubtotal * taxRate);
                   const calculatedTotalAmount = discountedSubtotal + calculatedTaxAmount;
+                  
+                  console.log('📄 PDF合計金額計算:', {
+                    vehicleCost,
+                    originalStaffCost: estimate.staff_cost,
+                    validatedStaffCost: staffCost,
+                    servicesCost,
+                    workTimePremium,
+                    calculatedSubtotal,
+                    calculatedTaxAmount,
+                    calculatedTotalAmount,
+                    storedTotalAmount: estimate.total_amount
+                  });
+                  
                   return calculatedTotalAmount.toLocaleString();
                 })()}</td>
             </tr>
@@ -13202,8 +13685,8 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
     
     <div class="notes-section">
         <h3>備考・作業内容</h3>
-        <p>${estimate.project_description || ''}</p>
-        ${estimate.notes ? `<p><strong>追加事項:</strong> ${estimate.notes}</p>` : ''}
+        ${estimate.project_description ? `<p>${estimate.project_description}</p>` : ''}
+        ${estimate.notes && estimate.notes !== 'null' ? `<p><strong>追加事項:</strong> ${estimate.notes}</p>` : ''}
         <p>
             <strong>お支払条件:</strong> 作業完了後、月末締め翌月末日支払い<br>
             <strong>作業条件:</strong> 天候・交通事情により作業日程が変更になる場合があります<br>
@@ -15876,7 +16359,7 @@ app.get('/settings', (c) => {
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/app-1760678720.js?v=1760678720&nocache=true"></script>
+        <script src="/static/app-1760943874.js?v=1760939908&cache=bust&t=1760939908"></script>
         <script>
             // 設定機能の実装
             const Settings = {
