@@ -12184,7 +12184,7 @@ app.get('/estimate/:id', async (c) => {
     
     let estimateHtml = ''
     
-    if (estimate.estimate_type === 'free') {
+    if (estimate.estimate_number && estimate.estimate_number.startsWith('FREE-')) {
       // フリー見積の場合
       const items = await env.DB.prepare(`
         SELECT * FROM free_estimate_items 
@@ -12283,7 +12283,7 @@ app.get('/estimate/:id', async (c) => {
           </div>
           <div class="text-center">
             <p class="text-gray-600">標準見積の詳細表示機能は実装中です</p>
-            <p class="text-2xl font-bold text-blue-600 mt-4">合計金額: ¥${estimate.total_cost.toLocaleString()}</p>
+            <p class="text-2xl font-bold text-blue-600 mt-4">合計金額: ¥${estimate.total_amount.toLocaleString()}</p>
           </div>
         </div>
       `
@@ -12369,7 +12369,7 @@ app.get('/estimate/:id/pdf', async (c) => {
       return c.notFound()
     }
     
-    if (estimate.estimate_type === 'free') {
+    if (estimate.estimate_number && estimate.estimate_number.startsWith('FREE-')) {
       // フリー見積の場合
       const items = await env.DB.prepare(`
         SELECT * FROM free_estimate_items 
@@ -12387,8 +12387,15 @@ app.get('/estimate/:id/pdf', async (c) => {
         logo: (env.KV ? await env.KV.get('basic_settings:company_logo') : null) || null
       }
 
+      // 顧客・案件情報をdelivery_addressから抽出（値引き情報を除外）
+      const addressParts = (estimate.delivery_address || '').split(',').map(p => p.trim())
+      const customerInfo = {
+        customer_name: addressParts.find(p => p.startsWith('顧客:'))?.replace('顧客:', '').trim() || 'フリー見積顧客',
+        project_name: addressParts.find(p => p.startsWith('案件:'))?.replace('案件:', '').trim() || 'フリー見積プロジェクト'
+      }
+
       // フリー見積用PDF生成関数を呼び出し（標準見積と同じフォーマット）
-      const pdfHtml = generateFreePdfHTML(estimate, items.results, basicSettings)
+      const pdfHtml = generateFreePdfHTML(estimate, items.results, basicSettings, customerInfo)
       
       return c.html(pdfHtml)
       
