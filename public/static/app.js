@@ -2075,11 +2075,11 @@ const Step4Implementation = {
   updateStaffPricingDisplay: (costs, rates, counts, totalCost, totalStaff) => {
     const pricingDiv = document.getElementById('staffPricingInfo');
     
-    // メインの表示エリアを表示
+    // メインの表示エリアを表示（style.displayで制御）
     if (totalCost > 0) {
-      pricingDiv?.classList.remove('hidden');
+      if (pricingDiv) pricingDiv.style.display = 'block';
     } else {
-      pricingDiv?.classList.add('hidden');
+      if (pricingDiv) pricingDiv.style.display = 'none';
       return;
     }
 
