@@ -1955,7 +1955,7 @@ app.get('/login.html', (c) => {
             <div class="inline-block bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full p-4 mb-4">
                 <i class="fas fa-truck-moving text-white text-4xl"></i>
             </div>
-            <h1 class="text-3xl font-bold text-gray-800 mb-2">引越見積システム</h1>
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Office M2 見積システム</h1>
             <p class="text-gray-600">ログインしてください</p>
         </div>
 
