@@ -52,62 +52,82 @@ app.get('/backup-downloads.html', async (c) => {
         <div class="bg-green-50 border-l-4 border-green-500 p-4 mb-6">
             <p class="text-sm text-green-700">
                 <i class="fas fa-check-circle mr-2"></i>
-                <strong>最新バックアップ:</strong> 2025年10月27日 02:41 (JST)
+                <strong>単一ZIPファイル方式</strong>
             </p>
             <p class="text-sm text-green-700 mt-1">
                 <i class="fas fa-info-circle mr-2"></i>
-                見積もり作成から印刷まで完全動作確認済み
+                1つのZIPファイルで完全復元可能
             </p>
         </div>
 
         <div class="space-y-6">
-            <div class="bg-yellow-50 border border-yellow-300 rounded-lg p-6">
-                <h2 class="text-xl font-bold text-gray-800 mb-3">
-                    <i class="fas fa-star mr-2 text-yellow-500"></i>
-                    1. 最新コード完全バックアップ
-                </h2>
-                <p class="text-gray-700 mb-4">STEP4修正完了・詳細と合計表示対応</p>
-                <a href="/webapp_complete_backup_20251027_024107.tar.gz" 
-                   class="inline-flex items-center px-6 py-3 bg-yellow-600 text-white font-semibold rounded-lg hover:bg-yellow-700"
-                   download>
-                    <i class="fas fa-download mr-2"></i>
-                    webapp_complete_backup_20251027_024107.tar.gz (376KB)
-                </a>
+            <div class="bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-400 rounded-lg p-6 shadow-lg">
+                <div class="flex items-start mb-4">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-crown text-yellow-500 text-3xl"></i>
+                    </div>
+                    <div class="ml-4 flex-1">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-2">
+                            完全バックアップ（単一ZIPファイル）
+                        </h2>
+                        <p class="text-gray-700 mb-3">
+                            <strong>すべてが含まれた単一ファイル</strong> - このZIPファイルを保存するだけ！
+                        </p>
+                        <div class="bg-white rounded p-3 mb-4">
+                            <h4 class="font-semibold text-gray-700 mb-2">📦 含まれる内容:</h4>
+                            <ul class="text-sm text-gray-600 space-y-1">
+                                <li>✅ ソースコード完全版</li>
+                                <li>✅ データベース完全バックアップ（SQL）</li>
+                                <li>✅ 設定ファイル（package.json, wrangler.jsonc, etc）</li>
+                                <li>✅ Git履歴</li>
+                                <li>✅ 自動復元スクリプト（RESTORE.sh）</li>
+                                <li>✅ README・ドキュメント</li>
+                            </ul>
+                        </div>
+                        <a href="/webapp_complete_backup_20251027_030934.zip" 
+                           class="inline-flex items-center px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 text-white font-bold text-lg rounded-lg hover:from-yellow-600 hover:to-orange-600 shadow-lg transition-all"
+                           download>
+                            <i class="fas fa-download mr-3 text-2xl"></i>
+                            <div>
+                                <div>完全バックアップをダウンロード</div>
+                                <div class="text-sm font-normal">webapp_complete_backup_20251027_030934.zip (9.2MB)</div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
             </div>
 
             <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
                 <h2 class="text-xl font-bold text-gray-800 mb-3">
-                    <i class="fas fa-database mr-2 text-blue-600"></i>
-                    2. 最新データベースバックアップ
+                    <i class="fas fa-rocket mr-2 text-blue-600"></i>
+                    復元方法（超簡単！）
                 </h2>
-                <p class="text-gray-700 mb-4">全マスターデータ（スタッフ・サービス・車両単価）</p>
-                <a href="/backup_database_20251027_024107.sql" 
-                   class="inline-flex items-center px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700"
-                   download>
-                    <i class="fas fa-download mr-2"></i>
-                    backup_database_20251027_024107.sql (30KB)
-                </a>
+                <div class="bg-gray-800 text-green-400 p-4 rounded font-mono text-sm">
+                    <div># 1. ZIPファイルを展開</div>
+                    <div>unzip webapp_complete_backup_20251027_030934.zip</div>
+                    <div>cd webapp_complete_backup_20251027_030934</div>
+                    <div class="mt-2"># 2. 復元スクリプトを実行（これだけ！）</div>
+                    <div>./RESTORE.sh</div>
+                </div>
+                <p class="text-sm text-gray-600 mt-3">
+                    <i class="fas fa-magic mr-1 text-blue-600"></i>
+                    復元スクリプトを実行するだけで、すべてが自動的に復元されます
+                </p>
             </div>
 
             <div class="bg-purple-50 border border-purple-200 rounded-lg p-6">
                 <h2 class="text-xl font-bold text-gray-800 mb-3">
-                    <i class="fas fa-book mr-2 text-purple-600"></i>
-                    3. ドキュメント
+                    <i class="fas fa-history mr-2 text-purple-600"></i>
+                    バックアップの作成方法
                 </h2>
-                <div class="space-y-2">
-                    <a href="/BACKUP_COMPLETE_GUIDE_20251027.md" class="block text-purple-600 hover:text-purple-800" download>
-                        <i class="fas fa-file-alt mr-2"></i>
-                        完全バックアップガイド
-                    </a>
-                    <a href="/RESTORE_INSTRUCTIONS.md" class="block text-purple-600 hover:text-purple-800" download>
-                        <i class="fas fa-file-alt mr-2"></i>
-                        復元手順書
-                    </a>
-                    <a href="/DATABASE_SCHEMA.md" class="block text-purple-600 hover:text-purple-800" download>
-                        <i class="fas fa-file-alt mr-2"></i>
-                        データベーススキーマ
-                    </a>
+                <p class="text-gray-700 mb-3">新しいバックアップを作成する場合:</p>
+                <div class="bg-gray-800 text-green-400 p-4 rounded font-mono text-sm">
+                    <div>cd /home/user/webapp</div>
+                    <div>./create_complete_backup.sh</div>
                 </div>
+                <p class="text-sm text-gray-600 mt-3">
+                    自動的に単一ZIPファイルが作成されます
+                </p>
             </div>
         </div>
 
@@ -128,6 +148,7 @@ app.get('/backup-downloads', async (c) => {
 })
 
 // バックアップファイルの直接配信
+app.get('/webapp_complete_backup_20251027_030934.zip', serveStatic({ path: './webapp_complete_backup_20251027_030934.zip' }))
 app.get('/webapp_complete_backup_20251027_024107.tar.gz', serveStatic({ path: './webapp_complete_backup_20251027_024107.tar.gz' }))
 app.get('/backup_database_20251027_024107.sql', serveStatic({ path: './backup_database_20251027_024107.sql' }))
 app.get('/BACKUP_COMPLETE_GUIDE_20251027.md', serveStatic({ path: './BACKUP_COMPLETE_GUIDE_20251027.md' }))
