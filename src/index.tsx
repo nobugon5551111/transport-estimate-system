@@ -1611,6 +1611,312 @@ app.get('/test-step4-labels', (c) => {
 </html>`)
 })
 
+// ユーザー管理画面
+app.get('/admin/users.html', (c) => {
+  return c.html(`<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ユーザー管理 - 引越見積システム</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 min-h-screen p-8">
+    <div class="max-w-6xl mx-auto">
+        <!-- ヘッダー -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">
+                        <i class="fas fa-users mr-3 text-blue-600"></i>
+                        ユーザー管理
+                    </h1>
+                    <p class="text-gray-600 mt-2">ユーザーの登録・変更・削除</p>
+                </div>
+                <button onclick="window.location.href='/'" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">
+                    <i class="fas fa-home mr-2"></i>
+                    トップに戻る
+                </button>
+            </div>
+        </div>
+
+        <!-- 新規ユーザー登録フォーム -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">
+                <i class="fas fa-user-plus mr-2 text-green-600"></i>
+                新規ユーザー登録
+            </h2>
+            <form id="createUserForm" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">ユーザーID</label>
+                    <input 
+                        type="text" 
+                        id="newUserId" 
+                        required
+                        placeholder="例: yamada"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                    >
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">表示名</label>
+                    <input 
+                        type="text" 
+                        id="newUserName" 
+                        required
+                        placeholder="例: 山田太郎"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                    >
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">パスワード</label>
+                    <input 
+                        type="password" 
+                        id="newUserPassword" 
+                        required
+                        placeholder="4文字以上"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                    >
+                </div>
+                <div class="flex items-end">
+                    <button 
+                        type="submit" 
+                        class="w-full bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+                    >
+                        <i class="fas fa-plus mr-2"></i>
+                        登録
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- メッセージ表示エリア -->
+        <div id="messageArea" class="hidden mb-6"></div>
+
+        <!-- ユーザー一覧 -->
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">
+                <i class="fas fa-list mr-2 text-blue-600"></i>
+                ユーザー一覧
+            </h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ユーザーID</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">表示名</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">作成日時</th>
+                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="userTableBody" class="bg-white divide-y divide-gray-200">
+                        <tr>
+                            <td colspan="4" class="px-6 py-4 text-center text-gray-500">
+                                <i class="fas fa-spinner fa-spin mr-2"></i>
+                                読み込み中...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- パスワード変更モーダル -->
+    <div id="passwordModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">
+                <i class="fas fa-key mr-2 text-yellow-600"></i>
+                パスワード変更
+            </h3>
+            <form id="changePasswordForm">
+                <input type="hidden" id="changePasswordUserId">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">ユーザー</label>
+                    <input 
+                        type="text" 
+                        id="changePasswordUserName" 
+                        readonly
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100"
+                    >
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">新しいパスワード</label>
+                    <input 
+                        type="password" 
+                        id="newPassword" 
+                        required
+                        placeholder="4文字以上"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                    >
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button 
+                        type="button" 
+                        onclick="closePasswordModal()"
+                        class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
+                    >
+                        キャンセル
+                    </button>
+                    <button 
+                        type="submit" 
+                        class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded"
+                    >
+                        <i class="fas fa-save mr-2"></i>
+                        変更
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+    <script>
+        // メッセージ表示
+        function showMessage(message, type = 'success') {
+            const messageArea = document.getElementById('messageArea');
+            const bgColor = type === 'success' ? 'bg-green-50 border-green-500 text-green-700' : 'bg-red-50 border-red-500 text-red-700';
+            const icon = type === 'success' ? 'check-circle' : 'exclamation-circle';
+            
+            messageArea.className = \`border-l-4 p-4 mb-6 \${bgColor}\`;
+            messageArea.innerHTML = \`
+                <p class="text-sm">
+                    <i class="fas fa-\${icon} mr-2"></i>
+                    \${message}
+                </p>
+            \`;
+            messageArea.classList.remove('hidden');
+            
+            setTimeout(() => {
+                messageArea.classList.add('hidden');
+            }, 5000);
+        }
+
+        // ユーザー一覧読み込み
+        async function loadUsers() {
+            try {
+                const response = await axios.get('/api/auth/users');
+                const users = response.data.data;
+                
+                const tbody = document.getElementById('userTableBody');
+                
+                if (users.length === 0) {
+                    tbody.innerHTML = \`
+                        <tr>
+                            <td colspan="4" class="px-6 py-4 text-center text-gray-500">
+                                ユーザーが登録されていません
+                            </td>
+                        </tr>
+                    \`;
+                    return;
+                }
+                
+                tbody.innerHTML = users.map(user => \`
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="text-sm font-medium text-gray-900">\${user.id}</span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="text-sm text-gray-900">\${user.name}</span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="text-sm text-gray-500">\${new Date(user.created_at).toLocaleString('ja-JP')}</span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center space-x-2">
+                            <button 
+                                onclick="openPasswordModal('\${user.id}', '\${user.name}')"
+                                class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-3 rounded text-sm"
+                            >
+                                <i class="fas fa-key mr-1"></i>
+                                パスワード変更
+                            </button>
+                            <button 
+                                onclick="deleteUser('\${user.id}', '\${user.name}')"
+                                class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded text-sm"
+                            >
+                                <i class="fas fa-trash mr-1"></i>
+                                削除
+                            </button>
+                        </td>
+                    </tr>
+                \`).join('');
+                
+            } catch (error) {
+                console.error('ユーザー一覧取得エラー:', error);
+                showMessage('ユーザー一覧の取得に失敗しました', 'error');
+            }
+        }
+
+        // 新規ユーザー登録
+        document.getElementById('createUserForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const userId = document.getElementById('newUserId').value.trim();
+            const name = document.getElementById('newUserName').value.trim();
+            const password = document.getElementById('newUserPassword').value;
+            
+            try {
+                await axios.post('/api/auth/users', { userId, name, password });
+                showMessage(\`ユーザー「\${name}」を登録しました\`, 'success');
+                document.getElementById('createUserForm').reset();
+                loadUsers();
+            } catch (error) {
+                console.error('ユーザー登録エラー:', error);
+                showMessage(error.response?.data?.message || 'ユーザーの登録に失敗しました', 'error');
+            }
+        });
+
+        // パスワード変更モーダル
+        function openPasswordModal(userId, userName) {
+            document.getElementById('changePasswordUserId').value = userId;
+            document.getElementById('changePasswordUserName').value = \`\${userName} (\${userId})\`;
+            document.getElementById('newPassword').value = '';
+            document.getElementById('passwordModal').classList.remove('hidden');
+        }
+
+        function closePasswordModal() {
+            document.getElementById('passwordModal').classList.add('hidden');
+        }
+
+        document.getElementById('changePasswordForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const userId = document.getElementById('changePasswordUserId').value;
+            const newPassword = document.getElementById('newPassword').value;
+            
+            try {
+                await axios.put(\`/api/auth/users/\${userId}/password\`, { newPassword });
+                showMessage('パスワードを変更しました', 'success');
+                closePasswordModal();
+            } catch (error) {
+                console.error('パスワード変更エラー:', error);
+                showMessage(error.response?.data?.message || 'パスワードの変更に失敗しました', 'error');
+            }
+        });
+
+        // ユーザー削除
+        async function deleteUser(userId, userName) {
+            if (!confirm(\`ユーザー「\${userName} (\${userId})」を削除しますか？\\n\\nこの操作は取り消せません。\`)) {
+                return;
+            }
+            
+            try {
+                await axios.delete(\`/api/auth/users/\${userId}\`);
+                showMessage(\`ユーザー「\${userName}」を削除しました\`, 'success');
+                loadUsers();
+            } catch (error) {
+                console.error('ユーザー削除エラー:', error);
+                showMessage(error.response?.data?.message || 'ユーザーの削除に失敗しました', 'error');
+            }
+        }
+
+        // 初期読み込み
+        loadUsers();
+    </script>
+</body>
+</html>`)
+})
+
 // ログイン画面
 app.get('/login.html', (c) => {
   return c.html(`<!DOCTYPE html>
@@ -3098,6 +3404,10 @@ app.get('/', (c) => {
               <h1 className="text-2xl font-bold text-white">輸送見積もりシステム</h1>
             </div>
             <div className="flex items-center space-x-4">
+              <button onclick="window.location.href='/admin/users.html'" className="bg-orange-500 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded">
+                <i className="fas fa-users mr-2"></i>
+                ユーザー管理
+              </button>
               <button onclick="window.location.href='/admin/backup'" className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded">
                 <i className="fas fa-database mr-2"></i>
                 バックアップ
@@ -17471,6 +17781,101 @@ app.get('/api/auth/users', async (c) => {
     return c.json({
       success: false,
       message: 'ユーザー一覧の取得に失敗しました'
+    }, 500)
+  }
+})
+
+// パスワード変更API
+app.put('/api/auth/users/:userId/password', async (c) => {
+  try {
+    const { env } = c
+    const userId = c.req.param('userId')
+    const { newPassword } = await c.req.json()
+    
+    if (!newPassword || newPassword.length < 4) {
+      return c.json({
+        success: false,
+        message: 'パスワードは4文字以上で入力してください'
+      }, 400)
+    }
+    
+    // ユーザー存在確認
+    const user = await env.DB.prepare(`
+      SELECT * FROM users WHERE id = ?
+    `).bind(userId).first()
+    
+    if (!user) {
+      return c.json({
+        success: false,
+        message: 'ユーザーが見つかりません'
+      }, 404)
+    }
+    
+    // パスワードハッシュ化
+    const hashedPassword = await hashPassword(newPassword)
+    
+    // パスワード更新
+    await env.DB.prepare(`
+      UPDATE users SET password = ? WHERE id = ?
+    `).bind(hashedPassword, userId).run()
+    
+    // 既存セッションを削除（再ログインが必要）
+    await env.DB.prepare(`
+      DELETE FROM sessions WHERE user_id = ?
+    `).bind(userId).run()
+    
+    return c.json({
+      success: true,
+      message: 'パスワードを変更しました'
+    })
+    
+  } catch (error) {
+    console.error('パスワード変更エラー:', error)
+    return c.json({
+      success: false,
+      message: 'パスワードの変更に失敗しました'
+    }, 500)
+  }
+})
+
+// ユーザー削除API
+app.delete('/api/auth/users/:userId', async (c) => {
+  try {
+    const { env } = c
+    const userId = c.req.param('userId')
+    
+    // ユーザー存在確認
+    const user = await env.DB.prepare(`
+      SELECT * FROM users WHERE id = ?
+    `).bind(userId).first()
+    
+    if (!user) {
+      return c.json({
+        success: false,
+        message: 'ユーザーが見つかりません'
+      }, 404)
+    }
+    
+    // セッション削除（外部キー制約でカスケード削除）
+    await env.DB.prepare(`
+      DELETE FROM sessions WHERE user_id = ?
+    `).bind(userId).run()
+    
+    // ユーザー削除
+    await env.DB.prepare(`
+      DELETE FROM users WHERE id = ?
+    `).bind(userId).run()
+    
+    return c.json({
+      success: true,
+      message: 'ユーザーを削除しました'
+    })
+    
+  } catch (error) {
+    console.error('ユーザー削除エラー:', error)
+    return c.json({
+      success: false,
+      message: 'ユーザーの削除に失敗しました'
     }, 500)
   }
 })
