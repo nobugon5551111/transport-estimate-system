@@ -8199,6 +8199,12 @@ const EstimateManagement = {
             <div class="text-sm text-gray-500">${Utils.formatDate(estimate.created_at).split(' ')[0]}</div>
           </td>
           <td class="px-6 py-4 whitespace-nowrap">
+            <div class="text-sm text-gray-600">
+              <i class="fas fa-user mr-1 text-gray-400"></i>
+              ${estimate.created_by_name || '未設定'}
+            </div>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusConfig.class}">
               ${statusConfig.label}
             </span>
@@ -8623,6 +8629,13 @@ const EstimateManagement = {
               <div>
                 <span class="text-sm font-medium text-gray-600">更新日時:</span>
                 <p class="mt-1 text-sm text-gray-900">${Utils.formatDate(estimate.updated_at)}</p>
+              </div>
+              <div>
+                <span class="text-sm font-medium text-gray-600">作成担当者:</span>
+                <p class="mt-1 text-sm text-gray-900">
+                  <i class="fas fa-user mr-1 text-blue-500"></i>
+                  ${estimate.created_by_name || '未設定'}
+                </p>
               </div>
             </div>
           </div>

@@ -9393,6 +9393,9 @@ app.get('/estimates', (c) => {
                   <th className="table-header cursor-pointer" onclick="EstimateManagement.sortEstimates('created_at')">
                     作成日 <i className="fas fa-sort ml-1"></i>
                   </th>
+                  <th className="table-header cursor-pointer" onclick="EstimateManagement.sortEstimates('created_by_name')">
+                    作成者 <i className="fas fa-sort ml-1"></i>
+                  </th>
                   <th className="table-header">
                     ステータス
                   </th>
