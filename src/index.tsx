@@ -12652,6 +12652,7 @@ function generateFreePdfHTML(estimate: any, items: any[], basicSettings: any = {
                 <strong>案件名:</strong> ${estimate.delivery_address ? estimate.delivery_address.split(',')[1]?.replace(' 案件: ', '') : '未設定'}<br>
                 <strong>作成日:</strong> ${currentDate}<br>
                 <strong>有効期限:</strong> ${estimate.valid_until ? new Date(estimate.valid_until).toLocaleDateString('ja-JP') : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('ja-JP')}<br>
+                ${estimate.created_by_name ? `<strong>見積制作担当者:</strong> ${estimate.created_by_name}<br>` : ''}
                 <strong>作業日:</strong> ${estimate.work_date ? new Date(estimate.work_date).toLocaleDateString('ja-JP') : '未定'}
             </div>
         </div>
@@ -12731,7 +12732,6 @@ function generateFreePdfHTML(estimate: any, items: any[], basicSettings: any = {
     
     <div class="footer">
         <p>本見積書は${currentDate}に作成されました。</p>
-        ${estimate.created_by_name ? `<p><strong>見積もり制作担当者:</strong> ${estimate.created_by_name}</p>` : ''}
         <p>ご質問やご不明な点がございましたら、お気軽にお問い合わせください。</p>
     </div>
 </body>
@@ -13993,7 +13993,8 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                 <strong>見積番号:</strong> ${estimate.estimate_number || ''}<br>
                 <strong>案件名:</strong> ${estimate.project_name || ''}<br>
                 <strong>作成日:</strong> ${currentDate}<br>
-                <strong>有効期限:</strong> ${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('ja-JP')}
+                <strong>有効期限:</strong> ${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('ja-JP')}<br>
+                ${estimate.created_by_name ? `<strong>見積制作担当者:</strong> ${estimate.created_by_name}` : ''}
             </div>
         </div>
     </div>
@@ -14465,8 +14466,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
     
     <div class="footer">
         この見積書はOffice M2 見積システムにより自動生成されました<br>
-        生成日時: ${new Date().toLocaleString('ja-JP')}<br>
-        ${estimate.created_by_name ? `<strong>見積もり制作担当者:</strong> ${estimate.created_by_name}` : ''}
+        生成日時: ${new Date().toLocaleString('ja-JP')}
     </div>
 
     <script>
