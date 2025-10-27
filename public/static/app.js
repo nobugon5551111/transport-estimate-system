@@ -34,7 +34,33 @@
     // エラーの場合は開発モードと見なして続行
     window._currentUser = { userId: 'test-user-001', userName: '開発者' };
   }
+  
+  // ユーザー名を表示（トップページのみ）
+  if (window.location.pathname === '/') {
+    setTimeout(() => {
+      const userNameElement = document.getElementById('currentUserName');
+      if (userNameElement && window._currentUser) {
+        userNameElement.textContent = window._currentUser.userName;
+      }
+    }, 100);
+  }
 })();
+
+// ===== ログアウト機能 =====
+async function handleLogout() {
+  if (!confirm('ログアウトしますか？')) {
+    return;
+  }
+  
+  try {
+    await axios.post('/api/auth/logout');
+    console.log('✅ ログアウトしました');
+    window.location.href = '/login.html';
+  } catch (error) {
+    console.error('❌ ログアウトエラー:', error);
+    alert('ログアウトに失敗しました');
+  }
+}
 
 // ===== 重複実行防止システム =====
 (function() {
