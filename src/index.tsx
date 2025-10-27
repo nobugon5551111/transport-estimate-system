@@ -163,7 +163,7 @@ app.get('/admin/backup', (c) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>データバックアップ管理 - 輸送見積もりシステム</title>
+        <title>データバックアップ管理 - Office M2 見積システム</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <link href="/static/style.css" rel="stylesheet">
@@ -977,7 +977,7 @@ app.get('/test-step4-session', (c) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Step4 セッション付き動作確認 - 輸送見積もりシステム</title>
+    <title>Step4 セッション付き動作確認 - Office M2 見積システム</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
     <link href="/static/style.css" rel="stylesheet">
@@ -1131,7 +1131,7 @@ app.get('/test-step4-fixed', (c) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Step4 動的ラベル修正テスト - 輸送見積もりシステム</title>
+    <title>Step4 動的ラベル修正テスト - Office M2 見積システム</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
     <link href="/static/style.css" rel="stylesheet">
@@ -1354,7 +1354,7 @@ app.get('/test-step4-labels', (c) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Step4 動的ラベルテスト - 輸送見積もりシステム</title>
+    <title>Step4 動的ラベルテスト - Office M2 見積システム</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
     <link href="/static/style.css" rel="stylesheet">
@@ -1618,7 +1618,7 @@ app.get('/admin/users.html', (c) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ユーザー管理 - 引越見積システム</title>
+    <title>ユーザー管理 - Office M2 見積システム</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
 </head>
@@ -1945,7 +1945,7 @@ app.get('/login.html', (c) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ログイン - 引越見積システム</title>
+    <title>ログイン - Office M2 見積システム</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
 </head>
@@ -3422,7 +3422,7 @@ app.get('/', (c) => {
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center">
               <i className="fas fa-truck text-white text-3xl mr-3"></i>
-              <h1 className="text-2xl font-bold text-white">輸送見積もりシステム</h1>
+              <h1 className="text-2xl font-bold text-white">Office M2 見積システム</h1>
             </div>
             <div className="flex items-center space-x-4">
               <div id="currentUserDisplay" className="text-white mr-4">
@@ -3633,7 +3633,7 @@ app.get('/', (c) => {
 
 // APIルート
 app.get('/api/health', (c) => {
-  return c.json({ status: 'ok', message: '輸送見積もりシステム稼働中', timestamp: new Date().toISOString() })
+  return c.json({ status: 'ok', message: 'Office M2 見積システム稼働中', timestamp: new Date().toISOString() })
 })
 
 // 顧客関連API
@@ -3887,7 +3887,7 @@ app.get('/estimate/step1', (c) => {
             <div className="flex items-center">
               <a href="/" className="flex items-center text-white hover:text-blue-200">
                 <i className="fas fa-truck text-white text-2xl mr-3"></i>
-                <h1 className="text-xl font-bold">輸送見積もりシステム</h1>
+                <h1 className="text-xl font-bold">Office M2 見積システム</h1>
               </a>
             </div>
             <div className="text-white">
@@ -4190,7 +4190,7 @@ app.get('/estimate/step2', (c) => {
             <div className="flex items-center">
               <a href="/" className="flex items-center text-white hover:text-blue-200">
                 <i className="fas fa-truck text-white text-2xl mr-3"></i>
-                <h1 className="text-xl font-bold">輸送見積もりシステム</h1>
+                <h1 className="text-xl font-bold">Office M2 見積システム</h1>
               </a>
             </div>
             <div className="text-white">
@@ -4969,7 +4969,7 @@ app.get('/estimate/step3', (c) => {
             <div className="flex items-center">
               <a href="/" className="flex items-center text-white hover:text-blue-200">
                 <i className="fas fa-truck text-white text-2xl mr-3"></i>
-                <h1 className="text-xl font-bold">輸送見積もりシステム</h1>
+                <h1 className="text-xl font-bold">Office M2 見積システム</h1>
               </a>
             </div>
             <div className="text-white">
@@ -5287,7 +5287,7 @@ app.get('/estimate/step4', (c) => {
             <div className="flex items-center">
               <a href="/" className="flex items-center text-white hover:text-blue-200">
                 <i className="fas fa-truck text-white text-2xl mr-3"></i>
-                <h1 className="text-xl font-bold">輸送見積もりシステム</h1>
+                <h1 className="text-xl font-bold">Office M2 見積システム</h1>
               </a>
             </div>
             <div className="text-white">
@@ -5811,7 +5811,7 @@ app.get('/estimate/step5', (c) => {
             <div className="flex items-center">
               <a href="/" className="flex items-center text-white hover:text-blue-200">
                 <i className="fas fa-truck text-white text-2xl mr-3"></i>
-                <h1 className="text-xl font-bold">輸送見積もりシステム</h1>
+                <h1 className="text-xl font-bold">Office M2 見積システム</h1>
               </a>
             </div>
             <div className="text-white">
@@ -6432,7 +6432,7 @@ app.get('/estimate/step6', (c) => {
             <div className="flex items-center">
               <a href="/" className="flex items-center text-white hover:text-blue-200">
                 <i className="fas fa-truck text-white text-2xl mr-3"></i>
-                <h1 className="text-xl font-bold">輸送見積もりシステム</h1>
+                <h1 className="text-xl font-bold">Office M2 見積システム</h1>
               </a>
             </div>
             <div className="text-white">
@@ -7092,7 +7092,7 @@ ${data.estimate_details.services_info ? data.estimate_details.services_info : ''
 何卒ご検討のほど、よろしくお願いいたします。
 
 ---
-輸送見積もりシステム
+Office M2 見積システム
 TEL: 03-0000-0000
 Email: info@transport-system.com`
 
@@ -7116,7 +7116,7 @@ app.get('/masters', (c) => {
             <div className="flex items-center">
               <a href="/" className="flex items-center text-white hover:text-blue-200">
                 <i className="fas fa-truck text-white text-2xl mr-3"></i>
-                <h1 className="text-xl font-bold">輸送見積もりシステム</h1>
+                <h1 className="text-xl font-bold">Office M2 見積システム</h1>
               </a>
             </div>
             <div className="text-white">
@@ -8302,7 +8302,7 @@ app.get('/customers', (c) => {
             <div className="flex items-center">
               <a href="/" className="flex items-center text-white hover:text-blue-200">
                 <i className="fas fa-truck text-white text-2xl mr-3"></i>
-                <h1 className="text-xl font-bold">輸送見積もりシステム</h1>
+                <h1 className="text-xl font-bold">Office M2 見積システム</h1>
               </a>
             </div>
             <div className="text-white">
@@ -9160,7 +9160,7 @@ app.get('/estimates', (c) => {
             <div className="flex items-center">
               <a href="/" className="flex items-center text-white hover:text-blue-200">
                 <i className="fas fa-truck text-white text-2xl mr-3"></i>
-                <h1 className="text-xl font-bold">輸送見積もりシステム</h1>
+                <h1 className="text-xl font-bold">Office M2 見積システム</h1>
               </a>
             </div>
             <div className="text-white">
@@ -10157,7 +10157,7 @@ app.get('/reports', (c) => {
             <div className="flex items-center">
               <a href="/" className="flex items-center">
                 <i className="fas fa-truck text-white text-2xl mr-3"></i>
-                <h1 className="text-xl font-bold text-white">輸送見積もりシステム</h1>
+                <h1 className="text-xl font-bold text-white">Office M2 見積システム</h1>
               </a>
             </div>
             <div className="text-white">
@@ -11146,7 +11146,7 @@ app.get('/ai', (c) => {
             <div className="flex items-center">
               <a href="/" className="flex items-center">
                 <i className="fas fa-truck text-white text-2xl mr-3"></i>
-                <h1 className="text-xl font-bold text-white">輸送見積もりシステム</h1>
+                <h1 className="text-xl font-bold text-white">Office M2 見積システム</h1>
               </a>
             </div>
             <div className="text-white">
@@ -11345,7 +11345,7 @@ app.get('/settings', (c) => {
             <div className="flex items-center">
               <a href="/" className="flex items-center">
                 <i className="fas fa-truck text-white text-2xl mr-3"></i>
-                <h1 className="text-xl font-bold text-white">輸送見積もりシステム</h1>
+                <h1 className="text-xl font-bold text-white">Office M2 見積システム</h1>
               </a>
             </div>
             <div className="text-white">
@@ -11899,7 +11899,7 @@ app.get('/estimate/free-form', (c) => {
             <div className="flex items-center">
               <a href="/" className="flex items-center text-white hover:text-green-200">
                 <i className="fas fa-truck text-white text-2xl mr-3"></i>
-                <h1 className="text-xl font-bold">輸送見積もりシステム</h1>
+                <h1 className="text-xl font-bold">Office M2 見積システム</h1>
               </a>
             </div>
             <div className="text-white">
@@ -12295,7 +12295,7 @@ app.get('/estimate/:id', async (c) => {
               <div className="flex items-center">
                 <a href="/" className="flex items-center text-white hover:text-blue-200">
                   <i className="fas fa-truck text-white text-2xl mr-3"></i>
-                  <h1 className="text-xl font-bold">輸送見積もりシステム</h1>
+                  <h1 className="text-xl font-bold">Office M2 見積システム</h1>
                 </a>
               </div>
               <div className="text-white">
@@ -14461,7 +14461,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
     </div>
     
     <div class="footer">
-        この見積書は輸送見積もりシステムにより自動生成されました<br>
+        この見積書はOffice M2 見積システムにより自動生成されました<br>
         生成日時: ${new Date().toLocaleString('ja-JP')}<br>
         ${estimate.created_by_name ? `<strong>見積もり制作担当者:</strong> ${estimate.created_by_name}` : ''}
     </div>
@@ -15097,7 +15097,7 @@ app.get('/customers', (c) => {
             <div className="flex items-center">
               <a href="/" className="flex items-center text-white hover:text-blue-200">
                 <i className="fas fa-truck text-white text-2xl mr-3"></i>
-                <h1 className="text-xl font-bold">輸送見積もりシステム</h1>
+                <h1 className="text-xl font-bold">Office M2 見積システム</h1>
               </a>
             </div>
             <div className="text-white">
@@ -16909,7 +16909,7 @@ app.get('/settings', (c) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>システム設定 - 輸送見積もりシステム</title>
+        <title>システム設定 - Office M2 見積システム</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <link href="/static/style.css" rel="stylesheet">

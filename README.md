@@ -1,4 +1,4 @@
-# 輸送見積もりシステム (Transport Estimate System)
+# Office M2 見積システム
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Hono](https://img.shields.io/badge/Hono-E36002?style=flat-square&logo=hono&logoColor=white)](https://hono.dev/)
@@ -7,7 +7,7 @@
 
 ## 📋 プロジェクト概要
 
-輸送業務における見積作成・管理システム。6ステップの直感的なフローで見積を作成し、PDF生成やAIメール文生成が可能です。
+Office M2の輸送業務における見積作成・管理システム。6ステップの直感的なフローで見積を作成し、PDF生成やAIメール文生成が可能です。
 
 ### 🎯 主要機能
 
