@@ -17573,8 +17573,11 @@ async function verifySession(c: any): Promise<{ valid: boolean; userId?: string;
     return { valid: true, userId: 'test-user-001', userName: '開発者' }
   }
   
-  // CookieからセッションID取得
-  const sessionId = c.req.cookie('session_id')
+  // Cookieヘッダーから手動でセッションIDを取得
+  const cookieHeader = c.req.header('Cookie') || ''
+  const sessionIdMatch = cookieHeader.match(/session_id=([^;]+)/)
+  const sessionId = sessionIdMatch ? sessionIdMatch[1] : null
+  
   if (!sessionId) {
     return { valid: false }
   }
@@ -17668,13 +17671,20 @@ app.post('/api/auth/login', async (c) => {
 app.post('/api/auth/logout', async (c) => {
   try {
     const { env } = c
-    const sessionId = c.req.cookie('session_id')
+    
+    // Cookieヘッダーから手動でセッションIDを取得
+    const cookieHeader = c.req.header('Cookie') || ''
+    const sessionIdMatch = cookieHeader.match(/session_id=([^;]+)/)
+    const sessionId = sessionIdMatch ? sessionIdMatch[1] : null
+    
+    console.log('ログアウト処理:', { cookieHeader, sessionId })
     
     if (sessionId) {
       // セッション削除
-      await env.DB.prepare(`
+      const result = await env.DB.prepare(`
         DELETE FROM sessions WHERE id = ?
       `).bind(sessionId).run()
+      console.log('セッション削除結果:', result)
     }
     
     // Cookie削除
@@ -17689,7 +17699,8 @@ app.post('/api/auth/logout', async (c) => {
     console.error('ログアウトエラー:', error)
     return c.json({
       success: false,
-      message: 'ログアウトに失敗しました'
+      message: 'ログアウトに失敗しました',
+      error: error instanceof Error ? error.message : '不明なエラー'
     }, 500)
   }
 })
