@@ -2517,7 +2517,7 @@ app.get('/api/estimates', async (c) => {
     
     // 検索条件（見積番号、顧客名、案件名、担当者名で検索可能）
     if (search) {
-      query += ` AND (e.estimate_number LIKE ? OR c.name LIKE ? OR p.name LIKE ? OR p.contact_person LIKE ?)`
+      query += ` AND (e.estimate_number LIKE ? OR c.name LIKE ? OR p.name LIKE ? OR c.contact_person LIKE ?)`
       params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`)
     }
     
@@ -2536,7 +2536,7 @@ app.get('/api/estimates', async (c) => {
     const countParams = [userId]
     
     if (search) {
-      countQuery += ` AND (e.estimate_number LIKE ? OR EXISTS (SELECT 1 FROM customers c WHERE c.id = e.customer_id AND c.name LIKE ?) OR p.name LIKE ? OR p.contact_person LIKE ?)`
+      countQuery += ` AND (e.estimate_number LIKE ? OR EXISTS (SELECT 1 FROM customers c WHERE c.id = e.customer_id AND (c.name LIKE ? OR c.contact_person LIKE ?)) OR p.name LIKE ?)`
       countParams.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`)
     }
     
@@ -2630,7 +2630,6 @@ app.get('/api/estimates/:id', async (c) => {
         c.phone as customer_phone,
         c.email as customer_email,
         p.name as project_name,
-        p.contact_person as project_contact_person,
         p.status as project_status
       FROM estimates e
       LEFT JOIN customers c ON e.customer_id = c.id
