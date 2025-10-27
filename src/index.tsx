@@ -1634,10 +1634,16 @@ app.get('/admin/users.html', (c) => {
                     </h1>
                     <p class="text-gray-600 mt-2">ユーザーの登録・変更・削除</p>
                 </div>
-                <button onclick="window.location.href='/'" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">
-                    <i class="fas fa-home mr-2"></i>
-                    トップに戻る
-                </button>
+                <div class="flex items-center space-x-3">
+                    <button onclick="window.location.href='/'" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">
+                        <i class="fas fa-home mr-2"></i>
+                        トップに戻る
+                    </button>
+                    <button onclick="handleLogout()" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">
+                        <i class="fas fa-sign-out-alt mr-2"></i>
+                        ログアウト
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -1907,6 +1913,21 @@ app.get('/admin/users.html', (c) => {
             } catch (error) {
                 console.error('ユーザー削除エラー:', error);
                 showMessage(error.response?.data?.message || 'ユーザーの削除に失敗しました', 'error');
+            }
+        }
+
+        // ログアウト処理
+        async function handleLogout() {
+            if (!confirm('ログアウトしますか？')) {
+                return;
+            }
+            
+            try {
+                await axios.post('/api/auth/logout');
+                window.location.href = '/login.html';
+            } catch (error) {
+                console.error('ログアウトエラー:', error);
+                showMessage('ログアウトに失敗しました', 'error');
             }
         }
 
@@ -3404,6 +3425,10 @@ app.get('/', (c) => {
               <h1 className="text-2xl font-bold text-white">輸送見積もりシステム</h1>
             </div>
             <div className="flex items-center space-x-4">
+              <div id="currentUserDisplay" className="text-white mr-4">
+                <i className="fas fa-user mr-2"></i>
+                <span id="currentUserName">読み込み中...</span>
+              </div>
               <button onclick="window.location.href='/admin/users.html'" className="bg-orange-500 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded">
                 <i className="fas fa-users mr-2"></i>
                 ユーザー管理
@@ -3419,6 +3444,10 @@ app.get('/', (c) => {
               <button onclick="window.location.href='/estimate/new'" className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
                 <i className="fas fa-plus mr-2"></i>
                 新規見積作成
+              </button>
+              <button onclick="handleLogout()" className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">
+                <i className="fas fa-sign-out-alt mr-2"></i>
+                ログアウト
               </button>
             </div>
           </div>
