@@ -1,4 +1,4 @@
-// 輸送見積もりシステム - メインJavaScript
+// Office M2 見積システム - メインJavaScript
 // 🔄 キャッシュバスター直接フォーム制御: 1760195388
 
 // ===== 認証チェックシステム（最優先実行） =====
@@ -4402,7 +4402,7 @@ window.goBackToStep5 = Step6Implementation.goBackToStep5;
 
 // ページ読み込み時の初期化
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('輸送見積もりシステム初期化完了');
+  console.log('Office M2 見積システム初期化完了');
   
   // 現在のページに応じた初期化処理
   const currentPath = window.location.pathname;
