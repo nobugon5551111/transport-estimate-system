@@ -12419,8 +12419,8 @@ app.get('/estimate/:id/pdf', async (c) => {
   }
 })
 
-// フリー見積用PDF生成関数（標準見積と全く同じフォーマット）
-function generateFreePdfHTML(estimate: any, items: any[], basicSettings: any = {}): string {
+// フリー見積用PDF生成関数（通常見積と同じフォーマット）
+function generateFreePdfHTML(estimate: any, items: any[], basicSettings: any = {}, customerInfo: any = {}): string {
   const currentDate = new Date().toLocaleDateString('ja-JP', {
     year: 'numeric',
     month: 'long',
@@ -12640,8 +12640,8 @@ function generateFreePdfHTML(estimate: any, items: any[], basicSettings: any = {
         <div class="customer-info">
             <div class="info-box">
                 <h3>お客様情報</h3>
-                <strong>${estimate.delivery_address ? estimate.delivery_address.split(',')[0]?.replace('顧客: ', '') : '未設定'}</strong><br>
-                ${estimate.delivery_address ? estimate.delivery_address.split(',')[1]?.replace(' 案件: ', '') : '未設定'}<br>
+                <strong>${customerInfo.customer_name || 'フリー見積顧客'}</strong><br>
+                案件: ${customerInfo.project_name || 'フリー見積プロジェクト'}
             </div>
         </div>
         
@@ -12649,7 +12649,7 @@ function generateFreePdfHTML(estimate: any, items: any[], basicSettings: any = {
             <div class="info-box">
                 <h3>見積詳細</h3>
                 <strong>見積番号:</strong> ${estimate.estimate_number || ''}<br>
-                <strong>案件名:</strong> ${estimate.delivery_address ? estimate.delivery_address.split(',')[1]?.replace(' 案件: ', '') : '未設定'}<br>
+                <strong>案件名:</strong> ${customerInfo.project_name || 'フリー見積プロジェクト'}<br>
                 <strong>作成日:</strong> ${currentDate}<br>
                 <strong>有効期限:</strong> ${estimate.valid_until ? new Date(estimate.valid_until).toLocaleDateString('ja-JP') : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('ja-JP')}<br>
                 ${estimate.created_by_name ? `<strong>見積制作担当者:</strong> ${estimate.created_by_name}<br>` : ''}
@@ -12669,13 +12669,18 @@ function generateFreePdfHTML(estimate: any, items: any[], basicSettings: any = {
             <tr>
                 <td>
                     <strong>フリー見積サービス</strong><br>
-                    顧客: ${estimate.delivery_address ? estimate.delivery_address.split(',')[0]?.replace('顧客: ', '') : '未設定'}<br>
-                    案件: ${estimate.delivery_address ? estimate.delivery_address.split(',')[1]?.replace(' 案件: ', '') : '未設定'}<br>
+                    顧客: ${customerInfo.customer_name || 'フリー見積顧客'}<br>
+                    案件: ${customerInfo.project_name || 'フリー見積プロジェクト'}<br>
                     ${estimate.work_date ? `作業日: ${new Date(estimate.work_date).toLocaleDateString('ja-JP')}` : ''}
                 </td>
                 <td class="amount-cell">-</td>
             </tr>
-            ${itemsTableRows}
+            ${items.map((item, index) => `
+            <tr>
+                <td>&nbsp;&nbsp;${item.item_name}${item.quantity > 1 ? ` × ${item.quantity}` : ''}${item.unit ? ` (${item.unit})` : ''}</td>
+                <td class="amount-cell">¥${item.total_price.toLocaleString()}</td>
+            </tr>
+            `).join('')}
         </tbody>
     </table>
     
@@ -13445,6 +13450,48 @@ app.get('/api/estimates/:id/pdf', async (c) => {
       
       console.error('🚫 PDF生成失敗 - 見積データなし:', errorResponse)
       return c.json(errorResponse, 404)
+    }
+    
+    // フリー見積の場合は専用処理
+    if (estimateResult.estimate_number && estimateResult.estimate_number.startsWith('FREE-')) {
+      console.log('📋 フリー見積PDF生成:', estimateResult.estimate_number)
+      
+      // フリー見積項目を取得
+      const itemsResult = await env.DB.prepare(`
+        SELECT * FROM free_estimate_items 
+        WHERE estimate_id = ? 
+        ORDER BY sort_order ASC
+      `).bind(estimateResult.id).all()
+      
+      const items = itemsResult.results || []
+      console.log('📦 フリー見積項目:', items.length, '件')
+      
+      // 基本設定（ロゴ含む）を取得
+      const basicSettings = {
+        company_name: await env.KV.get('basic_settings:company_name') || '',
+        company_address: await env.KV.get('basic_settings:company_address') || '',
+        company_phone: await env.KV.get('basic_settings:company_phone') || '',
+        company_fax: await env.KV.get('basic_settings:company_fax') || '',
+        company_email: await env.KV.get('basic_settings:company_email') || '',
+        logo: await env.KV.get('basic_settings:company_logo')
+      }
+      
+      // 顧客・案件情報をdelivery_addressから抽出（値引き情報を除外）
+      const addressParts = (estimateResult.delivery_address || '').split(',').map(p => p.trim())
+      const customerInfo = {
+        customer_name: addressParts.find(p => p.startsWith('顧客:'))?.replace('顧客:', '').trim() || 'フリー見積顧客',
+        project_name: addressParts.find(p => p.startsWith('案件:'))?.replace('案件:', '').trim() || 'フリー見積プロジェクト'
+      }
+      
+      // フリー見積用PDF生成（通常見積と同じフォーマット）
+      const pdfHtml = generateFreePdfHTML(estimateResult, items, basicSettings, customerInfo)
+      
+      return new Response(pdfHtml, {
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Content-Disposition': `inline; filename="estimate_${estimateResult.estimate_number}.html"`
+        }
+      })
     }
     
     // スタッフ単価をデータベースから取得
