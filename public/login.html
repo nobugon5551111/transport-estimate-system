@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ログイン - 引越見積システム</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+        <div class="text-center mb-8">
+            <div class="inline-block bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full p-4 mb-4">
+                <i class="fas fa-truck-moving text-white text-4xl"></i>
+            </div>
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">引越見積システム</h1>
+            <p class="text-gray-600">ログインしてください</p>
+        </div>
+
+        <form id="loginForm" class="space-y-6">
+            <div>
+                <label for="userId" class="block text-sm font-medium text-gray-700 mb-2">
+                    <i class="fas fa-user mr-2 text-gray-400"></i>ユーザーID
+                </label>
+                <input 
+                    type="text" 
+                    id="userId" 
+                    name="userId"
+                    required
+                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    placeholder="ユーザーIDを入力"
+                >
+            </div>
+
+            <div>
+                <label for="password" class="block text-sm font-medium text-gray-700 mb-2">
+                    <i class="fas fa-lock mr-2 text-gray-400"></i>パスワード
+                </label>
+                <input 
+                    type="password" 
+                    id="password" 
+                    name="password"
+                    required
+                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    placeholder="パスワードを入力"
+                >
+            </div>
+
+            <div id="errorMessage" class="hidden bg-red-50 border-l-4 border-red-500 p-4 rounded">
+                <p class="text-sm text-red-700">
+                    <i class="fas fa-exclamation-circle mr-2"></i>
+                    <span id="errorText"></span>
+                </p>
+            </div>
+
+            <button 
+                type="submit" 
+                id="loginButton"
+                class="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:from-blue-600 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all shadow-lg"
+            >
+                <i class="fas fa-sign-in-alt mr-2"></i>
+                ログイン
+            </button>
+        </form>
+
+        <div class="mt-8 pt-6 border-t border-gray-200">
+            <p class="text-sm text-gray-600 text-center">
+                <i class="fas fa-info-circle mr-1"></i>
+                アクセス権限がない場合は管理者にお問い合わせください
+            </p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+    <script>
+        const loginForm = document.getElementById('loginForm');
+        const loginButton = document.getElementById('loginButton');
+        const errorMessage = document.getElementById('errorMessage');
+        const errorText = document.getElementById('errorText');
+
+        // エラー表示
+        function showError(message) {
+            errorText.textContent = message;
+            errorMessage.classList.remove('hidden');
+        }
+
+        // エラー非表示
+        function hideError() {
+            errorMessage.classList.add('hidden');
+        }
+
+        // ログイン処理
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            hideError();
+
+            const userId = document.getElementById('userId').value.trim();
+            const password = document.getElementById('password').value;
+
+            if (!userId || !password) {
+                showError('IDとパスワードを入力してください');
+                return;
+            }
+
+            // ボタン無効化
+            loginButton.disabled = true;
+            loginButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>ログイン中...';
+
+            try {
+                const response = await axios.post('/api/auth/login', {
+                    userId,
+                    password
+                });
+
+                if (response.data.success) {
+                    // ログイン成功 - トップページにリダイレクト
+                    window.location.href = '/';
+                } else {
+                    showError(response.data.message || 'ログインに失敗しました');
+                    loginButton.disabled = false;
+                    loginButton.innerHTML = '<i class="fas fa-sign-in-alt mr-2"></i>ログイン';
+                }
+            } catch (error) {
+                console.error('ログインエラー:', error);
+                showError(
+                    error.response?.data?.message || 
+                    'ログインに失敗しました。IDとパスワードを確認してください'
+                );
+                loginButton.disabled = false;
+                loginButton.innerHTML = '<i class="fas fa-sign-in-alt mr-2"></i>ログイン';
+            }
+        });
+
+        // Enterキーでログイン
+        document.getElementById('password').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                loginForm.dispatchEvent(new Event('submit'));
+            }
+        });
+    </script>
+</body>
+</html>

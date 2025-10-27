@@ -1,6 +1,41 @@
 // 輸送見積もりシステム - メインJavaScript
 // 🔄 キャッシュバスター直接フォーム制御: 1760195388
 
+// ===== 認証チェックシステム（最優先実行） =====
+(async function checkAuthentication() {
+  'use strict';
+  
+  // ログインページの場合はスキップ
+  if (window.location.pathname === '/login.html') {
+    return;
+  }
+  
+  try {
+    const response = await axios.get('/api/auth/session');
+    
+    // 認証が必要で、かつ未認証の場合はログインページにリダイレクト
+    if (response.data.authRequired && !response.data.authenticated) {
+      console.log('🔒 認証が必要です。ログインページにリダイレクトします...');
+      window.location.href = '/login.html';
+      return;
+    }
+    
+    // 認証済みまたは認証不要の場合、ユーザー情報をグローバルに保存
+    if (response.data.data) {
+      window._currentUser = response.data.data;
+      console.log('✅ ユーザー認証確認:', window._currentUser.userName);
+    } else {
+      window._currentUser = { userId: 'test-user-001', userName: '開発者' };
+      console.log('🔓 開発モード（認証スキップ）');
+    }
+    
+  } catch (error) {
+    console.error('❌ 認証確認エラー:', error);
+    // エラーの場合は開発モードと見なして続行
+    window._currentUser = { userId: 'test-user-001', userName: '開発者' };
+  }
+})();
+
 // ===== 重複実行防止システム =====
 (function() {
   'use strict';
