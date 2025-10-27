@@ -84,7 +84,7 @@ app.get('/backup-downloads.html', async (c) => {
                                 <li>✅ README・ドキュメント</li>
                             </ul>
                         </div>
-                        <a href="/webapp_complete_backup_20251027_030934.zip" 
+                        <a href="/static/webapp_complete_backup_20251027_030934.zip" 
                            class="inline-flex items-center px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 text-white font-bold text-lg rounded-lg hover:from-yellow-600 hover:to-orange-600 shadow-lg transition-all"
                            download>
                             <i class="fas fa-download mr-3 text-2xl"></i>
@@ -147,13 +147,8 @@ app.get('/backup-downloads', async (c) => {
   return c.redirect('/backup-downloads.html')
 })
 
-// バックアップファイルの直接配信
-app.get('/webapp_complete_backup_20251027_030934.zip', serveStatic({ path: './webapp_complete_backup_20251027_030934.zip' }))
-app.get('/webapp_complete_backup_20251027_024107.tar.gz', serveStatic({ path: './webapp_complete_backup_20251027_024107.tar.gz' }))
-app.get('/backup_database_20251027_024107.sql', serveStatic({ path: './backup_database_20251027_024107.sql' }))
-app.get('/BACKUP_COMPLETE_GUIDE_20251027.md', serveStatic({ path: './BACKUP_COMPLETE_GUIDE_20251027.md' }))
-app.get('/RESTORE_INSTRUCTIONS.md', serveStatic({ path: './RESTORE_INSTRUCTIONS.md' }))
-app.get('/DATABASE_SCHEMA.md', serveStatic({ path: './DATABASE_SCHEMA.md' }))
+// バックアップファイルダウンロード用のリダイレクト（静的ファイルとして配信）
+// public/にシンボリックリンクを作成しているため、/static/経由でアクセス可能
 
 // favicon.ico の配信
 app.get('/favicon.ico', (c) => {

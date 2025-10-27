@@ -9867,25 +9867,64 @@ const ReportManagement = {
     }
   },
   
-  // 売上チャート更新（実データ）
+  // 売上チャート更新（実データ - Chart.js使用）
   updateSalesChart: function(salesData, period) {
     const salesChart = document.getElementById('salesChart');
     if (!salesChart || !salesData || salesData.length === 0) return;
     
-    const maxRevenue = Math.max(...salesData.map(d => d.revenue));
-    const bars = salesData.map(data => {
-      const height = maxRevenue > 0 ? (data.revenue / maxRevenue * 80) : 20;
-      return `<div class="bg-blue-500 rounded-t flex-1 mx-1" style="height: ${height}%" title="${data.period}: ¥${data.revenue.toLocaleString()}"></div>`;
-    }).join('');
+    // 既存のChart.jsインスタンスを破棄
+    if (this.salesChartInstance) {
+      this.salesChartInstance.destroy();
+    }
     
-    salesChart.innerHTML = `
-      <div class="w-full h-full flex items-end justify-around bg-gray-50 rounded p-4">
-        ${bars}
-      </div>
-      <div class="mt-2 text-center text-xs text-gray-600">
-        ${period === 'monthly' ? '月次' : period === 'weekly' ? '週次' : '日次'}売上推移（実データ）
-      </div>
-    `;
+    // canvasを作成
+    salesChart.innerHTML = '<canvas id="salesChartCanvas"></canvas>';
+    const ctx = document.getElementById('salesChartCanvas').getContext('2d');
+    
+    // Chart.jsで描画
+    this.salesChartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: salesData.map(d => d.period),
+        datasets: [{
+          label: '売上金額',
+          data: salesData.map(d => d.revenue),
+          borderColor: 'rgb(59, 130, 246)',
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          tension: 0.4,
+          fill: true,
+          pointRadius: 4,
+          pointHoverRadius: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true,
+            position: 'top'
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return '¥' + context.parsed.y.toLocaleString();
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              callback: function(value) {
+                return '¥' + value.toLocaleString();
+              }
+            }
+          }
+        }
+      }
+    });
   },
   
   // 売上チャート更新（フォールバック）
@@ -10222,7 +10261,7 @@ const ReportManagement = {
     }
   },
   
-  // エリア別チャート更新（実データ）
+  // エリア別チャート更新（実データ - Chart.js使用）
   updateAreaChart: function(areaData) {
     const areaChart = document.getElementById('areaChart');
     if (!areaChart) return;
@@ -10240,26 +10279,65 @@ const ReportManagement = {
     }
     
     try {
-      const maxRevenue = Math.max(...areaData.map(d => d.revenue || 0));
-      const colors = ['bg-indigo-500', 'bg-blue-500', 'bg-purple-500', 'bg-pink-500'];
+      // 既存のChart.jsインスタンスを破棄
+      if (this.areaChartInstance) {
+        this.areaChartInstance.destroy();
+      }
       
-      const areaItems = areaData.map((item, index) => {
-        const revenue = item.revenue || 0;
-        const widthPercentage = maxRevenue > 0 ? Math.max(5, (revenue / maxRevenue) * 100) : 0;
-        return `
-          <div class="flex items-center justify-between">
-            <span class="text-sm">${item.delivery_area || '不明'}エリア</span>
-            <div class="flex items-center space-x-2">
-              <div class="w-20 bg-gray-200 rounded-full h-2">
-                <div class="${colors[index % colors.length]} h-2 rounded-full" style="width: ${widthPercentage}%"></div>
-              </div>
-              <span class="text-sm font-medium">¥${revenue.toLocaleString()}</span>
-            </div>
-          </div>
-        `;
-      }).join('');
+      // canvasを作成
+      areaChart.innerHTML = '<canvas id="areaChartCanvas"></canvas>';
+      const ctx = document.getElementById('areaChartCanvas').getContext('2d');
       
-      areaChart.innerHTML = `<div class="space-y-3">${areaItems}</div>`;
+      // Chart.jsで棒グラフを描画
+      this.areaChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: areaData.map(d => (d.delivery_area || '不明') + 'エリア'),
+          datasets: [{
+            label: 'エリア別売上',
+            data: areaData.map(d => d.revenue || 0),
+            backgroundColor: [
+              'rgba(99, 102, 241, 0.8)',   // indigo
+              'rgba(59, 130, 246, 0.8)',   // blue
+              'rgba(168, 85, 247, 0.8)',   // purple
+              'rgba(236, 72, 153, 0.8)'    // pink
+            ],
+            borderColor: [
+              'rgb(99, 102, 241)',
+              'rgb(59, 130, 246)',
+              'rgb(168, 85, 247)',
+              'rgb(236, 72, 153)'
+            ],
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return '売上: ¥' + context.parsed.y.toLocaleString();
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: function(value) {
+                  return '¥' + value.toLocaleString();
+                }
+              }
+            }
+          }
+        }
+      });
     } catch (error) {
       console.error('エリアチャート更新エラー:', error);
       this.loadAreaChart(); // フォールバック表示
