@@ -20,6 +20,42 @@ app.get('/favicon.ico', (c) => {
   return c.text('', 204) // 204 No Content
 })
 
+// バックアップダウンロードページ
+app.get('/backup-downloads', async (c) => {
+  const fs = await import('fs/promises')
+  const path = await import('path')
+  try {
+    const htmlPath = path.join(process.cwd(), 'public', 'backup-downloads.html')
+    const html = await fs.readFile(htmlPath, 'utf-8')
+    return c.html(html)
+  } catch (error) {
+    return c.html(`
+      <!DOCTYPE html>
+      <html lang="ja">
+      <head>
+          <meta charset="UTF-8">
+          <title>バックアップダウンロード</title>
+          <script src="https://cdn.tailwindcss.com"></script>
+      </head>
+      <body class="bg-gray-100 p-8">
+          <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-8">
+              <h1 class="text-3xl font-bold text-gray-800 mb-6">
+                  <i class="fas fa-download mr-3"></i>バックアップファイルダウンロード
+              </h1>
+              <div class="space-y-4">
+                  <a href="https://page.gensparksite.com/project_backups/webapp_stable_all_features_working.tar.gz" 
+                     class="block px-6 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700"
+                     download>
+                      完全バックアップ (7.7MB)
+                  </a>
+              </div>
+          </div>
+      </body>
+      </html>
+    `)
+  }
+})
+
 // バックアップ管理画面
 app.get('/admin/backup', (c) => {
   return c.html(`
@@ -5009,19 +5045,19 @@ app.get('/estimate/step4', (c) => {
                     <span id="tempFullDayCost" className="text-lg font-semibold text-green-700">¥0</span>
                   </div>
                 </div>
+              </div>
+            </div>
 
-                {/* スタッフ費用合計 */}
-                <div className="border-t pt-3 mt-4">
-                  <div className="flex justify-between items-center p-4 bg-gradient-to-r from-green-100 to-emerald-100 border border-green-300 rounded-lg">
-                    <div>
-                      <span className="text-lg font-bold text-gray-900">スタッフ費用合計</span>
-                      <div id="totalStaffCount" className="text-sm text-gray-600">合計人数: 0人</div>
-                    </div>
-                    <div className="text-right">
-                      <span id="totalStaffCost" className="text-2xl font-bold text-green-600">¥0</span>
-                      <div className="text-xs text-gray-500">（税抜）</div>
-                    </div>
-                  </div>
+            {/* スタッフ費用合計（独立表示） */}
+            <div id="staffTotalSection" className="mb-8" style="display: none;">
+              <div className="flex justify-between items-center p-4 bg-gradient-to-r from-green-100 to-emerald-100 border border-green-300 rounded-lg shadow-sm">
+                <div>
+                  <span className="text-lg font-bold text-gray-900">スタッフ費用合計</span>
+                  <div id="totalStaffCount" className="text-sm text-gray-600">合計人数: 0人</div>
+                </div>
+                <div className="text-right">
+                  <span id="totalStaffCost" className="text-2xl font-bold text-green-600">¥0</span>
+                  <div className="text-xs text-gray-500">（税抜）</div>
                 </div>
               </div>
             </div>

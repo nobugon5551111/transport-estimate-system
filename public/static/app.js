@@ -2191,9 +2191,15 @@ const Step4Implementation = {
       tempStaffSection?.classList.add('hidden');
     }
 
-    // 合計表示
+    // 合計表示（独立セクション）
+    const totalSection = document.getElementById('staffTotalSection');
     const totalStaffCountElement = document.getElementById('totalStaffCount');
     const totalStaffCostElement = document.getElementById('totalStaffCost');
+    
+    // 常に合計セクションを表示
+    if (totalSection) {
+      totalSection.style.display = 'block';
+    }
     
     if (totalStaffCountElement) totalStaffCountElement.textContent = `合計人数: ${totalStaff}人`;
     if (totalStaffCostElement) totalStaffCostElement.textContent = Utils.formatCurrency(totalCost);
