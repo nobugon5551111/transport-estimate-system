@@ -10,50 +10,133 @@ const app = new Hono<{ Bindings: Bindings }>()
 app.use('/api/*', cors())
 
 // 静的ファイル配信
-app.use('/static/*', serveStatic({ root: './public' }))
+app.use('/static/*', serveStatic({ root: './' }))
 
-// HTMLファイル配信（テスト用）
-app.get('/*.html', serveStatic({ root: './public' }))
+// 静的HTMLファイル配信（開発環境用）
+const serveHtml = async (c: any, filename: string) => {
+  try {
+    // Cloudflare Pages環境では serveStatic を使用
+    if (c.env.__STATIC_CONTENT_MANIFEST) {
+      return serveStatic({ root: './' })(c)
+    }
+    // ローカル開発環境ではdist/から読み込み（Viteがpublicからコピー）
+    const fs = await import('fs/promises')
+    const path = await import('path')
+    const htmlPath = path.join(process.cwd(), 'dist', filename)
+    const html = await fs.readFile(htmlPath, 'utf-8')
+    return c.html(html)
+  } catch (error) {
+    console.error(`Error serving ${filename}:`, error)
+    return c.text(`File not found: ${filename}`, 404)
+  }
+}
+
+// バックアップダウンロードページ（埋め込みHTML）
+app.get('/backup-downloads.html', async (c) => {
+  return c.html(`<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>バックアップファイルダウンロード</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-8">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6">
+            <i class="fas fa-download mr-3 text-blue-600"></i>
+            バックアップファイルダウンロード
+        </h1>
+        
+        <div class="bg-green-50 border-l-4 border-green-500 p-4 mb-6">
+            <p class="text-sm text-green-700">
+                <i class="fas fa-check-circle mr-2"></i>
+                <strong>最新バックアップ:</strong> 2025年10月27日 02:41 (JST)
+            </p>
+            <p class="text-sm text-green-700 mt-1">
+                <i class="fas fa-info-circle mr-2"></i>
+                見積もり作成から印刷まで完全動作確認済み
+            </p>
+        </div>
+
+        <div class="space-y-6">
+            <div class="bg-yellow-50 border border-yellow-300 rounded-lg p-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-3">
+                    <i class="fas fa-star mr-2 text-yellow-500"></i>
+                    1. 最新コード完全バックアップ
+                </h2>
+                <p class="text-gray-700 mb-4">STEP4修正完了・詳細と合計表示対応</p>
+                <a href="/webapp_complete_backup_20251027_024107.tar.gz" 
+                   class="inline-flex items-center px-6 py-3 bg-yellow-600 text-white font-semibold rounded-lg hover:bg-yellow-700"
+                   download>
+                    <i class="fas fa-download mr-2"></i>
+                    webapp_complete_backup_20251027_024107.tar.gz (376KB)
+                </a>
+            </div>
+
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-3">
+                    <i class="fas fa-database mr-2 text-blue-600"></i>
+                    2. 最新データベースバックアップ
+                </h2>
+                <p class="text-gray-700 mb-4">全マスターデータ（スタッフ・サービス・車両単価）</p>
+                <a href="/backup_database_20251027_024107.sql" 
+                   class="inline-flex items-center px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700"
+                   download>
+                    <i class="fas fa-download mr-2"></i>
+                    backup_database_20251027_024107.sql (30KB)
+                </a>
+            </div>
+
+            <div class="bg-purple-50 border border-purple-200 rounded-lg p-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-3">
+                    <i class="fas fa-book mr-2 text-purple-600"></i>
+                    3. ドキュメント
+                </h2>
+                <div class="space-y-2">
+                    <a href="/BACKUP_COMPLETE_GUIDE_20251027.md" class="block text-purple-600 hover:text-purple-800" download>
+                        <i class="fas fa-file-alt mr-2"></i>
+                        完全バックアップガイド
+                    </a>
+                    <a href="/RESTORE_INSTRUCTIONS.md" class="block text-purple-600 hover:text-purple-800" download>
+                        <i class="fas fa-file-alt mr-2"></i>
+                        復元手順書
+                    </a>
+                    <a href="/DATABASE_SCHEMA.md" class="block text-purple-600 hover:text-purple-800" download>
+                        <i class="fas fa-file-alt mr-2"></i>
+                        データベーススキーマ
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-6 text-center">
+            <a href="/" class="text-blue-600 hover:text-blue-800 font-semibold">
+                <i class="fas fa-home mr-2"></i>
+                トップページに戻る
+            </a>
+        </div>
+    </div>
+</body>
+</html>`)
+})
+
+// バックアップダウンロードページ（リダイレクト）
+app.get('/backup-downloads', async (c) => {
+  return c.redirect('/backup-downloads.html')
+})
+
+// バックアップファイルの直接配信
+app.get('/webapp_complete_backup_20251027_024107.tar.gz', serveStatic({ path: './webapp_complete_backup_20251027_024107.tar.gz' }))
+app.get('/backup_database_20251027_024107.sql', serveStatic({ path: './backup_database_20251027_024107.sql' }))
+app.get('/BACKUP_COMPLETE_GUIDE_20251027.md', serveStatic({ path: './BACKUP_COMPLETE_GUIDE_20251027.md' }))
+app.get('/RESTORE_INSTRUCTIONS.md', serveStatic({ path: './RESTORE_INSTRUCTIONS.md' }))
+app.get('/DATABASE_SCHEMA.md', serveStatic({ path: './DATABASE_SCHEMA.md' }))
 
 // favicon.ico の配信
 app.get('/favicon.ico', (c) => {
   return c.text('', 204) // 204 No Content
-})
-
-// バックアップダウンロードページ
-app.get('/backup-downloads', async (c) => {
-  const fs = await import('fs/promises')
-  const path = await import('path')
-  try {
-    const htmlPath = path.join(process.cwd(), 'public', 'backup-downloads.html')
-    const html = await fs.readFile(htmlPath, 'utf-8')
-    return c.html(html)
-  } catch (error) {
-    return c.html(`
-      <!DOCTYPE html>
-      <html lang="ja">
-      <head>
-          <meta charset="UTF-8">
-          <title>バックアップダウンロード</title>
-          <script src="https://cdn.tailwindcss.com"></script>
-      </head>
-      <body class="bg-gray-100 p-8">
-          <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-8">
-              <h1 class="text-3xl font-bold text-gray-800 mb-6">
-                  <i class="fas fa-download mr-3"></i>バックアップファイルダウンロード
-              </h1>
-              <div class="space-y-4">
-                  <a href="https://page.gensparksite.com/project_backups/webapp_stable_all_features_working.tar.gz" 
-                     class="block px-6 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700"
-                     download>
-                      完全バックアップ (7.7MB)
-                  </a>
-              </div>
-          </div>
-      </body>
-      </html>
-    `)
-  }
 })
 
 // バックアップ管理画面
