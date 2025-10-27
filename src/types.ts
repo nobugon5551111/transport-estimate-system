@@ -222,3 +222,25 @@ export interface EstimateFlowState {
   notes?: string;
   total_amount?: number;
 }
+
+// PDF生成用の明細行データ構造
+export interface EstimateLineItem {
+  description: string;        // 項目説明（例：「2t車 2台・1日（Aエリア）」）
+  detail?: string;            // 追加説明（例：「@ ¥50,000」）
+  quantity: number;           // 数量
+  unit_price: number;         // 単価
+  amount: number;             // 金額（quantity × unit_price）
+  note?: string;              // 特記事項（例：「※ 基準額: ¥287,500（車両+スタッフ）× 50%」）
+}
+
+export interface EstimateSectionData {
+  section_name: string;       // セクション名（例：「車両費用」）
+  items: EstimateLineItem[];  // 明細行の配列
+  subtotal: number;           // セクション小計
+}
+
+export interface EstimateLineItems {
+  vehicle: EstimateSectionData;   // 車両費用セクション
+  staff: EstimateSectionData;     // スタッフ費用セクション
+  services: EstimateSectionData;  // その他サービス費用セクション
+}

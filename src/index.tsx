@@ -1673,12 +1673,16 @@ app.get('/api/staff-rates', async (c) => {
     const rates = await env.DB.prepare(`
       SELECT key, value 
       FROM master_settings 
-      WHERE category = 'staff' AND subcategory = 'pricing'
+      WHERE category = 'staff' AND subcategory = 'daily_rate'
     `).all()
     
-    // オブジェクト形式に変換
+    // オブジェクト形式に変換（フロントエンドが期待する_rate付きキーに変換）
     const staffRates = {}
     rates.results.forEach((row: any) => {
+      // データベースのキー名（例: supervisor）をフロントエンド用（例: supervisor_rate）に変換
+      const key = row.key.endsWith('_rate') ? row.key : `${row.key}_rate`
+      staffRates[key] = parseInt(row.value)
+      // 互換性のため、元のキー名も保持
       staffRates[row.key] = parseInt(row.value)
     })
     
@@ -1706,7 +1710,7 @@ app.get('/api/service-rates', async (c) => {
 
     // master_settingsからサービス単価を取得
     const serviceRates = await env.DB.prepare(`
-      SELECT key, value, data_type, description 
+      SELECT subcategory, key, value, data_type, description 
       FROM master_settings 
       WHERE category = 'service'
       ORDER BY subcategory, key
@@ -1715,7 +1719,13 @@ app.get('/api/service-rates', async (c) => {
     const rates = {}
     if (serviceRates.results && serviceRates.results.length > 0) {
       serviceRates.results.forEach(rate => {
-        rates[rate.key] = parseFloat(rate.value)
+        // subcategoryとkeyを組み合わせてユニークなキーを作成
+        const compositeKey = rate.subcategory ? `${rate.subcategory}_${rate.key}` : rate.key
+        rates[compositeKey] = parseFloat(rate.value)
+        // 互換性のために元のキー名も保持（subcategoryがない場合や、ユニークな場合）
+        if (!rates[rate.key]) {
+          rates[rate.key] = parseFloat(rate.value)
+        }
       })
       console.log('サービス単価raw results:', serviceRates.results.length, '件')
     } else {
@@ -1733,6 +1743,45 @@ app.get('/api/service-rates', async (c) => {
   } catch (error) {
     console.error('サービス単価取得エラー:', error)
     return c.json({ error: 'サービス単価の取得に失敗しました' }, 500)
+  }
+})
+
+// 🔍 デバッグ用：認証なしでサービス料金を取得（テスト専用）
+app.get('/api/debug/service-rates', async (c) => {
+  try {
+    const { env } = c
+    
+    // master_settingsからサービス単価を取得
+    const serviceRates = await env.DB.prepare(`
+      SELECT subcategory, key, value, data_type, description 
+      FROM master_settings 
+      WHERE category = 'service'
+      ORDER BY subcategory, key
+    `).all()
+
+    const rates = {}
+    if (serviceRates.results && serviceRates.results.length > 0) {
+      serviceRates.results.forEach(rate => {
+        // subcategoryとkeyを組み合わせてユニークなキーを作成
+        const compositeKey = rate.subcategory ? `${rate.subcategory}_${rate.key}` : rate.key
+        rates[compositeKey] = parseFloat(rate.value)
+        // 互換性のために元のキー名も保持
+        if (!rates[rate.key]) {
+          rates[rate.key] = parseFloat(rate.value)
+        }
+      })
+    }
+
+    return c.json({
+      success: true,
+      data: rates,
+      raw_results: serviceRates.results,
+      count: serviceRates.results ? serviceRates.results.length : 0
+    })
+
+  } catch (error) {
+    console.error('デバッグ：サービス単価取得エラー:', error)
+    return c.json({ error: 'サービス単価の取得に失敗しました', details: error.message }, 500)
   }
 })
 
@@ -5339,7 +5388,7 @@ app.get('/estimate/step5', (c) => {
                     </div>
                   </label>
                   <label className="flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50">
-                    <input type="radio" name="waste_disposal" value="medium" className="mr-3" onChange="updateServicesCost()" />
+                    <input type="radio" name="waste_disposal" value="medium" className="mr-3" onchange="updateServicesCost()" />
                     <div>
                       <div className="font-medium">中</div>
                       <div className="text-xs text-gray-500">¥<span id="rate-display-waste-medium">15,000</span></div>
@@ -6170,12 +6219,12 @@ app.post('/api/estimates', async (c) => {
         parking_fee, highway_fee,
         subtotal, tax_rate, tax_amount, total_amount,
         user_id, vehicle_2t_count, vehicle_4t_count, external_contractor_cost, 
-        uses_multiple_vehicles, notes
+        uses_multiple_vehicles, notes, line_items_json
       ) VALUES (
         ?, ?, ?, ?, ?, ?, ?, ?, ?, 
         ?, ?, ?, ?, ?, ?, 
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `).bind(
       data.customer_id,
@@ -6218,7 +6267,8 @@ app.post('/api/estimates', async (c) => {
       data.vehicle_4t_count || 0,
       data.external_contractor_cost || 0,
       data.uses_multiple_vehicles || false,
-      data.notes || ''
+      data.notes || '',
+      data.line_items_json || null
     ).run()
     
     console.log('見積保存結果:', result)
@@ -13085,6 +13135,17 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
     day: 'numeric'
   })
   
+  // line_items_jsonをパース（存在する場合）
+  let lineItems = null;
+  if (estimate.line_items_json) {
+    try {
+      lineItems = JSON.parse(estimate.line_items_json);
+      console.log('📋 明細データをパースしました:', lineItems);
+    } catch (error) {
+      console.error('❌ line_items_jsonのパースに失敗:', error);
+    }
+  }
+  
   return `
 <!DOCTYPE html>
 <html lang="ja">
@@ -13326,7 +13387,88 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                 </td>
                 <td class="amount-cell">-</td>
             </tr>
-            ${(() => {
+            ${lineItems ? (() => {
+              // ✅ STEP6完全転写方式：line_items_jsonを使用
+              const allRows = [];
+              
+              // 1. 車両費用セクション
+              if (lineItems.vehicle && lineItems.vehicle.items && lineItems.vehicle.items.length > 0) {
+                allRows.push(`
+                  <tr>
+                    <td colspan="2"><strong>【${lineItems.vehicle.section_name}】</strong></td>
+                  </tr>
+                `);
+                
+                lineItems.vehicle.items.forEach(item => {
+                  allRows.push(`
+                    <tr>
+                      <td>&nbsp;&nbsp;${item.description}${item.detail ? ' ' + item.detail : ''}${item.note ? '<br>&nbsp;&nbsp;&nbsp;&nbsp;<small>' + item.note + '</small>' : ''}</td>
+                      <td class="amount-cell">¥${item.amount.toLocaleString()}</td>
+                    </tr>
+                  `);
+                });
+                
+                allRows.push(`
+                  <tr style="background-color: #f3f4f6;">
+                    <td><strong>&nbsp;&nbsp;${lineItems.vehicle.section_name}小計</strong></td>
+                    <td class="amount-cell"><strong>¥${lineItems.vehicle.subtotal.toLocaleString()}</strong></td>
+                  </tr>
+                `);
+              }
+              
+              // 2. スタッフ費用セクション
+              if (lineItems.staff && lineItems.staff.items && lineItems.staff.items.length > 0) {
+                allRows.push(`
+                  <tr>
+                    <td colspan="2"><strong>【${lineItems.staff.section_name}】</strong></td>
+                  </tr>
+                `);
+                
+                lineItems.staff.items.forEach(item => {
+                  allRows.push(`
+                    <tr>
+                      <td>&nbsp;&nbsp;${item.description}${item.detail ? ' ' + item.detail : ''}</td>
+                      <td class="amount-cell">¥${item.amount.toLocaleString()}</td>
+                    </tr>
+                  `);
+                });
+                
+                allRows.push(`
+                  <tr style="background-color: #f3f4f6;">
+                    <td><strong>&nbsp;&nbsp;${lineItems.staff.section_name}小計</strong></td>
+                    <td class="amount-cell"><strong>¥${lineItems.staff.subtotal.toLocaleString()}</strong></td>
+                  </tr>
+                `);
+              }
+              
+              // 3. その他サービス費用セクション
+              if (lineItems.services && lineItems.services.items && lineItems.services.items.length > 0) {
+                allRows.push(`
+                  <tr>
+                    <td colspan="2"><strong>【${lineItems.services.section_name}】</strong></td>
+                  </tr>
+                `);
+                
+                lineItems.services.items.forEach(item => {
+                  allRows.push(`
+                    <tr>
+                      <td>&nbsp;&nbsp;${item.description}${item.detail ? ' ' + item.detail : ''}${item.note ? '<br>&nbsp;&nbsp;&nbsp;&nbsp;<small style="color: #666;">' + item.note + '</small>' : ''}</td>
+                      <td class="amount-cell">¥${item.amount.toLocaleString()}</td>
+                    </tr>
+                  `);
+                });
+                
+                allRows.push(`
+                  <tr style="background-color: #f3f4f6;">
+                    <td><strong>&nbsp;&nbsp;${lineItems.services.section_name}小計</strong></td>
+                    <td class="amount-cell"><strong>¥${lineItems.services.subtotal.toLocaleString()}</strong></td>
+                  </tr>
+                `);
+              }
+              
+              return allRows.join('');
+            })() : (() => {
+              // ❌ フォールバック：従来のロジック（line_items_jsonがない場合）
               // 車両費用を個別項目で表示
               const vehicleRows = [];
               const vehicleCost = estimate.vehicle_cost || 0;
@@ -13349,9 +13491,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                 `);
               }
               
-              return vehicleRows.join('');
-            })()}
-            ${(() => {
+              
               // スタッフ費用を個別項目で表示
               const staffRows = [];
               const rates = staffRates || {};
@@ -13444,50 +13584,51 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                 `);
               }
               
-              return staffRows.join('');
+              
+              return vehicleRows.join('') + staffRows.join('');
             })()}
-            ${estimate.parking_officer_cost > 0 ? `
+            ${!lineItems && estimate.parking_officer_cost > 0 ? `
             <tr>
                 <td>&nbsp;&nbsp;駐車対策員（${estimate.parking_officer_hours || 0}時間）</td>
                 <td class="amount-cell">¥${(estimate.parking_officer_cost || 0).toLocaleString()}</td>
             </tr>` : ''}
-            ${estimate.transport_cost > 0 ? `
+            ${!lineItems && estimate.transport_cost > 0 ? `
             <tr>
                 <td>&nbsp;&nbsp;人員輸送車両（${estimate.transport_vehicles || 0}台）</td>
                 <td class="amount-cell">¥${(estimate.transport_cost || 0).toLocaleString()}</td>
             </tr>` : ''}
-            ${estimate.waste_disposal_cost > 0 ? `
+            ${!lineItems && estimate.waste_disposal_cost > 0 ? `
             <tr>
                 <td>&nbsp;&nbsp;引取廃棄（${estimate.waste_disposal_size || ''}）</td>
                 <td class="amount-cell">¥${(estimate.waste_disposal_cost || 0).toLocaleString()}</td>
             </tr>` : ''}
-            ${estimate.protection_cost > 0 ? `
+            ${!lineItems && estimate.protection_cost > 0 ? `
             <tr>
                 <td>&nbsp;&nbsp;養生作業（${estimate.protection_floors || 0}階）</td>
                 <td class="amount-cell">¥${(estimate.protection_cost || 0).toLocaleString()}</td>
             </tr>` : ''}
-            ${estimate.material_collection_cost > 0 ? `
+            ${!lineItems && estimate.material_collection_cost > 0 ? `
             <tr>
                 <td>&nbsp;&nbsp;資材回収（${estimate.material_collection_size || ''}）</td>
                 <td class="amount-cell">¥${(estimate.material_collection_cost || 0).toLocaleString()}</td>
             </tr>` : ''}
-            ${estimate.construction_cost > 0 ? `
+            ${!lineItems && estimate.construction_cost > 0 ? `
             <tr>
                 <td>&nbsp;&nbsp;施工作業（M2スタッフ${estimate.construction_m2_staff || 0}名）</td>
                 <td class="amount-cell">¥${(estimate.construction_cost || 0).toLocaleString()}</td>
             </tr>` : ''}
-            ${estimate.parking_fee > 0 ? `
+            ${!lineItems && estimate.parking_fee > 0 ? `
             <tr>
                 <td>&nbsp;&nbsp;実費：駐車料金</td>
                 <td class="amount-cell">¥${(estimate.parking_fee || 0).toLocaleString()}</td>
             </tr>` : ''}
-            ${estimate.highway_fee > 0 ? `
+            ${!lineItems && estimate.highway_fee > 0 ? `
             <tr>
                 <td>&nbsp;&nbsp;実費：高速料金</td>
                 <td class="amount-cell">¥${(estimate.highway_fee || 0).toLocaleString()}</td>
             </tr>` : ''}
-            ${(() => {
-              // その他費用セクションの表示
+            ${!lineItems ? (() => {
+              // その他費用セクションの表示（line_items_jsonがない場合のみ）
               const otherCosts = [];
               
               // 作業時間割増料金（割増賃金）
@@ -13524,7 +13665,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
               }
               
               return otherCosts.join('');
-            })()}
+            })() : ''}
         </tbody>
     </table>
     

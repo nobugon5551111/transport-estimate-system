@@ -2425,7 +2425,37 @@ const Step5Implementation = {
       // サービス料金を取得
       const ratesResponse = await API.get('/service-rates');
       if (ratesResponse.success) {
-        Step5Implementation.serviceRates = ratesResponse.data;
+        // APIレスポンスをSTEP5が期待する構造に変換
+        // ✅ 複合キー（composite keys）を使用してマスターデータから正確に読み込む
+        const apiData = ratesResponse.data;
+        Step5Implementation.serviceRates = {
+          parking_officer_hourly: parseFloat(apiData.hourly_rate) || 2500,
+          transport_vehicle_20km: parseFloat(apiData.base_rate_20km) || 15000,
+          transport_vehicle_per_km: parseFloat(apiData.rate_per_km) || 150,
+          waste_disposal: {
+            none: 0,
+            small: parseFloat(apiData.waste_disposal_small) || 10000,
+            medium: parseFloat(apiData.waste_disposal_medium) || 15000,
+            large: parseFloat(apiData.waste_disposal_large) || 20000
+          },
+          protection_work_base: parseFloat(apiData.base_rate) || 8000,
+          protection_work_per_floor: parseFloat(apiData.floor_rate) || 3000,
+          material_collection: {
+            none: 0,
+            few: parseFloat(apiData.material_collection_few) || 5000,
+            medium: parseFloat(apiData.material_collection_medium) || 10000,
+            many: parseFloat(apiData.material_collection_many) || 15000
+          },
+          construction_m2_staff: parseFloat(apiData.m2_staff_rate) || 12500,
+          work_time_multiplier: {
+            normal: parseFloat(apiData.normal) || 1.0,
+            early: parseFloat(apiData.early) || 1.2,
+            evening: 1.25,  // データベースにないのでデフォルト値
+            night: parseFloat(apiData.night) || 1.5,
+            midnight: parseFloat(apiData.midnight) || 2.0
+          }
+        };
+        console.log('✅ サービスレート変換完了（マスターデータ使用）:', Step5Implementation.serviceRates);
       } else {
         // API取得失敗時のデフォルト値を設定
         Step5Implementation.serviceRates = {
@@ -2435,9 +2465,9 @@ const Step5Implementation = {
           waste_disposal: { none: 0, small: 10000, medium: 15000, large: 20000 },
           protection_work_base: 5000,
           protection_work_per_floor: 3000,
-          material_collection: { none: 0, small: 5000, medium: 10000, large: 15000 },
+          material_collection: { none: 0, few: 6000, medium: 12000, many: 20000 },
           construction_m2_staff: 12500,
-          work_time_multiplier: { normal: 1.0, evening: 1.25, night: 1.5 }
+          work_time_multiplier: { normal: 1.0, early: 1.2, evening: 1.25, night: 1.5, midnight: 2.0 }
         };
         console.warn('⚠️ サービス料金APIエラー、デフォルト値を使用します');
       }
@@ -2450,13 +2480,30 @@ const Step5Implementation = {
         waste_disposal: { none: 0, small: 10000, medium: 15000, large: 20000 },
         protection_work_base: 5000,
         protection_work_per_floor: 3000,
-        material_collection: { none: 0, small: 5000, medium: 10000, large: 15000 },
+        material_collection: { none: 0, few: 6000, medium: 12000, many: 20000 },
         construction_m2_staff: 12500,
-        work_time_multiplier: { normal: 1.0, evening: 1.25, night: 1.5 }
+        work_time_multiplier: { normal: 1.0, early: 1.2, evening: 1.25, night: 1.5, midnight: 2.0 }
       };
       console.error('❌ サービス料金の取得に失敗しました、デフォルト値を使用します:', error);
     }
 
+    // すべてのサービス関連のラジオボタンにイベントリスナーを追加
+    document.querySelectorAll('input[name="waste_disposal"]').forEach(radio => {
+      radio.addEventListener('change', Step5Implementation.updateServicesCost);
+    });
+    document.querySelectorAll('input[name="material_collection"]').forEach(radio => {
+      radio.addEventListener('change', Step5Implementation.updateServicesCost);
+    });
+    document.querySelectorAll('input[name="work_time_type"]').forEach(radio => {
+      radio.addEventListener('change', Step5Implementation.updateServicesCost);
+    });
+    document.querySelectorAll('input[name="construction_type"]').forEach(radio => {
+      radio.addEventListener('change', Step5Implementation.handleConstructionTypeChange);
+    });
+    document.querySelectorAll('input[name="transport_distance_type"]').forEach(radio => {
+      radio.addEventListener('change', Step5Implementation.handleTransportDistanceChange);
+    });
+    
     // 既存のサービス情報があれば復元
     if (flowData.services) {
       console.log('📦 既存のサービス情報を復元します:', flowData.services);
@@ -2555,6 +2602,7 @@ const Step5Implementation = {
 
   // サービス費用の更新
   updateServicesCost: () => {
+    console.log('💰 updateServicesCost実行開始');
     if (!Step5Implementation.serviceRates) {
       console.warn('⚠️ サービスレートが取得できていません。デフォルト値を使用します。');
       // 統一されたデフォルトサービスレートを設定
@@ -2565,9 +2613,9 @@ const Step5Implementation = {
         waste_disposal: { none: 0, small: 10000, medium: 15000, large: 20000 },
         protection_work_base: 5000,
         protection_work_per_floor: 3000,
-        material_collection: { none: 0, small: 5000, medium: 10000, large: 15000 },
+        material_collection: { none: 0, few: 6000, medium: 12000, many: 20000 },
         construction_m2_staff: 12500,
-        work_time_multiplier: { normal: 1.0, evening: 1.25, night: 1.5 }
+        work_time_multiplier: { normal: 1.0, evening: 1.25, night: 1.5, midnight: 2.0 }
       };
     }
 
@@ -2582,6 +2630,12 @@ const Step5Implementation = {
     const protectionWork = document.getElementById('protection_work').checked;
     const protectionFloors = parseInt(document.getElementById('protection_floors').value) || 1;
     const materialCollection = document.querySelector('input[name="material_collection"]:checked')?.value || 'none';
+    
+    console.log('📊 選択されたサービス値:', {
+      wasteDisposal,
+      materialCollection,
+      workTimeType: document.querySelector('input[name="work_time_type"]:checked')?.value || 'normal'
+    });
     // 施工方法による費用計算
     const constructionType = document.querySelector('input[name="construction_type"]:checked');
     let constructionM2Staff = 0;
@@ -2609,6 +2663,13 @@ const Step5Implementation = {
       parking_fee: parkingFee,
       highway_fee: highwayFee
     };
+    
+    console.log('💵 計算された費用:', {
+      waste_disposal: costs.waste_disposal,
+      material_collection: costs.material_collection,
+      rates_waste: rates.waste_disposal,
+      rates_material: rates.material_collection
+    });
 
     // 人員輸送車両費用計算
     if (transportVehicles > 0) {
@@ -2620,9 +2681,12 @@ const Step5Implementation = {
       }
     }
 
-    // 養生作業費用計算（基本料金¥5,000）
+    // 養生作業費用計算（基本料金 + フロア単価 × フロア数）
     if (protectionWork) {
-      costs.protection_work = rates.protection_work_base || 5000;
+      const baseRate = rates.protection_work_base || 8000;
+      const perFloorRate = rates.protection_work_per_floor || 3000;
+      // 基本料金 + （フロア単価 × フロア数）
+      costs.protection_work = baseRate + (perFloorRate * protectionFloors);
       document.getElementById('protectionFloors').classList.remove('hidden');
     } else {
       document.getElementById('protectionFloors').classList.add('hidden');
@@ -2831,6 +2895,55 @@ const Step6Implementation = {
     // 見積データを統合
     Step6Implementation.estimateData = flowData;
 
+    // サービスレートを取得（buildLineItems用）
+    try {
+      const ratesResponse = await API.get('/service-rates');
+      if (ratesResponse.success) {
+        const apiData = ratesResponse.data;
+        Step5Implementation.serviceRates = {
+          parking_officer_hourly: parseFloat(apiData.hourly_rate) || 2500,
+          transport_vehicle_20km: parseFloat(apiData.base_rate_20km) || 15000,
+          transport_vehicle_per_km: parseFloat(apiData.rate_per_km) || 150,
+          waste_disposal: {
+            none: 0,
+            small: parseFloat(apiData.waste_disposal_small) || 10000,
+            medium: parseFloat(apiData.waste_disposal_medium) || 15000,
+            large: parseFloat(apiData.waste_disposal_large) || 20000
+          },
+          protection_work_base: parseFloat(apiData.base_rate) || 8000,
+          protection_work_per_floor: parseFloat(apiData.floor_rate) || 3000,
+          material_collection: {
+            none: 0,
+            few: parseFloat(apiData.material_collection_few) || 5000,
+            medium: parseFloat(apiData.material_collection_medium) || 10000,
+            many: parseFloat(apiData.material_collection_many) || 15000
+          },
+          construction_m2_staff: parseFloat(apiData.m2_staff_rate) || 12500,
+          work_time_multiplier: {
+            normal: parseFloat(apiData.normal) || 1.0,
+            early: parseFloat(apiData.early) || 1.2,
+            evening: 1.25,
+            night: parseFloat(apiData.night) || 1.5,
+            midnight: parseFloat(apiData.midnight) || 2.0
+          }
+        };
+        console.log('✅ STEP6: サービスレート取得完了:', Step5Implementation.serviceRates);
+      }
+    } catch (error) {
+      console.warn('⚠️ STEP6: サービスレート取得失敗、デフォルト値を使用:', error);
+      Step5Implementation.serviceRates = {
+        parking_officer_hourly: 2500,
+        transport_vehicle_20km: 15000,
+        transport_vehicle_per_km: 150,
+        waste_disposal: { none: 0, small: 10000, medium: 15000, large: 20000 },
+        protection_work_base: 8000,
+        protection_work_per_floor: 3000,
+        material_collection: { none: 0, few: 5000, medium: 10000, many: 15000 },
+        construction_m2_staff: 12500,
+        work_time_multiplier: { normal: 1.0, early: 1.2, evening: 1.25, night: 1.5, midnight: 2.0 }
+      };
+    }
+
     // 見積番号と作成日を生成
     const estimateNumber = `EST-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`;
     const createDate = new Date().toLocaleDateString('ja-JP');
@@ -2843,8 +2956,8 @@ const Step6Implementation = {
     Step6Implementation.displayProjectInfo();
     await Step6Implementation.displayVehicleDetails();
     await Step6Implementation.displayStaffDetails();
-    Step6Implementation.displayServicesDetails();
     Step6Implementation.displayNotesSection();
+    // ⚠️ 重要：calculateTotalが最後に実行され、その中でdisplayServicesDetailsが呼ばれる
     await Step6Implementation.calculateTotal();
   },
 
@@ -3061,6 +3174,18 @@ const Step6Implementation = {
     
     console.log('🛎️ STEP6サービス詳細表示:', services);
     console.log('🔍 Step6Implementation.estimateData全体:', Step6Implementation.estimateData);
+    console.log('🗑️ 引き取り廃棄データ確認:', {
+      waste_disposal_size: services?.waste_disposal_size,
+      waste_disposal_cost: services?.waste_disposal_cost
+    });
+    console.log('♻️ 残材回収データ確認:', {
+      material_collection_size: services?.material_collection_size,
+      material_collection_cost: services?.material_collection_cost
+    });
+    console.log('⏰ 作業時間帯割増データ確認:', {
+      work_time_type: services?.work_time_type,
+      work_time_multiplier: services?.work_time_multiplier
+    });
     
     if (!services) {
       console.log('⚠️ services オブジェクトが null/undefined です');
@@ -3205,12 +3330,24 @@ const Step6Implementation = {
     
     // 4. 養生作業
     if (services.protection_work || services.protection_cost > 0) {
+      const baseRate = Step5Implementation.serviceRates?.protection_work_base || 8000;
+      const perFloorRate = Step5Implementation.serviceRates?.protection_work_per_floor || 3000;
+      const floorCost = perFloorRate * (services.protection_floors || 1);
+      
       details.push(`<div class="flex justify-between">
-        <span>養生作業 ${services.protection_floors}フロア (基本料金¥5,000)</span>
-        <span>${Utils.formatCurrency(services.protection_cost)}</span>
+        <span>養生作業（基本料金）</span>
+        <span>${Utils.formatCurrency(baseRate)}</span>
       </div>`);
+      
+      if (services.protection_floors > 0) {
+        details.push(`<div class="flex justify-between">
+          <span>&nbsp;&nbsp;養生作業（フロア単価） ${services.protection_floors}フロア × ¥${perFloorRate.toLocaleString()}</span>
+          <span>${Utils.formatCurrency(floorCost)}</span>
+        </div>`);
+      }
+      
       totalServicesCost += services.protection_cost;
-      console.log('🛡️ 養生作業:', { floors: services.protection_floors, cost: services.protection_cost });
+      console.log('🛡️ 養生作業:', { floors: services.protection_floors, cost: services.protection_cost, baseRate, perFloorRate, floorCost });
     }
     
     // 5. 残材回収
@@ -3297,10 +3434,22 @@ const Step6Implementation = {
           console.warn(`⚠️ サービス費用表示の差異: 表示計算=${totalServicesCost}, 再計算=${Step6Implementation.estimateData.totals.recalculated_services_cost}, 差分=${diff}`);
         }
       }
+      
+      document.getElementById('servicesDetails').innerHTML = Step6Implementation.applyZebraStripes(details).join('');
+    } else {
+      // サービス項目がない場合でも「該当なし」と表示
+      document.getElementById('servicesDetails').innerHTML = `
+        <div class="text-center text-gray-500 py-4">
+          該当するサービス項目はありません
+        </div>
+        <div class="flex justify-between border-t pt-2 mt-2 font-bold">
+          <span>その他サービス費用合計</span>
+          <span>¥0</span>
+        </div>
+      `;
     }
     
     console.log('💰 サービス費用合計（表示）:', totalServicesCost, '保存値:', services.total_cost, '再計算値:', Step6Implementation.estimateData.totals?.recalculated_services_cost);
-    document.getElementById('servicesDetails').innerHTML = Step6Implementation.applyZebraStripes(details).join('');
   },
 
   // 備考セクション表示（編集可能なメモフィールド）- 修正版 2025-10-08  
@@ -3325,6 +3474,275 @@ const Step6Implementation = {
     }
   },
 
+  // PDF用明細データ生成関数
+  buildLineItems: (vehicle, staff, services, finalVehicleCost, finalStaffCost, timeMultiplierCost) => {
+    const lineItems = {
+      vehicle: { section_name: '車両費用', items: [], subtotal: 0 },
+      staff: { section_name: 'スタッフ費用', items: [], subtotal: 0 },
+      services: { section_name: 'その他サービス費用', items: [], subtotal: 0 }
+    };
+
+    // 1. 車両費用明細
+    if (vehicle.uses_multiple_vehicles) {
+      // 複数車両の場合
+      if (vehicle.vehicle_2t_count > 0 && vehicle.vehicle_2t_unit_price) {
+        lineItems.vehicle.items.push({
+          description: `2t車 ${vehicle.vehicle_2t_count}台・${vehicle.operation}（${vehicle.area}エリア）`,
+          detail: `@ ¥${vehicle.vehicle_2t_unit_price.toLocaleString()}`,
+          quantity: vehicle.vehicle_2t_count,
+          unit_price: vehicle.vehicle_2t_unit_price,
+          amount: vehicle.vehicle_2t_unit_price * vehicle.vehicle_2t_count
+        });
+      }
+      if (vehicle.vehicle_4t_count > 0 && vehicle.vehicle_4t_unit_price) {
+        lineItems.vehicle.items.push({
+          description: `4t車 ${vehicle.vehicle_4t_count}台・${vehicle.operation}（${vehicle.area}エリア）`,
+          detail: `@ ¥${vehicle.vehicle_4t_unit_price.toLocaleString()}`,
+          quantity: vehicle.vehicle_4t_count,
+          unit_price: vehicle.vehicle_4t_unit_price,
+          amount: vehicle.vehicle_4t_unit_price * vehicle.vehicle_4t_count
+        });
+      }
+      if (vehicle.external_contractor_cost > 0) {
+        lineItems.vehicle.items.push({
+          description: '外注業者費用',
+          detail: '',
+          quantity: 1,
+          unit_price: vehicle.external_contractor_cost,
+          amount: vehicle.external_contractor_cost
+        });
+      }
+    } else {
+      // 単一車両の場合
+      if (finalVehicleCost > 0) {
+        lineItems.vehicle.items.push({
+          description: `${vehicle.type} 1台・${vehicle.operation}（${vehicle.area}エリア）`,
+          detail: `@ ¥${finalVehicleCost.toLocaleString()}`,
+          quantity: 1,
+          unit_price: finalVehicleCost,
+          amount: finalVehicleCost
+        });
+      }
+    }
+    lineItems.vehicle.subtotal = finalVehicleCost;
+
+    // 2. スタッフ費用明細（STEP6表示と同じ構造）
+    const staffRatesPromise = API.get('/staff-rates');
+    staffRatesPromise.then(ratesResponse => {
+      let staffRates = {
+        supervisor: 20000, leader: 17000, m2_half_day: 7000,
+        m2_full_day: 12500, temp_half_day: 6500, temp_full_day: 11500
+      };
+      
+      if (ratesResponse.success && ratesResponse.data && ratesResponse.data.staffRates) {
+        const dbRates = ratesResponse.data.staffRates;
+        staffRates = {
+          supervisor: dbRates.supervisor_rate || 20000,
+          leader: dbRates.leader_rate || 17000,
+          m2_half_day: dbRates.m2_half_day_rate || 7000,
+          m2_full_day: dbRates.m2_full_day_rate || 12500,
+          temp_half_day: dbRates.temp_half_day_rate || 6500,
+          temp_full_day: dbRates.temp_full_day_rate || 11500
+        };
+      }
+
+      // 監督
+      if (staff.supervisor_count > 0) {
+        lineItems.staff.items.push({
+          description: `監督 ${staff.supervisor_count}名`,
+          detail: `@ ¥${staffRates.supervisor.toLocaleString()}`,
+          quantity: staff.supervisor_count,
+          unit_price: staffRates.supervisor,
+          amount: staff.supervisor_count * staffRates.supervisor
+        });
+      }
+      
+      // リーダー
+      if (staff.leader_count > 0) {
+        lineItems.staff.items.push({
+          description: `リーダー ${staff.leader_count}名`,
+          detail: `@ ¥${staffRates.leader.toLocaleString()}`,
+          quantity: staff.leader_count,
+          unit_price: staffRates.leader,
+          amount: staff.leader_count * staffRates.leader
+        });
+      }
+      
+      // M2スタッフ（半日）
+      if (staff.m2_staff_half_day > 0) {
+        lineItems.staff.items.push({
+          description: `M2スタッフ（半日）${staff.m2_staff_half_day}名`,
+          detail: `@ ¥${staffRates.m2_half_day.toLocaleString()}`,
+          quantity: staff.m2_staff_half_day,
+          unit_price: staffRates.m2_half_day,
+          amount: staff.m2_staff_half_day * staffRates.m2_half_day
+        });
+      }
+      
+      // M2スタッフ（1日）
+      if (staff.m2_staff_full_day > 0) {
+        lineItems.staff.items.push({
+          description: `M2スタッフ（1日）${staff.m2_staff_full_day}名`,
+          detail: `@ ¥${staffRates.m2_full_day.toLocaleString()}`,
+          quantity: staff.m2_staff_full_day,
+          unit_price: staffRates.m2_full_day,
+          amount: staff.m2_staff_full_day * staffRates.m2_full_day
+        });
+      }
+      
+      // 派遣スタッフ（半日）
+      if (staff.temp_staff_half_day > 0) {
+        lineItems.staff.items.push({
+          description: `派遣スタッフ（半日）${staff.temp_staff_half_day}名`,
+          detail: `@ ¥${staffRates.temp_half_day.toLocaleString()}`,
+          quantity: staff.temp_staff_half_day,
+          unit_price: staffRates.temp_half_day,
+          amount: staff.temp_staff_half_day * staffRates.temp_half_day
+        });
+      }
+      
+      // 派遣スタッフ（1日）
+      if (staff.temp_staff_full_day > 0) {
+        lineItems.staff.items.push({
+          description: `派遣スタッフ（1日）${staff.temp_staff_full_day}名`,
+          detail: `@ ¥${staffRates.temp_full_day.toLocaleString()}`,
+          quantity: staff.temp_staff_full_day,
+          unit_price: staffRates.temp_full_day,
+          amount: staff.temp_staff_full_day * staffRates.temp_full_day
+        });
+      }
+    });
+    
+    lineItems.staff.subtotal = finalStaffCost;
+
+    // 3. サービス費用明細
+    if (services.parking_officer_hours > 0 && services.parking_officer_cost > 0) {
+      const hourlyRate = services.parking_officer_cost / services.parking_officer_hours;
+      lineItems.services.items.push({
+        description: `駐車対策員 ${services.parking_officer_hours}時間`,
+        detail: `@ ¥${Math.round(hourlyRate).toLocaleString()}`,
+        quantity: services.parking_officer_hours,
+        unit_price: Math.round(hourlyRate),
+        amount: services.parking_officer_cost
+      });
+    }
+    
+    if (services.transport_vehicles > 0 && services.transport_cost > 0) {
+      const distanceText = services.transport_within_20km ? '20km圏内' : `${services.transport_distance}km`;
+      lineItems.services.items.push({
+        description: `人員輸送車両 ${services.transport_vehicles}台（${distanceText}）`,
+        detail: '',
+        quantity: services.transport_vehicles,
+        unit_price: services.transport_cost / services.transport_vehicles,
+        amount: services.transport_cost
+      });
+    }
+    
+    if (services.waste_disposal_cost > 0) {
+      lineItems.services.items.push({
+        description: `引き取り廃棄（${services.waste_disposal_size}）`,
+        detail: '',
+        quantity: 1,
+        unit_price: services.waste_disposal_cost,
+        amount: services.waste_disposal_cost
+      });
+    }
+    
+    if (services.protection_cost > 0) {
+      // 養生作業：基本料金を1行目、フロア単価を別行で表示
+      const baseRate = Step5Implementation.serviceRates?.protection_work_base || 8000;
+      const perFloorRate = Step5Implementation.serviceRates?.protection_work_per_floor || 3000;
+      const floorCost = perFloorRate * services.protection_floors;
+      
+      lineItems.services.items.push({
+        description: `養生作業（基本料金）`,
+        detail: '',
+        quantity: 1,
+        unit_price: baseRate,
+        amount: baseRate
+      });
+      
+      if (services.protection_floors > 0) {
+        lineItems.services.items.push({
+          description: `養生作業（フロア単価）`,
+          detail: `${services.protection_floors}フロア × ¥${perFloorRate.toLocaleString()}`,
+          quantity: services.protection_floors,
+          unit_price: perFloorRate,
+          amount: floorCost
+        });
+      }
+    }
+    
+    if (services.material_collection_cost > 0) {
+      lineItems.services.items.push({
+        description: `残材回収（${services.material_collection_size}）`,
+        detail: '',
+        quantity: 1,
+        unit_price: services.material_collection_cost,
+        amount: services.material_collection_cost
+      });
+    }
+    
+    if (services.construction_cost > 0) {
+      if (services.construction_m2_staff > 0) {
+        const unitPrice = services.construction_cost / services.construction_m2_staff;
+        lineItems.services.items.push({
+          description: `施工 M2スタッフ ${services.construction_m2_staff}人`,
+          detail: `@ ¥${Math.round(unitPrice).toLocaleString()}`,
+          quantity: services.construction_m2_staff,
+          unit_price: Math.round(unitPrice),
+          amount: services.construction_cost
+        });
+      } else if (services.construction_partner) {
+        lineItems.services.items.push({
+          description: `施工 協力会社（${services.construction_partner}）`,
+          detail: '',
+          quantity: 1,
+          unit_price: services.construction_cost,
+          amount: services.construction_cost
+        });
+      }
+    }
+    
+    // 作業時間帯割増
+    if (timeMultiplierCost > 0 && services.work_time_multiplier > 1.0) {
+      const multiplierPercent = Math.round((services.work_time_multiplier - 1.0) * 100);
+      const baseAmount = finalVehicleCost + finalStaffCost;
+      lineItems.services.items.push({
+        description: `作業時間帯割増（${services.work_time_type}：+${multiplierPercent}%）`,
+        detail: '',
+        quantity: 1,
+        unit_price: timeMultiplierCost,
+        amount: timeMultiplierCost,
+        note: `※ 基準額: ¥${baseAmount.toLocaleString()}（車両+スタッフ）× ${multiplierPercent}%`
+      });
+    }
+    
+    if (services.parking_fee > 0) {
+      lineItems.services.items.push({
+        description: '実費：駐車料金',
+        detail: '',
+        quantity: 1,
+        unit_price: services.parking_fee,
+        amount: services.parking_fee
+      });
+    }
+    
+    if (services.highway_fee > 0) {
+      lineItems.services.items.push({
+        description: '実費：高速料金',
+        detail: '',
+        quantity: 1,
+        unit_price: services.highway_fee,
+        amount: services.highway_fee
+      });
+    }
+    
+    lineItems.services.subtotal = lineItems.services.items.reduce((sum, item) => sum + item.amount, 0);
+
+    return lineItems;
+  },
+
   // 合計金額計算（修正版：データベース単価で統一計算）
   calculateTotal: async () => {
     const vehicle = Step6Implementation.estimateData.vehicle;
@@ -3341,6 +3759,7 @@ const Step6Implementation = {
           const apiUrl2t = `/vehicle-pricing?vehicle_type=${encodeURIComponent('2t車')}&operation_type=${encodeURIComponent(vehicle.operation)}&delivery_area=${vehicle.area}`;
           const response2t = await API.get(apiUrl2t);
           if (response2t && response2t.success) {
+            vehicle.vehicle_2t_unit_price = response2t.price; // 単価を保存
             finalVehicleCost += response2t.price * vehicle.vehicle_2t_count;
           }
         }
@@ -3349,6 +3768,7 @@ const Step6Implementation = {
           const apiUrl4t = `/vehicle-pricing?vehicle_type=${encodeURIComponent('4t車')}&operation_type=${encodeURIComponent(vehicle.operation)}&delivery_area=${vehicle.area}`;
           const response4t = await API.get(apiUrl4t);
           if (response4t && response4t.success) {
+            vehicle.vehicle_4t_unit_price = response4t.price; // 単価を保存
             finalVehicleCost += response4t.price * vehicle.vehicle_4t_count;
           }
         }
@@ -3480,6 +3900,12 @@ const Step6Implementation = {
     };
     
     console.log('💰 STEP6合計金額計算完了（修正版）:', Step6Implementation.estimateData.totals);
+    
+    // 明細データを生成してestimateDataに保存
+    Step6Implementation.estimateData.lineItems = Step6Implementation.buildLineItems(
+      vehicle, staff, services, finalVehicleCost, finalStaffCost, timeMultiplierCost
+    );
+    console.log('📋 明細データ生成完了:', Step6Implementation.estimateData.lineItems);
     
     // サービス詳細を再表示（再計算された費用を反映）
     Step6Implementation.displayServicesDetails();
@@ -3639,6 +4065,10 @@ const Step6Implementation = {
         tax_rate: Step6Implementation.estimateData.totals?.tax_rate || 0.1,
         tax_amount: Step6Implementation.estimateData.totals?.tax_amount || 0,
         total_amount: Step6Implementation.estimateData.totals?.total_amount || 0,
+        
+        // 明細データ（JSON形式）
+        line_items_json: Step6Implementation.estimateData.lineItems ? 
+                        JSON.stringify(Step6Implementation.estimateData.lineItems) : null,
         
         // メタ情報
         notes: Step6Implementation.estimateData.services?.notes || '',
