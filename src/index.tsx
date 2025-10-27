@@ -6971,8 +6971,8 @@ app.post('/api/estimates/free', async (c) => {
     if (!existingProject) {
       // デフォルトプロジェクトを作成
       const projectResult = await env.DB.prepare(`
-        INSERT INTO projects (customer_id, name, contact_person, description, status, user_id, created_at, updated_at)
-        VALUES (?, 'フリー見積プロジェクト', '担当者', ?, 'active', 'system', datetime('now'), datetime('now'))
+        INSERT INTO projects (customer_id, name, description, status, user_id, created_at, updated_at)
+        VALUES (?, 'フリー見積プロジェクト', ?, 'active', 'system', datetime('now'), datetime('now'))
       `).bind(customerId, `顧客: ${data.customer_name}\n案件: ${data.project_name}`).run();
       projectId = projectResult.meta.last_row_id;
     } else {
@@ -6985,16 +6985,16 @@ app.post('/api/estimates/free', async (c) => {
     
     const estimateResult = await env.DB.prepare(`
       INSERT INTO estimates (
-        customer_id, project_id, estimate_number, estimate_type,
+        customer_id, project_id, estimate_number,
         delivery_address, delivery_postal_code, delivery_area,
         vehicle_type, operation_type, vehicle_cost, staff_cost,
-        subtotal, tax_amount, total_amount,
+        subtotal, tax_rate, tax_amount, total_amount,
         notes, user_id, created_at, updated_at, created_by_name
       ) VALUES (
-        ?, ?, ?, 'free',
+        ?, ?, ?,
         ?, '', 'other',
         'フリー', 'フリー', 0, 0,
-        ?, ?, ?,
+        ?, 0.1, ?, ?,
         ?, 'system', datetime('now'), datetime('now'), ?
       )
     `).bind(
