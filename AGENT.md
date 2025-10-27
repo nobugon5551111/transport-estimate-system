@@ -1,19 +1,164 @@
-# AGENT.md - AIエージェント向け開発ガイド
+# 🤖 AGENT.md - AIエージェント完全運用ガイド
 
-## プロジェクト概要
+## 📋 基本方針
 
+このファイルは、AIエージェント（Claude）がプロジェクト開発・運用を行う際の完全なガイドラインです。
+
+**最終更新:** 2025-10-27  
 **プロジェクト名:** 輸送見積もりシステム (Transport Estimate System)  
 **コードネーム:** webapp  
 **プロジェクトパス:** `/home/user/webapp/`  
-**技術スタック:** Hono + TypeScript + Cloudflare Workers + D1 Database
+**技術スタック:** Hono + TypeScript + Cloudflare Workers + D1 Database  
+**適用範囲:** 全開発・運用作業
 
-## 完全バックアップシステム
+---
+
+## 🔒 GitHub運用ルール（最重要）
+
+### ✅ 基本原則
+```
+🎯 ユーザー主導の保存管理
+- GitHubへの保存はユーザーの明示的な指示後のみ実行
+- 修正・開発中はローカル環境のみで作業
+- 未完成・未承認の状態でのGitHub保存は禁止
+```
+
+### 📊 作業フロー
+```
+Phase 1: ローカル開発
+├── AIがコード修正・機能追加
+├── ローカルでテスト・動作確認  
+├── 問題があれば修正・調整
+└── 完成版をユーザーに報告
+
+Phase 2: ユーザー確認
+├── ユーザーが機能確認・テスト
+├── 要望・修正指示（必要に応じて）
+├── 最終承認・品質確認
+└── 「GitHubに保存して」の明示的指示
+
+Phase 3: GitHub保存実行
+├── ユーザー指示後のみ実行
+├── 適切なコミットメッセージ付き
+├── 完成・承認済み版のみ記録
+└── 将来の安定復元ポイントとして保存
+```
+
+### 🚫 禁止事項
+- 勝手な判断でのGitHub保存
+- 「とりあえず保存」の考え方
+- 未完成版のGitHub記録
+- ユーザー確認なしの自動保存
+
+### ✅ 許可事項
+- ローカルでの自由な開発・修正
+- 完成版の動作テスト・品質確認
+- ユーザーへの完成報告
+- GitHub保存の提案（強制ではない）
+
+### 例外的GitHub保存
+```
+以下の場合のみ、GitHub保存を強く提案可能：
+1. 重大バグ修正完了時
+2. 長時間（3時間以上）作業完了時
+3. 作業セッション終了前
+4. システム停止回避のため
+
+※ただし最終判断はユーザーに委ねる
+```
+
+---
+
+## 🗣️ コミュニケーションルール
+
+### 分かりやすい表現の使用
+```
+技術用語 → 分かりやすい表現
+────────────────────────
+プッシュ → 保存・送信・アップロード
+コミット → 記録・保存
+リポジトリ → プロジェクト保管庫
+ブランチ → 作業用コピー
+マージ → 統合・結合
+```
+
+### 推奨会話パターン
+```
+✅ 作業完了時
+「○○の修正が完了しました。動作確認をお願いします」
+「問題なければ、GitHubへの保存をご指示ください」
+
+✅ 提案時
+「この改修内容をGitHubに保存することをお勧めします」
+「安全のため、GitHubにバックアップしませんか？」
+
+❌ 避ける表現
+「プッシュします」
+「とりあえず保存しておきます」
+「勝手に判断して保存します」
+```
+
+---
+
+## 🛡️ 完成機能保護ルール（最重要）
+
+### ✅ 完成機能の定義と保護対象
+```
+完成機能 = 以下の条件を満たした機能（絶対に壊してはいけない）:
+1. ユーザーから「修正完了」の確認を得た機能
+2. 動作テストを通過し、承認された機能
+3. GitHubに保存済みの安定版機能
+4. 本番運用中で問題なく稼働している機能
+
+現在の保護対象機能:
+✅ Step1-6: 全見積作成フロー
+✅ マスターデータAPI連携機能  
+✅ 動的ラベル更新機能（Step4/Step5）
+✅ 養生作業フロア計算機能（Step5）
+✅ PDF出力機能・データベース構造
+✅ 完全バックアップシステム
+```
+
+### 🔒 修正作業時の必須手順
+```
+Step 1: 影響範囲分析（必須）
+├── 修正対象機能の特定
+├── 完成機能への影響「あり/なし」判定
+├── 依存関係・データベース変更の影響確認
+└── バックアップ・ロールバック手順準備
+
+Step 2: 保護実装戦略（必須）
+├── 新機能は独立したファイル・関数で実装
+├── 既存コードの変更は最小限に限定
+├── 完成機能との結合は最終段階で実施
+└── 各段階でのテスト実行
+
+Step 3: 完成機能保護テスト（必須）
+├── 修正後に全完成機能の動作確認
+├── データ整合性・API レスポンス確認
+├── UI動作・計算結果の正確性確認
+└── エラーケース・例外処理確認
+```
+
+### 🚫 絶対禁止事項
+```
+❌ 完成機能への無計画な変更
+❌ データベーススキーマの破壊的変更
+❌ APIエンドポイント・レスポンス形式変更
+❌ 既存機能のHTML要素ID変更
+❌ sessionStorageキー名の変更
+❌ 複数機能の同時大幅変更
+```
+
+---
+
+## 📦 完全バックアップシステム
 
 ### バックアップの重要性
 
 このプロジェクトでは、**単一ZIPファイルによる完全バックアップシステム**を採用しています。
-このバックアップには以下のすべてが含まれます：
 
+**バックアップに含まれる内容:**
 - ✅ 完全なソースコード
 - ✅ データベース完全バックアップ（SQL形式）
 - ✅ Git履歴（全コミット履歴）
@@ -54,17 +199,7 @@ cd /home/user/webapp
    - `/home/user/` にコピー（ダウンロード用）
    - `public/static/` にコピー（Web経由でのダウンロード用）
 
-#### 2. バックアップ完了後の確認
-
-```bash
-# バックアップファイルの存在確認
-ls -lh /home/user/webapp_complete_backup_*.zip
-
-# ZIPファイルの内容確認
-unzip -l /home/user/webapp_complete_backup_*.zip
-```
-
-#### 3. バックアップファイルのダウンロード
+#### 2. バックアップファイルのダウンロード
 
 **Web経由でダウンロード（推奨）：**
 
@@ -101,248 +236,123 @@ cd webapp_complete_backup_20251027_030934
 2. ソースコードを`/home/user/webapp/`に復元
 3. 依存関係のインストール（`npm install`）
 4. データベースの復元
-   - `.wrangler/state/v3/d1`の削除
-   - マイグレーションの適用
-   - バックアップSQLの実行
 5. プロジェクトのビルド（`npm run build`）
 6. PM2でサービスを起動
 7. サービスの動作確認（`curl http://localhost:3000`）
 
-#### 手動復元
-
-自動復元スクリプトが動作しない場合の手順：
-
-```bash
-# 1. ソースコードの復元
-cp -r webapp/ /home/user/webapp/
-
-# 2. プロジェクトディレクトリに移動
-cd /home/user/webapp
-
-# 3. 依存関係のインストール
-npm install
-
-# 4. データベースの復元
-rm -rf .wrangler/state/v3/d1
-npx wrangler d1 migrations apply transport-estimate-production --local
-npx wrangler d1 execute transport-estimate-production --local --file=[backup-dir]/database_backup.sql
-
-# 5. ビルド
-npm run build
-
-# 6. サービス起動
-fuser -k 3000/tcp 2>/dev/null || true
-pm2 delete all 2>/dev/null || true
-pm2 start ecosystem.config.cjs
-
-# 7. 動作確認
-curl http://localhost:3000
-```
-
-### バックアップシステムの技術的詳細
-
-#### ファイル構造
-
-```
-webapp_complete_backup_20251027_030934/
-├── database_backup.sql          # データベース完全エクスポート（30KB, 303行）
-├── RESTORE.sh                   # 自動復元スクリプト（実行可能）
-├── README.md                    # 復元手順書
-├── BACKUP_INFO.txt              # バックアップメタデータ
-└── webapp/                      # 完全なソースコードツリー
-    ├── src/                     # TypeScriptソースコード
-    ├── public/                  # 静的ファイル
-    │   └── static/             # 静的アセット（CSS, JS, 画像）
-    ├── migrations/             # D1データベースマイグレーション
-    ├── .git/                   # Git履歴（全コミット）
-    ├── package.json            # 依存関係定義
-    ├── wrangler.jsonc          # Cloudflare設定
-    ├── tsconfig.json           # TypeScript設定
-    ├── vite.config.ts          # Vite設定
-    ├── ecosystem.config.cjs    # PM2設定
-    └── create_complete_backup.sh  # バックアップスクリプト
-```
-
-#### 重要な設定ファイル
-
-**1. ecosystem.config.cjs（PM2設定）**
-```javascript
-module.exports = {
-  apps: [
-    {
-      name: 'transport-estimate-system',
-      script: 'npx',
-      args: 'wrangler pages dev dist --d1=transport-estimate-production --local --ip 0.0.0.0 --port 3000',
-      env: {
-        NODE_ENV: 'development',
-        PORT: 3000
-      }
-    }
-  ]
-}
-```
-
-**2. wrangler.jsonc（Cloudflare設定）**
-```jsonc
-{
-  "name": "webapp",
-  "compatibility_date": "2024-01-01",
-  "pages_build_output_dir": "./dist",
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "transport-estimate-production",
-      "database_id": "your-database-id"
-    }
-  ]
-}
-```
-
-#### バックアップファイルのWeb配信
-
-バックアップZIPファイルをWeb経由でダウンロード可能にするため、以下の手順を実施しています：
-
-1. **ファイル配置**
-   ```bash
-   # public/static/にコピー
-   cp /home/user/webapp_complete_backup_*.zip /home/user/webapp/public/static/
-   ```
-
-2. **Viteビルド**
-   - `npm run build`実行時、`public/`の内容が`dist/`にコピーされる
-   - `public/static/backup.zip` → `dist/static/backup.zip`
-
-3. **Hono静的ファイル配信**
-   ```typescript
-   // src/index.tsx
-   app.use('/static/*', serveStatic({ root: './' }))
-   ```
-
-4. **アクセスURL**
-   ```
-   https://[service-url]/static/webapp_complete_backup_20251027_030934.zip
-   ```
-
-### トラブルシューティング
-
-#### バックアップが作成できない
-
-**問題:** `create_complete_backup.sh`実行時にエラー
-
-**解決策:**
-```bash
-# スクリプトに実行権限を付与
-chmod +x /home/user/webapp/create_complete_backup.sh
-
-# データベースエクスポートを個別にテスト
-cd /home/user/webapp
-npx wrangler d1 export transport-estimate-production --local --output=test_backup.sql
-```
-
-#### ZIPファイルがダウンロードできない
-
-**問題:** Webページからダウンロードボタンを押しても404エラー
-
-**原因:** ZIPファイルが`public/static/`に配置されていない
-
-**解決策:**
-```bash
-# 1. ZIPファイルを正しい場所にコピー
-cp /home/user/webapp_complete_backup_*.zip /home/user/webapp/public/static/
-
-# 2. 再ビルド
-cd /home/user/webapp
-npm run build
-
-# 3. サービス再起動
-fuser -k 3000/tcp 2>/dev/null || true
-pm2 delete all 2>/dev/null || true
-pm2 start ecosystem.config.cjs
-
-# 4. 確認
-curl -I http://localhost:3000/static/webapp_complete_backup_*.zip
-```
-
-#### 復元後にサービスが起動しない
-
-**問題:** `RESTORE.sh`実行後、サービスが起動しない
-
-**解決策:**
-```bash
-# 1. PM2ログを確認
-pm2 logs transport-estimate-system --nostream --lines 30
-
-# 2. ポートの確認と解放
-fuser -k 3000/tcp 2>/dev/null || true
-
-# 3. データベースの再初期化
-cd /home/user/webapp
-rm -rf .wrangler/state/v3/d1
-npx wrangler d1 migrations apply transport-estimate-production --local
-
-# 4. 再度起動
-pm2 start ecosystem.config.cjs
-
-# 5. 動作確認
-curl http://localhost:3000
-```
-
 ### ベストプラクティス
 
-#### 定期的なバックアップ
-
-**推奨頻度:**
+**推奨バックアップ頻度:**
 - 重要な機能追加後：即座にバックアップ
 - 大規模な変更前：事前バックアップ
 - 定期バックアップ：週1回
 
-**バックアップコマンド:**
+**バックアップコマンド（重要）:**
 ```bash
 cd /home/user/webapp && ./create_complete_backup.sh
 ```
 
-#### バックアップファイルの管理
+---
 
-**命名規則:**
+## ⚙️ 開発・修正ルール
+
+### 基本開発方針
 ```
-webapp_complete_backup_YYYYMMDD_HHMMSS.zip
-例: webapp_complete_backup_20251027_030934.zip
-```
+🎯 品質第一
+- 完成まではローカルで完璧に仕上げる
+- テスト・動作確認を徹底
+- エラーハンドリングの実装
+- ユーザビリティの考慮
 
-**保存場所:**
-- `/home/user/` - ローカルバックアップ
-- `public/static/` - Web経由でのダウンロード用
-- AI Drive - 長期保存用（オプション）
-
-#### Git管理との併用
-
-バックアップシステムはGit管理を補完します：
-
-**Gitでカバー:**
-- コードの変更履歴
-- ブランチ管理
-- コミットメッセージ
-
-**バックアップでカバー:**
-- データベースの状態
-- 設定ファイルの実際の値
-- ビルド成果物
-- 完全な動作環境
-
-**併用のメリット:**
-```bash
-# Gitコミット
-git add .
-git commit -m "Add new feature"
-
-# 完全バックアップ
-./create_complete_backup.sh
-
-# GitHub push
-git push origin main
+🔧 技術方針  
+- Hono + TypeScript + Cloudflare Workers
+- PM2でのプロセス管理
+- 300秒以上のタイムアウト設定（npm系コマンド）
+- モジュラー設計・拡張性重視
 ```
 
-## 開発ワークフロー
+### コード品質基準
+```
+✅ 必須事項
+- エラーハンドリングの実装
+- 適切なログ出力
+- コメント・ドキュメント
+- 一貫したコーディングスタイル
+
+✅ 動作確認項目
+- ローカルビルド成功
+- PM2での起動成功
+- 基本機能の動作テスト
+- エラーケースの確認
+```
+
+### 品質管理チェックリスト
+
+```
+✅ 修正前必須確認項目
+- [ ] 影響範囲分析完了（完成機能への影響確認）
+- [ ] バックアップ作成完了（ローカル + GitHub状態確認）
+- [ ] 修正計画策定完了（段階的実装手順決定）
+- [ ] テスト項目リスト作成完了
+- [ ] ロールバック手順準備完了
+
+✅ 実装中必須チェック項目
+- [ ] エラーハンドリング実装済み
+- [ ] 適切なログ出力設定
+- [ ] TypeScript型安全性確保
+- [ ] 既存機能のHTML要素ID変更なし
+- [ ] APIエンドポイント・レスポンス形式変更なし
+
+✅ 修正後必須確認項目  
+- [ ] npm run build 成功
+- [ ] PM2起動成功（pm2 start ecosystem.config.cjs）
+- [ ] curl http://localhost:3000 応答確認
+- [ ] 全完成機能の動作テスト（Step1-6全て）
+- [ ] マスターデータAPI応答確認
+- [ ] 動的ラベル更新機能確認
+- [ ] 養生作業フロア計算機能確認
+- [ ] PDF出力機能確認
+- [ ] データベース整合性確認
+- [ ] エラーケース・例外処理確認
+```
+
+---
+
+## 🚨 緊急時対応ルール
+
+### 🔴 完成機能破損時の緊急対応
+```
+Step 1: 即座停止・現状保持
+├── 作業を即座に中断・現状をローカル保持
+├── 破損範囲・原因の特定
+└── ユーザーへの緊急報告・状況説明
+
+Step 2: 復旧方法検討・実行
+├── バックアップからの部分復元
+├── Git履歴からの特定ファイル復元
+├── 手動コード修正・データベース部分ロールバック
+└── 復旧手順の慎重実行
+
+Step 3: 復旧後検証・再発防止
+├── 全機能動作確認・データ整合性確認
+├── 破損原因の根本分析・記録
+└── 再発防止策実装・ルール見直し
+```
+
+### 🟡 問題対応優先順位
+```
+🔴 Priority 1: 即座対応
+- 完成機能への影響・システム停止
+- セキュリティ問題・データ損失リスク
+
+🟡 Priority 2: 計画対応  
+- 新機能改善・追加・パフォーマンス最適化
+- UI/UX改善・開発負債整理
+```
+
+---
+
+## 🔧 開発ワークフロー
 
 ### 1. 開発環境のセットアップ
 
@@ -399,7 +409,9 @@ pm2 start ecosystem.config.cjs
 npm run deploy:prod
 ```
 
-## プロジェクト構造
+---
+
+## 🏗️ プロジェクト構造
 
 ```
 webapp/
@@ -431,46 +443,243 @@ webapp/
 └── README.md                  # プロジェクトREADME
 ```
 
-## 重要な注意事項
+---
 
-### 1. Cloudflare Workers環境の制限
+## 🔧 技術仕様・制約事項
 
-- ❌ Node.jsの`fs`モジュールは使用不可（本番環境）
-- ❌ ファイルシステムへの書き込み不可
-- ✅ ローカル開発環境ではNode.js APIが使用可能
-- ✅ 静的ファイルは`public/`経由で配信
+### Cloudflare Workers制約
+```
+🚫 使用不可機能
+- Node.js専用API（fs, child_process等）
+- ローカルファイルシステム操作
+- 長時間実行プロセス
+- WebSocketサーバー
 
-### 2. データベース管理
-
-- ローカル開発では`--local`フラグを使用
-- 本番環境では`--local`フラグを削除
-- データベース名: `transport-estimate-production`
-
-### 3. バックアップの重要性
-
-このプロジェクトでは、**見積書作成からPDF印刷までの完全なフロー**が実装されています。
-この完全に動作する状態を保持するため、定期的なバックアップが極めて重要です。
-
-**バックアップが特に重要な理由:**
-- データベーススキーマとデータの一致
-- 複雑なフロー制御ロジック
-- マスター設定値
-- 顧客・案件・見積データの整合性
-
-## まとめ
-
-このプロジェクトのバックアップシステムは、**完全な復元可能性**を保証するために設計されています。
-
-**キーポイント:**
-- 🎯 単一ZIPファイルで完全バックアップ
-- 🔄 3ステップで自動復元
-- 📦 ソースコード + データベース + Git履歴すべて含む
-- 🌐 Web経由でダウンロード可能
-- 🚀 バックアップから復元まで5分以内
-
-**バックアップコマンド（重要）:**
-```bash
-cd /home/user/webapp && ./create_complete_backup.sh
+✅ 推奨代替手段
+- Web標準API使用
+- Cloudflare D1データベース
+- 外部API連携（REST）
+- サーバーレス設計
 ```
 
-このコマンド1つで、プロジェクトの完全なスナップショットが作成されます。
+### 開発環境制約
+```
+⚙️ PM2使用必須
+- 直接的なnpmスクリプト実行禁止
+- 必ずPM2経由でサービス管理
+- ecosystem.config.cjs設定必須
+
+⏱️ タイムアウト設定
+- npm系コマンド: 300秒以上
+- ビルド処理: 300秒以上
+- API呼び出し: 120秒以内
+```
+
+---
+
+## 📞 トラブルシューティング
+
+### 一般的な問題と対処
+
+#### ビルドエラー
+```bash
+# 1. node_modules削除 → npm install
+rm -rf node_modules && npm install
+
+# 2. distディレクトリ削除 → npm run build
+rm -rf dist && npm run build
+
+# 3. PM2プロセスリセット
+pm2 delete all
+```
+
+#### ポート競合
+```bash
+# 1. ポート3000を強制解放
+fuser -k 3000/tcp
+
+# 2. PM2プロセス削除
+pm2 delete all  
+
+# 3. 再起動
+pm2 start ecosystem.config.cjs
+```
+
+#### バックアップが作成できない
+```bash
+# スクリプトに実行権限を付与
+chmod +x /home/user/webapp/create_complete_backup.sh
+
+# データベースエクスポートを個別にテスト
+cd /home/user/webapp
+npx wrangler d1 export transport-estimate-production --local --output=test_backup.sql
+```
+
+#### ZIPファイルがダウンロードできない
+```bash
+# 1. ZIPファイルを正しい場所にコピー
+cp /home/user/webapp_complete_backup_*.zip /home/user/webapp/public/static/
+
+# 2. 再ビルド
+cd /home/user/webapp && npm run build
+
+# 3. サービス再起動
+fuser -k 3000/tcp 2>/dev/null || true
+pm2 delete all 2>/dev/null || true
+pm2 start ecosystem.config.cjs
+
+# 4. 確認
+curl -I http://localhost:3000/static/webapp_complete_backup_*.zip
+```
+
+---
+
+## 📊 定期確認事項
+
+### 日常確認（作業開始時）
+```
+1. PM2サービス状態確認（pm2 list）
+2. ポート3000の使用状況確認
+3. 最新ファイル同期確認
+4. ローカルビルド可能性確認
+```
+
+### 週次確認
+```  
+1. Dependencies脆弱性確認（npm audit）
+2. 不要ファイルクリーンアップ
+3. ログファイル整理
+4. バックアップ整合性確認
+5. 完全バックアップ作成
+```
+
+### 月次確認
+```
+1. 全機能動作テスト
+2. パフォーマンス測定
+3. セキュリティ監査
+4. ドキュメント更新
+```
+
+---
+
+## 📈 継続改善
+
+### 定期見直し事項
+```
+📋 月次見直し
+- 運用ルールの有効性確認
+- 新しい技術・手法の検討
+- ユーザーフィードバック反映
+- 効率化・自動化の改善
+
+📋 四半期見直し
+- 全体アーキテクチャ見直し
+- セキュリティ基準更新
+- パフォーマンス基準見直し
+- ドキュメント全体更新
+```
+
+### 改善提案プロセス
+```
+1. 問題・改善点の特定
+2. 解決案の検討・提案
+3. ユーザーとの協議・決定
+4. AGENT.mdファイル更新
+5. 新ルール適用開始
+```
+
+---
+
+## ✅ 重要な設定ファイル
+
+### ecosystem.config.cjs（PM2設定）
+```javascript
+module.exports = {
+  apps: [
+    {
+      name: 'transport-estimate-system',
+      script: 'npx',
+      args: 'wrangler pages dev dist --d1=transport-estimate-production --local --ip 0.0.0.0 --port 3000',
+      env: {
+        NODE_ENV: 'development',
+        PORT: 3000
+      }
+    }
+  ]
+}
+```
+
+### wrangler.jsonc（Cloudflare設定）
+```jsonc
+{
+  "name": "webapp",
+  "compatibility_date": "2024-01-01",
+  "pages_build_output_dir": "./dist",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "transport-estimate-production",
+      "database_id": "your-database-id"
+    }
+  ]
+}
+```
+
+---
+
+## 🎯 まとめ
+
+### キーポイント
+
+**GitHub運用:**
+- ✅ ユーザーの明示的指示後のみ保存
+- ✅ ローカルで完成版を作成
+- ✅ 未完成版の自動保存は禁止
+
+**完成機能保護:**
+- ✅ Step1-6の見積フロー完全保護
+- ✅ 影響範囲分析を必ず実施
+- ✅ 破壊的変更は絶対禁止
+
+**バックアップシステム:**
+- ✅ 単一ZIPファイルで完全バックアップ
+- ✅ 3ステップで自動復元
+- ✅ 重要な変更後は即座にバックアップ
+
+**開発ワークフロー:**
+- ✅ PM2でのサービス管理必須
+- ✅ 300秒以上のタイムアウト設定
+- ✅ 完成機能の動作確認を徹底
+
+---
+
+## 📝 承認・更新履歴
+
+### Version 2.0 - 2025-10-27
+```
+👤 作成者: Claude (AIエージェント)
+📋 承認者: ユーザー（承認待ち）
+📅 更新日: 2025-10-27
+🎯 対象: 輸送見積もりシステム開発・運用
+
+📝 統合版策定内容:
+- 旧AGENT.md（2025-10-17版）の運用ルールを統合
+- 新AGENT.md（2025-10-27版）の技術情報を統合
+- 完全バックアップシステムの詳細追加
+- トラブルシューティングセクション強化
+- 定期確認事項の明確化
+```
+
+### Version 1.0 - 2025-10-17
+```
+📝 初期ルール策定内容:
+- GitHub運用ルール（ユーザー主導保存）
+- コミュニケーションルール（分かりやすい表現）
+- 開発・修正ルール（品質第一）
+- 緊急時対応ルール（例外規定）
+```
+
+---
+
+**このAGENT.mdファイルに記載されたルールは、AIエージェント（Claude）が厳格に遵守する運用基準です。**
