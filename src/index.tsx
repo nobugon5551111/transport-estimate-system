@@ -6336,6 +6336,10 @@ app.post('/api/estimates', async (c) => {
     const year = now.getFullYear()
     const estimateNumber = `EST-${year}-${String(Date.now()).slice(-3)}`
     
+    // セッションからユーザー情報取得
+    const sessionInfo = await verifySession(c)
+    const createdByName = sessionInfo.valid ? sessionInfo.userName : '未設定'
+    
     // 完全版見積データ保存 - 詳細フィールドを含む
     const result = await env.DB.prepare(`
       INSERT INTO estimates (
@@ -6354,12 +6358,12 @@ app.post('/api/estimates', async (c) => {
         parking_fee, highway_fee,
         subtotal, tax_rate, tax_amount, total_amount,
         user_id, vehicle_2t_count, vehicle_4t_count, external_contractor_cost, 
-        uses_multiple_vehicles, notes, line_items_json
+        uses_multiple_vehicles, notes, line_items_json, created_by_name
       ) VALUES (
         ?, ?, ?, ?, ?, ?, ?, ?, ?, 
         ?, ?, ?, ?, ?, ?, 
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `).bind(
       data.customer_id,
@@ -6403,7 +6407,8 @@ app.post('/api/estimates', async (c) => {
       data.external_contractor_cost || 0,
       data.uses_multiple_vehicles || false,
       data.notes || '',
-      data.line_items_json || null
+      data.line_items_json || null,
+      createdByName  // 作成者名を保存
     ).run()
     
     console.log('見積保存結果:', result)
@@ -6495,19 +6500,23 @@ app.post('/api/estimates/free', async (c) => {
       projectId = existingProject.id;
     }
 
+    // セッションからユーザー情報取得
+    const sessionInfo = await verifySession(c)
+    const createdByName = sessionInfo.valid ? sessionInfo.userName : '未設定'
+    
     const estimateResult = await env.DB.prepare(`
       INSERT INTO estimates (
         customer_id, project_id, estimate_number, estimate_type,
         delivery_address, delivery_postal_code, delivery_area,
         vehicle_type, operation_type, vehicle_cost, staff_cost,
         subtotal, tax_amount, total_amount,
-        notes, user_id, created_at, updated_at
+        notes, user_id, created_at, updated_at, created_by_name
       ) VALUES (
         ?, ?, ?, 'free',
         ?, '', 'other',
         'フリー', 'フリー', 0, 0,
         ?, ?, ?,
-        ?, 'system', datetime('now'), datetime('now')
+        ?, 'system', datetime('now'), datetime('now'), ?
       )
     `).bind(
       customerId,
@@ -6522,7 +6531,8 @@ app.post('/api/estimates/free', async (c) => {
 [値引き明細]
 元の小計: ${subtotal.toLocaleString()}円
 値引き額: ${discountAmount.toLocaleString()}円
-値引き後: ${discountedSubtotal.toLocaleString()}円`.trim()
+値引き後: ${discountedSubtotal.toLocaleString()}円`.trim(),
+      createdByName  // 作成者名を保存
     ).run()
     
     const estimateId = estimateResult.meta.last_row_id
@@ -12239,6 +12249,7 @@ function generateFreePdfHTML(estimate: any, items: any[], basicSettings: any = {
     
     <div class="footer">
         <p>本見積書は${currentDate}に作成されました。</p>
+        ${estimate.created_by_name ? `<p><strong>見積もり制作担当者:</strong> ${estimate.created_by_name}</p>` : ''}
         <p>ご質問やご不明な点がございましたら、お気軽にお問い合わせください。</p>
     </div>
 </body>
@@ -13972,7 +13983,8 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
     
     <div class="footer">
         この見積書は輸送見積もりシステムにより自動生成されました<br>
-        生成日時: ${new Date().toLocaleString('ja-JP')}
+        生成日時: ${new Date().toLocaleString('ja-JP')}<br>
+        ${estimate.created_by_name ? `<strong>見積もり制作担当者:</strong> ${estimate.created_by_name}` : ''}
     </div>
 
     <script>
@@ -17048,3 +17060,277 @@ async function checkAndExecuteScheduledBackups(db) {
     count: executedBackups.length
   }
 }
+
+// ========================================
+// シンプル認証システム（既存コードに影響なし）
+// ========================================
+
+// bcryptハッシュ化（Cloudflare Workers互換）
+async function hashPassword(password: string): Promise<string> {
+  // bcryptの代わりにWeb Crypto APIを使用
+  const encoder = new TextEncoder()
+  const data = encoder.encode(password + 'salt-secret-key')
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  const passwordHash = await hashPassword(password)
+  return passwordHash === hash
+}
+
+// セッションID生成
+function generateSessionId(): string {
+  return crypto.randomUUID()
+}
+
+// セッション検証ミドルウェア（オプション）
+async function verifySession(c: any): Promise<{ valid: boolean; userId?: string; userName?: string }> {
+  const { env } = c
+  
+  // 認証機能が無効な場合（開発環境）
+  if (env.ENABLE_AUTH === 'false') {
+    return { valid: true, userId: 'test-user-001', userName: '開発者' }
+  }
+  
+  // CookieからセッションID取得
+  const sessionId = c.req.cookie('session_id')
+  if (!sessionId) {
+    return { valid: false }
+  }
+  
+  // セッション検証
+  const session = await env.DB.prepare(`
+    SELECT s.*, u.name as user_name
+    FROM sessions s
+    JOIN users u ON s.user_id = u.id
+    WHERE s.id = ? AND s.expires_at > datetime('now')
+  `).bind(sessionId).first()
+  
+  if (!session) {
+    return { valid: false }
+  }
+  
+  return {
+    valid: true,
+    userId: session.user_id,
+    userName: session.user_name
+  }
+}
+
+// ログインAPI
+app.post('/api/auth/login', async (c) => {
+  try {
+    const { env } = c
+    const { userId, password } = await c.req.json()
+    
+    if (!userId || !password) {
+      return c.json({
+        success: false,
+        message: 'IDとパスワードを入力してください'
+      }, 400)
+    }
+    
+    // ユーザー検証
+    const user = await env.DB.prepare(`
+      SELECT * FROM users WHERE id = ?
+    `).bind(userId).first()
+    
+    if (!user) {
+      return c.json({
+        success: false,
+        message: 'IDまたはパスワードが正しくありません'
+      }, 401)
+    }
+    
+    // パスワード検証
+    const isValid = await verifyPassword(password, user.password)
+    if (!isValid) {
+      return c.json({
+        success: false,
+        message: 'IDまたはパスワードが正しくありません'
+      }, 401)
+    }
+    
+    // セッション作成
+    const sessionId = generateSessionId()
+    const expiresAt = new Date()
+    expiresAt.setDate(expiresAt.getDate() + 7) // 7日間有効
+    
+    await env.DB.prepare(`
+      INSERT INTO sessions (id, user_id, expires_at)
+      VALUES (?, ?, ?)
+    `).bind(sessionId, user.id, expiresAt.toISOString()).run()
+    
+    // Cookie設定
+    c.header('Set-Cookie', `session_id=${sessionId}; Path=/; Max-Age=${7 * 24 * 60 * 60}; HttpOnly; SameSite=Lax`)
+    
+    return c.json({
+      success: true,
+      message: 'ログインしました',
+      data: {
+        userId: user.id,
+        userName: user.name
+      }
+    })
+    
+  } catch (error) {
+    console.error('ログインエラー:', error)
+    return c.json({
+      success: false,
+      message: 'ログインに失敗しました',
+      error: error instanceof Error ? error.message : '不明なエラー'
+    }, 500)
+  }
+})
+
+// ログアウトAPI
+app.post('/api/auth/logout', async (c) => {
+  try {
+    const { env } = c
+    const sessionId = c.req.cookie('session_id')
+    
+    if (sessionId) {
+      // セッション削除
+      await env.DB.prepare(`
+        DELETE FROM sessions WHERE id = ?
+      `).bind(sessionId).run()
+    }
+    
+    // Cookie削除
+    c.header('Set-Cookie', 'session_id=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax')
+    
+    return c.json({
+      success: true,
+      message: 'ログアウトしました'
+    })
+    
+  } catch (error) {
+    console.error('ログアウトエラー:', error)
+    return c.json({
+      success: false,
+      message: 'ログアウトに失敗しました'
+    }, 500)
+  }
+})
+
+// セッション確認API
+app.get('/api/auth/session', async (c) => {
+  try {
+    const { env } = c
+    
+    // 認証機能が無効な場合（開発環境）
+    if (env.ENABLE_AUTH === 'false') {
+      return c.json({
+        success: true,
+        authenticated: false,  // 開発環境では認証不要
+        authRequired: false,
+        data: {
+          userId: 'test-user-001',
+          userName: '開発者'
+        }
+      })
+    }
+    
+    // セッション検証
+    const result = await verifySession(c)
+    
+    if (!result.valid) {
+      return c.json({
+        success: true,
+        authenticated: false,
+        authRequired: true
+      })
+    }
+    
+    return c.json({
+      success: true,
+      authenticated: true,
+      authRequired: true,
+      data: {
+        userId: result.userId,
+        userName: result.userName
+      }
+    })
+    
+  } catch (error) {
+    console.error('セッション確認エラー:', error)
+    return c.json({
+      success: false,
+      message: 'セッション確認に失敗しました'
+    }, 500)
+  }
+})
+
+// ユーザー作成API（初期セットアップ用）
+app.post('/api/auth/users', async (c) => {
+  try {
+    const { env } = c
+    const { userId, name, password } = await c.req.json()
+    
+    if (!userId || !name || !password) {
+      return c.json({
+        success: false,
+        message: 'すべての項目を入力してください'
+      }, 400)
+    }
+    
+    // パスワードハッシュ化
+    const hashedPassword = await hashPassword(password)
+    
+    // ユーザー作成
+    const result = await env.DB.prepare(`
+      INSERT INTO users (id, name, password)
+      VALUES (?, ?, ?)
+    `).bind(userId, name, hashedPassword).run()
+    
+    if (!result.success) {
+      return c.json({
+        success: false,
+        message: 'ユーザーの作成に失敗しました（IDが重複している可能性があります）'
+      }, 400)
+    }
+    
+    return c.json({
+      success: true,
+      message: 'ユーザーを作成しました',
+      data: {
+        userId,
+        name
+      }
+    })
+    
+  } catch (error) {
+    console.error('ユーザー作成エラー:', error)
+    return c.json({
+      success: false,
+      message: 'ユーザーの作成に失敗しました',
+      error: error instanceof Error ? error.message : '不明なエラー'
+    }, 500)
+  }
+})
+
+// ユーザー一覧取得API
+app.get('/api/auth/users', async (c) => {
+  try {
+    const { env } = c
+    
+    const users = await env.DB.prepare(`
+      SELECT id, name, created_at FROM users
+      ORDER BY created_at DESC
+    `).all()
+    
+    return c.json({
+      success: true,
+      data: users.results || []
+    })
+    
+  } catch (error) {
+    console.error('ユーザー一覧取得エラー:', error)
+    return c.json({
+      success: false,
+      message: 'ユーザー一覧の取得に失敗しました'
+    }, 500)
+  }
+})
