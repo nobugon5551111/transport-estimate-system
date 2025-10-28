@@ -3832,48 +3832,7 @@ app.get('/api/projects', async (c) => {
   }
 })
 
-app.post('/api/projects', async (c) => {
-  try {
-    const { env } = c
-    const data = await c.req.json()
-    const userId = c.req.header('X-User-ID') || data.user_id || 'test-user-001'
-    
-    // バリデーション（案件管理用に修正）
-    if (!data.name || !data.customer_id) {
-      return c.json({ 
-        success: false, 
-        error: '案件名と顧客IDは必須です' 
-      }, 400)
-    }
-    
-    // データベースに挿入（案件管理用フィールド）
-    const result = await env.DB.prepare(`
-      INSERT INTO projects (customer_id, name, description, status, priority, notes, user_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `).bind(
-      data.customer_id,
-      data.name.trim(),
-      data.description || '',
-      data.status || 'initial',
-      data.priority || 'medium',
-      data.notes || '',
-      userId
-    ).run()
-    
-    return c.json({
-      success: true,
-      data: { id: result.meta.last_row_id, ...data, user_id: userId },
-      message: '案件を正常に追加しました'
-    })
-  } catch (error) {
-    console.error('案件追加エラー:', error)
-    return c.json({ 
-      success: false, 
-      error: '案件の追加に失敗しました',
-      detail: error.message 
-    }, 500)
-  }
-})
+// 案件作成API - 削除（15786行目に統合版あり）
 
 // STEP1: 顧客・案件選択
 app.get('/estimate/step1', (c) => {
@@ -9083,39 +9042,7 @@ app.post('/api/customers', async (c) => {
 });
 
 // 案件追加
-app.post('/api/projects', async (c) => {
-  try {
-    const projectData = await c.req.json();
-    
-    // 簡単な検証
-    if (!projectData.customer_id || !projectData.name || !projectData.status) {
-      return c.json({
-        success: false,
-        error: '必須項目が不足しています'
-      }, 400);
-    }
-
-    // モックレスポンス（実際はD1データベースに保存）
-    const newProject = {
-      id: Date.now(), // 実際はデータベースが生成
-      ...projectData,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-
-    return c.json({
-      success: true,
-      data: newProject,
-      message: '案件を追加しました'
-    });
-
-  } catch (error) {
-    return c.json({
-      success: false,
-      error: 'データの保存に失敗しました'
-    }, 500);
-  }
-});
+// 案件作成API - 削除（15786行目に統合版あり）
 
 // ステータス変更
 app.post('/api/projects/status-change', async (c) => {
