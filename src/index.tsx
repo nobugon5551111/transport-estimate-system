@@ -2271,21 +2271,21 @@ app.get('/api/staff-rates', async (c) => {
   try {
     const { env } = c
     
-    // スタッフ単価をデータベースから取得
+    // staff_ratesテーブルからスタッフ単価を取得
     const rates = await env.DB.prepare(`
-      SELECT key, value 
-      FROM master_settings 
-      WHERE category = 'staff' AND subcategory = 'daily_rate'
+      SELECT staff_type, rate 
+      FROM staff_rates
+      ORDER BY staff_type
     `).all()
     
     // オブジェクト形式に変換（フロントエンドが期待する_rate付きキーに変換）
     const staffRates = {}
     rates.results.forEach((row: any) => {
-      // データベースのキー名（例: supervisor）をフロントエンド用（例: supervisor_rate）に変換
-      const key = row.key.endsWith('_rate') ? row.key : `${row.key}_rate`
-      staffRates[key] = parseInt(row.value)
+      // staff_type: supervisor → supervisor_rate
+      const key = row.staff_type.endsWith('_rate') ? row.staff_type : `${row.staff_type}_rate`
+      staffRates[key] = parseInt(row.rate)
       // 互換性のため、元のキー名も保持
-      staffRates[row.key] = parseInt(row.value)
+      staffRates[row.staff_type] = parseInt(row.rate)
     })
     
     return c.json({ 
@@ -3024,53 +3024,27 @@ app.get('/api/vehicle-pricing', async (c) => {
       return c.json({ error: '必要なパラメータが不足しています' }, 400)
     }
     
-    // 車両タイプと稼働形態を結合してサブカテゴリを作成
-    // 例: "2t車" + "終日" + "A" -> "2t_full_day_A"
-    let vehicleTypeKey = vehicle_type.replace('t車', 't')
-    let operationTypeKey
+    console.log('車両料金検索:', { vehicle_type, operation_type, delivery_area })
     
-    switch (operation_type) {
-      case '終日':
-      case 'full_day':
-        operationTypeKey = 'full_day'
-        break
-      case '半日':
-      case 'half_day':
-        operationTypeKey = 'half_day'
-        break
-      case '共配':
-      case 'shared':
-        operationTypeKey = 'shared'
-        break
-      default:
-        operationTypeKey = 'full_day'
-    }
-    
-    // データベース構造に合わせてsubcategoryで検索
-    const subcategoryKey = `${vehicleTypeKey}_${operationTypeKey}_${delivery_area}`
-    
-    console.log('車両料金検索:', { vehicle_type, operation_type, delivery_area, subcategoryKey })
-    
-    // データベースから料金を取得（subcategoryフィールドで検索、最新データを優先）
+    // vehicle_pricingテーブルから料金を取得
     const priceData = await env.DB.prepare(`
-      SELECT value 
-      FROM master_settings 
-      WHERE category = 'vehicle' 
-        AND subcategory = ?
-        AND key = 'price'
-      ORDER BY updated_at DESC
+      SELECT price 
+      FROM vehicle_pricing 
+      WHERE vehicle_type = ? 
+        AND operation_type = ?
+        AND area = ?
       LIMIT 1
-    `).bind(subcategoryKey).first()
+    `).bind(vehicle_type, operation_type, delivery_area).first()
     
     if (!priceData) {
-      console.log('料金データが見つかりません:', subcategoryKey)
+      console.log('料金データが見つかりません:', { vehicle_type, operation_type, delivery_area })
       return c.json({ 
         error: '指定された車両・稼働形態・エリアの料金が見つかりません',
-        requested: { vehicle_type, operation_type, delivery_area, subcategoryKey }
+        requested: { vehicle_type, operation_type, delivery_area }
       }, 404)
     }
     
-    const price = parseFloat(priceData.value)
+    const price = parseFloat(priceData.price)
     
     return c.json({
       success: true,
@@ -5621,48 +5595,7 @@ app.get('/estimate/step4', (c) => {
 })
 
 // スタッフ単価取得API
-app.get('/api/staff-rates', async (c) => {
-  const userId = c.req.header('X-User-ID') || 'test-user-001'
-  
-  try {
-    const { env } = c
-    
-    // データベースからスタッフ単価を取得
-    const result = await env.DB.prepare(`
-      SELECT key, value 
-      FROM master_settings 
-      WHERE category = 'staff' 
-      AND subcategory = 'rates'
-      AND user_id = ?
-      ORDER BY key
-    `).bind(userId).all()
-    
-    const staffRates = {}
-    
-    if (result.results) {
-      result.results.forEach((row: any) => {
-        const key = row.key
-        const value = parseInt(row.value)
-        
-        // キー名はそのまま使用（データベースとフロントエンドで一致）
-        staffRates[key] = value
-      })
-    }
-    
-    return c.json({
-      success: true,
-      data: staffRates
-    })
-    
-  } catch (error) {
-    console.error('Error fetching staff rates:', error)
-    return c.json({
-      success: false,
-      message: 'スタッフ単価の取得に失敗しました',
-      error: error instanceof Error ? error.message : '不明なエラー'
-    }, 500)
-  }
-})
+// スタッフ料金API - 削除（2270行目に統合版あり）
 
 // AI最適化API（モックレスポンス）
 app.post('/api/ai-optimize-staff', async (c) => {
