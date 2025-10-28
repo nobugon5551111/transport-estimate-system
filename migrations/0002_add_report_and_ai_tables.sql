@@ -195,18 +195,18 @@ VALUES
    '{"totalRevenue":201300,"totalOrders":2,"averageOrderValue":100650}',
    datetime('now', '+1 hour'));
 
--- AI最適化フィードバックのサンプル
-INSERT OR IGNORE INTO ai_optimization_feedback 
-  (estimate_id, recommended_config, actual_outcome, success_rating, efficiency_score, notes)
-VALUES 
-  (1, '{"supervisor":1,"leader":2,"m2_full":3}', 'success', 5, 0.95, 
-   '推奨通りの構成で非常にスムーズに完了');
+-- AI最適化フィードバックのサンプル（コメントアウト: 見積データが存在する場合のみ挿入可能）
+-- INSERT OR IGNORE INTO ai_optimization_feedback 
+--   (estimate_id, recommended_config, actual_outcome, success_rating, efficiency_score, notes)
+-- VALUES 
+--   (1, '{"supervisor":1,"leader":2,"m2_full":3}', 'success', 5, 0.95, 
+--    '推奨通りの構成で非常にスムーズに完了');
 
--- AIメール効果測定のサンプル
-INSERT OR IGNORE INTO ai_email_effectiveness 
-  (email_template_id, estimate_id, email_type, open_rate, response_rate, conversion_rate)
-VALUES 
-  (1, 1, 'quote_initial', 1.0, 0.5, 1.0);
+-- AIメール効果測定のサンプル（コメントアウト: 見積データが存在する場合のみ挿入可能）
+-- INSERT OR IGNORE INTO ai_email_effectiveness 
+--   (email_template_id, estimate_id, email_type, open_rate, response_rate, conversion_rate)
+-- VALUES 
+--   (1, 1, 'quote_initial', 1.0, 0.5, 1.0);
 
 -- AI予測精度のサンプル
 INSERT OR IGNORE INTO ai_prediction_accuracy 
