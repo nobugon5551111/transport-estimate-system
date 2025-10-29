@@ -17290,6 +17290,45 @@ app.get('/settings', (c) => {
   `)
 })
 
+// ========================================
+// セッション検証関数（設定APIで使用）
+// ========================================
+async function verifySession(c: any): Promise<{ valid: boolean; userId?: string; userName?: string }> {
+  const { env } = c
+  
+  // 認証機能が無効な場合（開発環境）
+  if (env.ENABLE_AUTH === 'false') {
+    return { valid: true, userId: 'test-user-001', userName: '開発者' }
+  }
+  
+  // Cookieヘッダーから手動でセッションIDを取得
+  const cookieHeader = c.req.header('Cookie') || ''
+  const sessionIdMatch = cookieHeader.match(/session_id=([^;]+)/)
+  const sessionId = sessionIdMatch ? sessionIdMatch[1] : null
+  
+  if (!sessionId) {
+    return { valid: false }
+  }
+  
+  // セッション検証
+  const session = await env.DB.prepare(`
+    SELECT s.*, u.name as user_name
+    FROM sessions s
+    JOIN users u ON s.user_id = u.id
+    WHERE s.id = ? AND s.expires_at > datetime('now')
+  `).bind(sessionId).first()
+  
+  if (!session) {
+    return { valid: false }
+  }
+  
+  return {
+    valid: true,
+    userId: session.user_id,
+    userName: session.user_name
+  }
+}
+
 // 基本設定保存API
 app.post('/api/settings/basic', async (c) => {
   try {
@@ -17551,43 +17590,7 @@ function generateSessionId(): string {
 }
 
 // セッション検証ミドルウェア（オプション）
-async function verifySession(c: any): Promise<{ valid: boolean; userId?: string; userName?: string }> {
-  const { env } = c
-  
-  // 認証機能が無効な場合（開発環境）
-  if (env.ENABLE_AUTH === 'false') {
-    return { valid: true, userId: 'test-user-001', userName: '開発者' }
-  }
-  
-  // Cookieヘッダーから手動でセッションIDを取得
-  const cookieHeader = c.req.header('Cookie') || ''
-  const sessionIdMatch = cookieHeader.match(/session_id=([^;]+)/)
-  const sessionId = sessionIdMatch ? sessionIdMatch[1] : null
-  
-  if (!sessionId) {
-    return { valid: false }
-  }
-  
-  // セッション検証
-  const session = await env.DB.prepare(`
-    SELECT s.*, u.name as user_name
-    FROM sessions s
-    JOIN users u ON s.user_id = u.id
-    WHERE s.id = ? AND s.expires_at > datetime('now')
-  `).bind(sessionId).first()
-  
-  if (!session) {
-    return { valid: false }
-  }
-  
-  return {
-    valid: true,
-    userId: session.user_id,
-    userName: session.user_name
-  }
-}
-
-// ログインAPI
+// ログインAPI (verifySession関数は17296行目に移動済み)
 app.post('/api/auth/login', async (c) => {
   try {
     const { env } = c
