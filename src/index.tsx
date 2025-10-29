@@ -13332,12 +13332,13 @@ app.get('/api/estimates/:id/pdf', async (c) => {
       const items = itemsResult.results || []
       console.log('📦 フリー見積項目:', items.length, '件')
       
-      // 基本設定（ロゴ含む）をD1から取得
+      // 基本設定（ロゴ含む）をD1から取得（全ユーザー共通なのでuser_id不要）
       const settingsResult = await env.DB.prepare(`
         SELECT key, value 
         FROM master_settings 
-        WHERE category = 'basic' AND subcategory = 'company_info' AND user_id = ?
-      `).bind(userId).all()
+        WHERE category = 'basic' AND subcategory = 'company_info'
+        ORDER BY updated_at DESC
+      `).all()
       
       const basicSettings: any = {
         company_name: '',
@@ -13528,12 +13529,13 @@ app.get('/api/estimates/:id/pdf', async (c) => {
         ? estimateResult.staff_cost : 88000;
     }
 
-    // 基本設定（ロゴ含む）をD1から取得
+    // 基本設定（ロゴ含む）をD1から取得（全ユーザー共通なのでuser_id不要）
     const settingsResult = await env.DB.prepare(`
       SELECT key, value 
       FROM master_settings 
-      WHERE category = 'basic' AND subcategory = 'company_info' AND user_id = ?
-    `).bind(userId).all()
+      WHERE category = 'basic' AND subcategory = 'company_info'
+      ORDER BY updated_at DESC
+    `).all()
     
     const basicSettings: any = {
       company_name: '',
@@ -17377,7 +17379,8 @@ app.post('/api/settings/basic', async (c) => {
         error: '認証が必要です' 
       }, 401)
     }
-    const userId = session.userId || 'system'
+    // 基本設定は全ユーザー共通なので常に'system'として保存
+    const userId = 'system'
     
     console.log('💾 基本設定保存データ:', { userId, ...data, logo: data.logo ? '[BASE64_DATA]' : null })
     
@@ -17475,12 +17478,14 @@ app.get('/api/settings/basic', async (c) => {
     
     console.log('📖 基本設定取得:', { userId })
     
-    // D1データベースから設定を取得
+    // D1データベースから設定を取得（user_idに関係なく最新のデータを取得）
+    // 基本設定は全ユーザー共通なので、最後に更新されたものを使用
     const result = await env.DB.prepare(`
       SELECT key, value 
       FROM master_settings 
-      WHERE category = 'basic' AND subcategory = 'company_info' AND user_id = ?
-    `).bind(userId).all()
+      WHERE category = 'basic' AND subcategory = 'company_info'
+      ORDER BY updated_at DESC
+    `).all()
     
     // オブジェクト形式に変換
     const settings: any = {}
