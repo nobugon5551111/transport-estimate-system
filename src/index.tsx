@@ -13332,14 +13332,31 @@ app.get('/api/estimates/:id/pdf', async (c) => {
       const items = itemsResult.results || []
       console.log('📦 フリー見積項目:', items.length, '件')
       
-      // 基本設定（ロゴ含む）を取得
-      const basicSettings = {
-        company_name: await env.KV.get('basic_settings:company_name') || '',
-        company_address: await env.KV.get('basic_settings:company_address') || '',
-        company_phone: await env.KV.get('basic_settings:company_phone') || '',
-        company_fax: await env.KV.get('basic_settings:company_fax') || '',
-        company_email: await env.KV.get('basic_settings:company_email') || '',
-        logo: await env.KV.get('basic_settings:company_logo')
+      // 基本設定（ロゴ含む）をD1から取得
+      const settingsResult = await env.DB.prepare(`
+        SELECT key, value 
+        FROM master_settings 
+        WHERE category = 'basic' AND subcategory = 'company_info' AND user_id = ?
+      `).bind(userId).all()
+      
+      const basicSettings: any = {
+        company_name: '',
+        company_address: '',
+        company_phone: '',
+        company_fax: '',
+        company_email: '',
+        logo: null
+      }
+      
+      if (settingsResult.results) {
+        settingsResult.results.forEach((row: any) => {
+          if (row.key === 'company_name') basicSettings.company_name = row.value
+          else if (row.key === 'company_address') basicSettings.company_address = row.value
+          else if (row.key === 'company_phone') basicSettings.company_phone = row.value
+          else if (row.key === 'company_fax') basicSettings.company_fax = row.value
+          else if (row.key === 'company_email') basicSettings.company_email = row.value
+          else if (row.key === 'company_logo') basicSettings.logo = row.value
+        })
       }
       
       // 顧客・案件情報をdelivery_addressから抽出（値引き情報を除外）
@@ -13511,14 +13528,31 @@ app.get('/api/estimates/:id/pdf', async (c) => {
         ? estimateResult.staff_cost : 88000;
     }
 
-    // 基本設定（ロゴ含む）をKVから取得
-    const basicSettings = {
-      company_name: await env.KV.get('basic_settings:company_name') || '',
-      company_address: await env.KV.get('basic_settings:company_address') || '',
-      company_phone: await env.KV.get('basic_settings:company_phone') || '',
-      company_fax: await env.KV.get('basic_settings:company_fax') || '',
-      company_email: await env.KV.get('basic_settings:company_email') || '',
-      logo: await env.KV.get('basic_settings:company_logo')
+    // 基本設定（ロゴ含む）をD1から取得
+    const settingsResult = await env.DB.prepare(`
+      SELECT key, value 
+      FROM master_settings 
+      WHERE category = 'basic' AND subcategory = 'company_info' AND user_id = ?
+    `).bind(userId).all()
+    
+    const basicSettings: any = {
+      company_name: '',
+      company_address: '',
+      company_phone: '',
+      company_fax: '',
+      company_email: '',
+      logo: null
+    }
+    
+    if (settingsResult.results) {
+      settingsResult.results.forEach((row: any) => {
+        if (row.key === 'company_name') basicSettings.company_name = row.value
+        else if (row.key === 'company_address') basicSettings.company_address = row.value
+        else if (row.key === 'company_phone') basicSettings.company_phone = row.value
+        else if (row.key === 'company_fax') basicSettings.company_fax = row.value
+        else if (row.key === 'company_email') basicSettings.company_email = row.value
+        else if (row.key === 'company_logo') basicSettings.logo = row.value
+      })
     }
 
     // PDF用HTMLを生成
