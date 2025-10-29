@@ -7988,7 +7988,7 @@ app.post('/api/master-settings', async (c) => {
       ).run()
     }
     
-    // スタッフ単価をstaff_ratesテーブルにも同期
+    // スタッフ単価をstaff_ratesテーブルにも同期（全ユーザー共通なのでsystem固定）
     if (data.staff_rates) {
       const staffTypeMapping = {
         supervisor: 'supervisor',
@@ -8002,33 +8002,34 @@ app.post('/api/master-settings', async (c) => {
       for (const [key, value] of Object.entries(data.staff_rates)) {
         const staffType = staffTypeMapping[key]
         if (staffType) {
-          // 既存レコードを確認
+          // 既存レコードを確認（user_idに関係なく最新のものを更新）
           const existing = await env.DB.prepare(`
-            SELECT id FROM staff_rates WHERE staff_type = ? AND user_id = ?
-          `).bind(staffType, userId).first()
+            SELECT id FROM staff_rates WHERE staff_type = ?
+            ORDER BY updated_at DESC LIMIT 1
+          `).bind(staffType).first()
           
           if (existing) {
             // 更新
             await env.DB.prepare(`
               UPDATE staff_rates 
-              SET rate = ?, updated_at = CURRENT_TIMESTAMP
+              SET rate = ?, user_id = 'system', updated_at = CURRENT_TIMESTAMP
               WHERE id = ?
             `).bind(value, existing.id).run()
           } else {
             // 新規挿入
             await env.DB.prepare(`
               INSERT INTO staff_rates (staff_type, rate, user_id, created_at, updated_at)
-              VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            `).bind(staffType, value, userId).run()
+              VALUES (?, ?, 'system', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            `).bind(staffType, value).run()
           }
         }
       }
     }
     
-    // 車両料金をvehicle_pricingテーブルにも同期
+    // 車両料金をvehicle_pricingテーブルにも同期（全ユーザー共通なのでsystem固定）
     if (data.vehicle_rates) {
       for (const [key, value] of Object.entries(data.vehicle_rates)) {
-        // key形式: vehicle_2t_full_day_A -> 2t車, 終日, A
+        // key形式: vehicle_2t_shared_A, vehicle_2t_half_day_A, vehicle_2t_full_day_A
         const match = key.match(/vehicle_(\d+t)_(shared|half_day|full_day)_([A-D])/)
         if (match) {
           const vehicleType = `${match[1]}車`
@@ -8040,25 +8041,26 @@ app.post('/api/master-settings', async (c) => {
           const operationType = operationTypeMap[match[2]]
           const area = match[3]
           
-          // 既存レコードを確認
+          // 既存レコードを確認（user_idに関係なく最新のものを更新）
           const existing = await env.DB.prepare(`
             SELECT id FROM vehicle_pricing 
-            WHERE vehicle_type = ? AND operation_type = ? AND area = ? AND user_id = ?
-          `).bind(vehicleType, operationType, area, userId).first()
+            WHERE vehicle_type = ? AND operation_type = ? AND area = ?
+            ORDER BY updated_at DESC LIMIT 1
+          `).bind(vehicleType, operationType, area).first()
           
           if (existing) {
             // 更新
             await env.DB.prepare(`
               UPDATE vehicle_pricing 
-              SET price = ?, updated_at = CURRENT_TIMESTAMP
+              SET price = ?, user_id = 'system', updated_at = CURRENT_TIMESTAMP
               WHERE id = ?
             `).bind(value, existing.id).run()
           } else {
             // 新規挿入
             await env.DB.prepare(`
               INSERT INTO vehicle_pricing (vehicle_type, operation_type, area, price, user_id, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            `).bind(vehicleType, operationType, area, value, userId).run()
+              VALUES (?, ?, ?, ?, 'system', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            `).bind(vehicleType, operationType, area, value).run()
           }
         }
       }
