@@ -17295,7 +17295,7 @@ app.post('/api/settings/basic', async (c) => {
   try {
     const { env } = c
     const data = await c.req.json()
-    const userId = c.req.header('X-User-ID') || 'test-user-001'
+    const userId = c.req.header('X-User-ID') || 'system'
     
     console.log('💾 基本設定保存データ:', { ...data, logo: data.logo ? '[BASE64_DATA]' : null })
     
@@ -17313,15 +17313,25 @@ app.post('/api/settings/basic', async (c) => {
     
     for (const item of settingItems) {
       if (item.value !== undefined && item.value !== '') {
-        // KV Storageに保存
-        await env.KV.put(`basic_settings:${item.key}`, item.value.toString())
+        // D1データベースのmaster_settingsテーブルに保存
+        await env.DB.prepare(`
+          INSERT INTO master_settings (category, subcategory, key, value, description, user_id, created_at, updated_at)
+          VALUES ('basic', 'company_info', ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT(category, subcategory, key, user_id) 
+          DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+        `).bind(item.key, item.value.toString(), item.description, userId).run()
         console.log(`✅ ${item.key} saved:`, item.value)
       }
     }
     
-    // ロゴデータがある場合はKVに保存
+    // ロゴデータがある場合もD1に保存
     if (data.logo) {
-      await env.KV.put('basic_settings:company_logo', data.logo)
+      await env.DB.prepare(`
+        INSERT INTO master_settings (category, subcategory, key, value, description, user_id, created_at, updated_at)
+        VALUES ('basic', 'company_info', 'company_logo', ?, '会社ロゴ', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT(category, subcategory, key, user_id) 
+        DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+      `).bind(data.logo, userId).run()
       console.log('✅ 会社ロゴ保存完了')
     }
     
@@ -17334,7 +17344,8 @@ app.post('/api/settings/basic', async (c) => {
     console.error('基本設定保存エラー:', error)
     return c.json({ 
       success: false, 
-      error: '基本設定の保存に失敗しました' 
+      error: '基本設定の保存に失敗しました',
+      detail: error instanceof Error ? error.message : '不明なエラー'
     }, 500)
   }
 })
@@ -17343,19 +17354,31 @@ app.post('/api/settings/basic', async (c) => {
 app.get('/api/settings/basic', async (c) => {
   try {
     const { env } = c
+    const userId = c.req.header('X-User-ID') || 'system'
     
-    // KVから設定を取得
-    const settings = {
-      company_name: await env.KV.get('basic_settings:company_name'),
-      contact_person: await env.KV.get('basic_settings:contact_person'),
-      representative_name: await env.KV.get('basic_settings:representative_name'), // 後方互換性のため
-      company_address: await env.KV.get('basic_settings:company_address'),
-      company_phone: await env.KV.get('basic_settings:company_phone'),
-      company_fax: await env.KV.get('basic_settings:company_fax'),
-      company_email: await env.KV.get('basic_settings:company_email'),
-      quote_valid_days: await env.KV.get('basic_settings:quote_valid_days'),
-      tax_rate: await env.KV.get('basic_settings:tax_rate'),
-      logo: await env.KV.get('basic_settings:company_logo')
+    // D1データベースから設定を取得
+    const result = await env.DB.prepare(`
+      SELECT key, value 
+      FROM master_settings 
+      WHERE category = 'basic' AND subcategory = 'company_info' AND user_id = ?
+    `).bind(userId).all()
+    
+    // オブジェクト形式に変換
+    const settings: any = {}
+    if (result.results) {
+      result.results.forEach((row: any) => {
+        settings[row.key] = row.value
+      })
+    }
+    
+    // 後方互換性のためrepresentative_nameも設定
+    if (settings.contact_person && !settings.representative_name) {
+      settings.representative_name = settings.contact_person
+    }
+    
+    // ロゴはlogoキーで取得
+    if (settings.company_logo) {
+      settings.logo = settings.company_logo
     }
     
     return c.json({ 
@@ -17366,7 +17389,8 @@ app.get('/api/settings/basic', async (c) => {
     console.error('基本設定取得エラー:', error)
     return c.json({ 
       success: false, 
-      error: '基本設定の取得に失敗しました' 
+      error: '基本設定の取得に失敗しました',
+      detail: error instanceof Error ? error.message : '不明なエラー'
     }, 500)
   }
 })
