@@ -17313,25 +17313,51 @@ app.post('/api/settings/basic', async (c) => {
     
     for (const item of settingItems) {
       if (item.value !== undefined && item.value !== '') {
-        // D1データベースのmaster_settingsテーブルに保存
-        await env.DB.prepare(`
-          INSERT INTO master_settings (category, subcategory, key, value, description, user_id, created_at, updated_at)
-          VALUES ('basic', 'company_info', ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-          ON CONFLICT(category, subcategory, key, user_id) 
-          DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
-        `).bind(item.key, item.value.toString(), item.description, userId).run()
+        // 既存レコードを確認
+        const existing = await env.DB.prepare(`
+          SELECT id FROM master_settings 
+          WHERE category = 'basic' AND subcategory = 'company_info' 
+            AND key = ? AND user_id = ?
+        `).bind(item.key, userId).first()
+        
+        if (existing) {
+          // 更新
+          await env.DB.prepare(`
+            UPDATE master_settings 
+            SET value = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `).bind(item.value.toString(), existing.id).run()
+        } else {
+          // 新規挿入
+          await env.DB.prepare(`
+            INSERT INTO master_settings (category, subcategory, key, value, description, user_id, created_at, updated_at)
+            VALUES ('basic', 'company_info', ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          `).bind(item.key, item.value.toString(), item.description, userId).run()
+        }
         console.log(`✅ ${item.key} saved:`, item.value)
       }
     }
     
     // ロゴデータがある場合もD1に保存
     if (data.logo) {
-      await env.DB.prepare(`
-        INSERT INTO master_settings (category, subcategory, key, value, description, user_id, created_at, updated_at)
-        VALUES ('basic', 'company_info', 'company_logo', ?, '会社ロゴ', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        ON CONFLICT(category, subcategory, key, user_id) 
-        DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
-      `).bind(data.logo, userId).run()
+      const existingLogo = await env.DB.prepare(`
+        SELECT id FROM master_settings 
+        WHERE category = 'basic' AND subcategory = 'company_info' 
+          AND key = 'company_logo' AND user_id = ?
+      `).bind(userId).first()
+      
+      if (existingLogo) {
+        await env.DB.prepare(`
+          UPDATE master_settings 
+          SET value = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).bind(data.logo, existingLogo.id).run()
+      } else {
+        await env.DB.prepare(`
+          INSERT INTO master_settings (category, subcategory, key, value, description, user_id, created_at, updated_at)
+          VALUES ('basic', 'company_info', 'company_logo', ?, '会社ロゴ', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `).bind(data.logo, userId).run()
+      }
       console.log('✅ 会社ロゴ保存完了')
     }
     
