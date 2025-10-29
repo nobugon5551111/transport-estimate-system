@@ -17295,9 +17295,18 @@ app.post('/api/settings/basic', async (c) => {
   try {
     const { env } = c
     const data = await c.req.json()
-    const userId = c.req.header('X-User-ID') || 'system'
     
-    console.log('💾 基本設定保存データ:', { ...data, logo: data.logo ? '[BASE64_DATA]' : null })
+    // セッション検証してユーザーIDを取得
+    const session = await verifySession(c)
+    if (!session.valid) {
+      return c.json({ 
+        success: false, 
+        error: '認証が必要です' 
+      }, 401)
+    }
+    const userId = session.userId || 'system'
+    
+    console.log('💾 基本設定保存データ:', { userId, ...data, logo: data.logo ? '[BASE64_DATA]' : null })
     
     // 各設定項目を個別に保存
     const settingItems = [
@@ -17380,7 +17389,18 @@ app.post('/api/settings/basic', async (c) => {
 app.get('/api/settings/basic', async (c) => {
   try {
     const { env } = c
-    const userId = c.req.header('X-User-ID') || 'system'
+    
+    // セッション検証してユーザーIDを取得
+    const session = await verifySession(c)
+    if (!session.valid) {
+      return c.json({ 
+        success: false, 
+        error: '認証が必要です' 
+      }, 401)
+    }
+    const userId = session.userId || 'system'
+    
+    console.log('📖 基本設定取得:', { userId })
     
     // D1データベースから設定を取得
     const result = await env.DB.prepare(`
