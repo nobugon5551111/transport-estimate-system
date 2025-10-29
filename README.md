@@ -23,6 +23,15 @@ Office M2の輸送業務における見積作成・管理システム。6ステ�
 
 ### 🌟 最新の改善点
 
+**v2.4 (2025-10-29) - PDF生成エラー修正完了**
+- ✅ **PDF生成エラー修正**: KVストレージからD1データベースへ移行
+- ✅ **基本設定取得修正**: 会社情報・ロゴをD1から取得
+- ✅ **見積PDF生成**: 通常見積とフリー見積の両方で正常動作
+- ✅ **設定保存修正**: 会社設定の保存・読み込み完全動作
+- ✅ **車両料金API修正**: vehicle_pricingテーブルから正確な料金取得
+- ✅ **案件作成修複**: 重複作成問題を解決（3重作成→1回作成）
+- ✅ **認証統合**: すべての設定APIで認証情報を正しく取得
+
 **v2.3 (2025-10-28) - 本番環境クリーンスタートデプロイ完了**
 - ✅ **マイグレーションエラー修正**: FOREIGN KEY制約エラーを解決
 - ✅ **全マイグレーション適用**: 10個のマイグレーションすべて成功
@@ -62,12 +71,14 @@ Office M2の輸送業務における見積作成・管理システム。6ステ�
 
 ## 🚀 本番デプロイ状況
 
-- **本番URL**: https://ee137052.transport-estimate-system.pages.dev
+- **本番URL**: https://transport-estimate-system.pages.dev
+- **最新デプロイURL**: https://1125f348.transport-estimate-system.pages.dev
 - **プロジェクト名**: transport-estimate-system
-- **ステータス**: ✅ Active (クリーンスタートデプロイ完了)
-- **最終デプロイ**: 2025-10-28
+- **ステータス**: ✅ Active (v2.4 - PDF生成修正完了)
+- **最終デプロイ**: 2025-10-29
 - **技術スタック**: Hono + TypeScript + Cloudflare Pages/Workers
-- **データベース**: Cloudflare D1 (新規作成、全マイグレーション適用済み)
+- **データベース**: Cloudflare D1 (全マイグレーション適用済み)
+- **ストレージ**: D1データベースのみ（KVストレージから移行完了）
 - **初期管理者**: admin / admin123
 
 ## 📊 データアーキテクチャ
@@ -290,9 +301,11 @@ npm run db:console:local
 ```
 
 #### 3. PDF生成が失敗する
+**解決済み** - v2.4で完全修正済み（KVストレージ依存を削除し、D1データベースに統一）
+
 ```bash
 # 見積データの確認
-curl http://localhost:3000/api/estimates/1
+curl http://localhost:3000/api/estimates/EST-2025-001
 ```
 
 #### 4. 開発サーバーが起動しない
@@ -383,10 +396,11 @@ npm run dev:sandbox
 - **APIエンドポイント**: 15+
 - **開発期間**: 2024年8月
 
-**最終更新**: 2025年10月28日  
-**バージョン**: 2.3.0  
+**最終更新**: 2025年10月29日  
+**バージョン**: 2.4.0  
 **ステータス**: 本番運用中 🚀  
-**デプロイURL**: https://ee137052.transport-estimate-system.pages.dev
+**デプロイURL**: https://transport-estimate-system.pages.dev  
+**最新ビルド**: https://1125f348.transport-estimate-system.pages.dev
 
 ---
 
