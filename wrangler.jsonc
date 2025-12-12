@@ -8,7 +8,8 @@
     {
       "binding": "DB",
       "database_name": "transport-estimate-production",
-      "database_id": "aa2d7b7a-a609-496a-90ce-01067926cfe3"
+      "database_id": "aa2d7b7a-a609-496a-90ce-01067926cfe3",
+      "preview_database_id": "548ba84b-0e8c-498e-8fd2-cadd64776f08"
     }
   ]
   // Note: KV namespace は後でCloudflareダッシュボードから設定可能

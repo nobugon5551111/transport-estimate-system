@@ -243,7 +243,7 @@ npm run build
 ## 📞 緊急連絡先・参考情報
 
 ### 公開URL
-https://3000-ip60pndnnf5e5cmovjufh-6532622b.e2b.dev
+https://3000-iak3jgd7prr064uac2ub6.e2b.dev
 
 ### データベース構造
 - **master_settings**: カテゴリー別マスターデータ
