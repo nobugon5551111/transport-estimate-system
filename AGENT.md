@@ -254,6 +254,32 @@ cd /home/user/webapp && ./create_complete_backup.sh
 
 ---
 
+## ☁️ データ永続化・環境分離戦略（New）
+
+### 概要
+サンドボックス環境の揮発性（リセットされる特性）に対応しつつ、本番データを保護するために、**「開発用リモートDB」と「本番用DB」を厳密に分離**します。
+
+### 環境定義
+| 環境 | 用途 | 接続先DB | 接続モード |
+|------|------|----------|------------|
+| **Development (Sandbox)** | 開発・テスト・実験 | `transport-estimate-dev` | Remote (`--remote`) |
+| **Production (Cloudflare Pages)** | 実際の業務運用 | `transport-estimate-production` | Production |
+
+### 🛡️ 安全な開発ルール
+1. **本番DBへの直結禁止**:
+   - サンドボックスから `transport-estimate-production` に接続してアプリを起動してはいけない（データ汚染のリスク）。
+   - 必ず `transport-estimate-dev` を使用する。
+
+2. **マイグレーションのフロー**:
+   - Step 1: `transport-estimate-dev` にマイグレーションを適用し、テストする。
+   - Step 2: 問題なければ、`transport-estimate-production` に同じマイグレーションを適用する。
+
+3. **コードの永続化**:
+   - サンドボックス上のコードは消える可能性があるため、必ず **GitHub** にプッシュして保存する。
+   - 復旧時は GitHub から `git clone` し、`transport-estimate-dev` に接続することで即座に再開可能。
+
+---
+
 ## ⚙️ 開発・修正ルール
 
 ### 基本開発方針
