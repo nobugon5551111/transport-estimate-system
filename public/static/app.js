@@ -654,12 +654,21 @@ if (typeof EstimateFlowImplementation === 'undefined') {
     const projectSelect = document.getElementById('projectSelect');
     const nextBtn = document.getElementById('nextStepBtn');
     const detailsDiv = document.getElementById('selectionDetails');
+    const contactPersonContainer = document.getElementById('customerContactPersonContainer');
+    const contactPersonInput = document.getElementById('customerContactPerson');
 
     if (customerSelect.value) {
       try {
         // 顧客情報を取得
         const customerResponse = await API.get(`/customers`);
         EstimateFlowImplementation.selectedCustomer = customerResponse.data.find(c => c.id == customerSelect.value);
+
+        // 顧客担当者フィールドを表示し、自動入力
+        if (contactPersonContainer && contactPersonInput) {
+          contactPersonContainer.classList.remove('hidden');
+          contactPersonInput.value = EstimateFlowImplementation.selectedCustomer.contact_person || '';
+          console.log('✅ 顧客担当者を自動入力:', contactPersonInput.value);
+        }
 
         // 案件一覧を取得
         const projectResponse = await API.get(`/projects/${customerSelect.value}`);
@@ -688,6 +697,11 @@ if (typeof EstimateFlowImplementation === 'undefined') {
         Utils.showError('顧客情報の取得に失敗しました: ' + error.message);
       }
     } else {
+      // 担当者フィールドを非表示
+      if (contactPersonContainer) {
+        contactPersonContainer.classList.add('hidden');
+      }
+      
       projectSelect.innerHTML = '<option value="">まず顧客を選択してください</option>';
       projectSelect.disabled = true;
       EstimateFlowImplementation.selectedCustomer = null;
@@ -738,11 +752,16 @@ if (typeof EstimateFlowImplementation === 'undefined') {
     const detailsDiv = document.getElementById('selectionDetails');
     const customerDetails = document.getElementById('customerDetails');
     const projectDetails = document.getElementById('projectDetails');
+    const contactPersonInput = document.getElementById('customerContactPerson');
 
     if (EstimateFlowImplementation.selectedCustomer) {
+      // 担当者情報を取得（入力フィールドから、または顧客マスターから）
+      const contactPerson = contactPersonInput ? contactPersonInput.value : 
+                           (EstimateFlowImplementation.selectedCustomer.contact_person || '未設定');
+      
       customerDetails.innerHTML = `
         <p><strong>${EstimateFlowImplementation.selectedCustomer.name}</strong></p>
-        <p>担当者: ${EstimateFlowImplementation.selectedCustomer.contact_person || 'なし'}</p>
+        <p>担当者: ${contactPerson}</p>
         <p>電話番号: ${EstimateFlowImplementation.selectedCustomer.phone || 'なし'}</p>
       `;
 
@@ -806,13 +825,33 @@ if (typeof EstimateFlowImplementation === 'undefined') {
 
   // STEP2に進む
   proceedToStep2: () => {
+    const contactPersonInput = document.getElementById('customerContactPerson');
+    const contactPerson = contactPersonInput ? contactPersonInput.value.trim() : '';
+    
+    // 担当者が未入力の場合はエラー
+    if (!contactPerson) {
+      Utils.showError('顧客担当者を入力してください');
+      if (contactPersonInput) {
+        contactPersonInput.focus();
+      }
+      return;
+    }
+    
     if (EstimateFlowImplementation.selectedCustomer && EstimateFlowImplementation.selectedProject) {
+      // 顧客情報に担当者を上書き（見積ごとの担当者）
+      const customerWithContact = {
+        ...EstimateFlowImplementation.selectedCustomer,
+        contact_person: contactPerson
+      };
+      
       // セッションストレージにデータを保存
       sessionStorage.setItem('estimateFlow', JSON.stringify({
         step: 2,
-        customer: EstimateFlowImplementation.selectedCustomer,
+        customer: customerWithContact,
         project: EstimateFlowImplementation.selectedProject
       }));
+      
+      console.log('✅ 見積ごとの担当者を保存:', contactPerson);
       
       // STEP2ページに遷移
       window.location.href = '/estimate/step2';

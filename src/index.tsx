@@ -3923,6 +3923,24 @@ app.get('/estimate/step1', (c) => {
             </select>
           </div>
 
+          {/* 顧客担当者入力 */}
+          <div id="customerContactPersonContainer" className="mb-8 hidden">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              顧客担当者 <span className="text-red-500">*</span>
+            </label>
+            <input 
+              type="text" 
+              id="customerContactPerson" 
+              oninput="if(typeof EstimateFlowImplementation !== 'undefined') EstimateFlowImplementation.updateDetails()"
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              placeholder="担当者名を入力してください"
+            />
+            <p className="mt-1 text-sm text-gray-500">
+              <i className="fas fa-info-circle mr-1"></i>
+              顧客マスターの担当者が自動入力されます。必要に応じて変更できます。
+            </p>
+          </div>
+
           {/* 案件選択 */}
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
