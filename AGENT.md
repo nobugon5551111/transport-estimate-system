@@ -117,6 +117,7 @@ Phase 3: GitHub保存実行
 ✅ 養生作業フロア計算機能（Step5）
 ✅ PDF出力機能・データベース構造
 ✅ 完全バックアップシステム
+✅ 担当者名管理機能（顧客担当者 + 見積作成担当者）
 ```
 
 ### 🔒 修正作業時の必須手順
@@ -149,6 +150,236 @@ Step 3: 完成機能保護テスト（必須）
 ❌ sessionStorageキー名の変更
 ❌ 複数機能の同時大幅変更
 ```
+
+---
+
+## 👤 担当者名管理システム（最重要）
+
+### 📋 システム概要
+
+見積システムでは、**2種類の担当者名**を管理しています：
+
+1. **顧客担当者** (`customer_contact_person`)
+   - 見積先のお客様側の担当者
+   - 案件ごとに異なる可能性がある
+   - 見積ごとに指定・編集可能
+
+2. **見積作成担当者** (`created_by_name`)
+   - Office M2側の見積作成者
+   - ログイン中のユーザー名を自動取得
+   - 見積作成時に自動記録
+
+### 🎯 実装パターン：パターンB（デフォルト値 + 編集可能）
+
+```
+パターンB: デフォルト値 + 編集可能
+├── 顧客マスターの担当者を自動補完
+├── ユーザーが必要に応じて編集可能
+├── 編集した値を見積データに保存
+└── STEP6・PDFに編集後の値を表示
+```
+
+### 📍 データフロー
+
+```
+STEP1: 顧客・案件選択
+├── 顧客選択時: 顧客マスターの contact_person を取得
+├── 担当者入力フィールドに自動入力
+├── ユーザーが編集可能（必須フィールド）
+└── 値を sessionStorage に保存
+
+↓
+
+STEP2-5: 各ステップ
+├── sessionStorage から担当者名を保持
+└── 次のステップへ引き継ぎ
+
+↓
+
+STEP6: 最終確認
+├── お客様情報セクションに「担当者: ○○」表示
+├── 案件情報セクションに「見積作成担当者: ○○」表示
+└── 見積保存時に customer_contact_person を保存
+
+↓
+
+PDF生成
+├── お客様情報: 「担当者: ○○」（customer_contact_person）
+└── 見積詳細: 「見積制作担当者: ○○」（created_by_name）
+```
+
+### 🗄️ データベース設計
+
+#### estimates テーブル
+```sql
+CREATE TABLE estimates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  customer_id INTEGER NOT NULL,
+  project_id INTEGER NOT NULL,
+  -- ... その他のカラム ...
+  customer_contact_person TEXT,  -- 顧客担当者名（見積ごと）
+  created_by_name TEXT,          -- 見積作成担当者名
+  user_id TEXT,                  -- 作成者ID
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  -- ...
+  FOREIGN KEY (customer_id) REFERENCES customers(id),
+  FOREIGN KEY (project_id) REFERENCES projects(id)
+);
+```
+
+#### マイグレーション履歴
+```
+0013_add_customer_contact_person.sql
+└── estimates テーブルに customer_contact_person カラムを追加
+```
+
+### 💻 実装詳細
+
+#### STEP1: 担当者入力フィールド（HTML）
+```html
+<div id="customerContactPersonContainer" class="hidden">
+  <label class="block text-sm font-medium text-gray-700 mb-2">
+    担当者 <span class="text-red-500">*</span>
+  </label>
+  <input 
+    type="text" 
+    id="customerContactPerson"
+    name="contact_person"
+    class="w-full px-3 py-2 border border-gray-300 rounded-md"
+    placeholder="担当者名を入力してください"
+    required
+  />
+  <p class="text-sm text-gray-500 mt-1">
+    顧客マスターの担当者が自動入力されます。必要に応じて変更できます。
+  </p>
+</div>
+```
+
+#### JavaScript: 自動入力とデータ保存
+```javascript
+// 顧客選択時: 担当者フィールドに自動入力
+const contactPersonInput = document.getElementById('customerContactPerson');
+const contactPersonContainer = document.getElementById('customerContactPersonContainer');
+
+if (selectedCustomer && selectedCustomer.contact_person) {
+  contactPersonInput.value = selectedCustomer.contact_person;
+  contactPersonContainer.classList.remove('hidden');
+}
+
+// 見積保存時: customer_contact_person を含める
+const estimateData = {
+  customer_id: estimateData.customer.id,
+  customer_contact_person: document.getElementById('customerContactPerson')?.value || '',
+  created_by_name: window._currentUser?.userName || '担当者未設定',
+  // ... その他のデータ ...
+};
+```
+
+#### バックエンド: INSERT文（src/index.tsx）
+```typescript
+// 見積保存API
+const result = await c.env.DB.prepare(`
+  INSERT INTO estimates (
+    customer_id,
+    project_id,
+    customer_contact_person,  -- 顧客担当者
+    created_by_name,          -- 見積作成担当者
+    user_id,
+    -- ... その他のカラム ...
+  ) VALUES (?, ?, ?, ?, ?, ...)
+`).bind(
+  data.customer_id,
+  data.project_id,
+  data.customer_contact_person || '',
+  data.created_by_name || '担当者未設定',
+  userId,
+  // ...
+).run();
+```
+
+#### PDF生成: SQL SELECT文
+```typescript
+// PDF生成時: 見積ごとの担当者を優先取得
+const estimate = await c.env.DB.prepare(`
+  SELECT 
+    e.*,
+    c.name as customer_name,
+    COALESCE(e.customer_contact_person, c.contact_person, '') as customer_contact_person,
+    p.name as project_name
+  FROM estimates e
+  LEFT JOIN customers c ON e.customer_id = c.id
+  LEFT JOIN projects p ON e.project_id = p.id
+  WHERE e.estimate_number = ?
+`).bind(estimateNumber).first();
+```
+
+**重要**: `COALESCE(e.customer_contact_person, c.contact_person, '')` により、
+見積ごとの担当者を優先し、未設定時は顧客マスターの担当者、
+どちらもなければ空文字列を使用します。
+
+### 🔒 保護すべき要素
+
+**絶対に変更してはいけない要素:**
+```
+❌ estimates.customer_contact_person カラムの削除・名称変更
+❌ estimates.created_by_name カラムの削除・名称変更
+❌ HTML要素ID: customerContactPerson の変更
+❌ HTML要素ID: customerContactPersonContainer の変更
+❌ PDF生成SQLの COALESCE ロジックの削除
+❌ sessionStorage キー: customer.contact_person の変更
+```
+
+### ✅ 動作確認チェックリスト
+
+```
+□ STEP1: 顧客選択時に担当者フィールドが表示される
+□ STEP1: 顧客マスターの担当者が自動入力される
+□ STEP1: 担当者フィールドを編集できる
+□ STEP1: 担当者未入力で次へ進めない（必須チェック）
+□ STEP6: お客様情報に「担当者: ○○」が表示される
+□ STEP6: 案件情報に「見積作成担当者: ○○」が表示される
+□ PDF: お客様情報に「担当者: ○○」が表示される
+□ PDF: 見積詳細に「見積制作担当者: ○○」が表示される
+□ DB: estimates.customer_contact_person に保存される
+□ DB: estimates.created_by_name に保存される
+```
+
+### 🚨 トラブルシューティング
+
+#### 問題1: 担当者フィールドが表示されない
+```javascript
+// 原因: hidden クラスが削除されていない
+// 解決: updateDetails() で hidden を削除
+contactPersonContainer.classList.remove('hidden');
+```
+
+#### 問題2: PDF に「未設定」と表示される
+```sql
+-- 原因: PDF生成SQLで customers.contact_person を参照
+-- 解決: COALESCE で estimates.customer_contact_person を優先
+COALESCE(e.customer_contact_person, c.contact_person, '') as customer_contact_person
+```
+
+#### 問題3: 担当者が保存されない
+```javascript
+// 原因: estimateData に customer_contact_person が含まれていない
+// 解決: saveEstimate 関数で明示的に追加
+customer_contact_person: document.getElementById('customerContactPerson')?.value || '',
+```
+
+### 📝 運用ルール
+
+1. **顧客マスターでの担当者管理**:
+   - 顧客の主担当者は顧客マスターで設定
+   - 見積作成時に自動入力される
+
+2. **見積ごとの担当者変更**:
+   - 案件ごとに担当者が異なる場合は、STEP1で編集
+   - 編集した値は見積データに保存され、顧客マスターには影響しない
+
+3. **担当者名の必須化**:
+   - 顧客担当者は必須入力（空白での保存不可）
+   - 未設定の場合は「未設定」と表示（既存データ対応）
 
 ---
 
@@ -987,6 +1218,7 @@ module.exports = {
 
 **完成機能保護:**
 - ✅ Step1-6の見積フロー完全保護
+- ✅ 担当者名管理機能の保護（顧客担当者 + 見積作成担当者）
 - ✅ 影響範囲分析を必ず実施
 - ✅ 破壊的変更は絶対禁止
 
@@ -1003,6 +1235,37 @@ module.exports = {
 ---
 
 ## 📝 承認・更新履歴
+
+### Version 2.2 - 2025-01-08
+```
+👤 作成者: Claude (AIエージェント)
+📋 承認者: ユーザー
+📅 更新日: 2025-01-08
+🎯 対象: 輸送見積もりシステム開発・運用
+
+📝 重要追加内容:
+- 👤 担当者名管理システムセクション追加（最重要）
+- 📋 2種類の担当者の明確化（顧客担当者 vs 見積作成担当者）
+- 🎯 パターンB実装の詳細説明（デフォルト値 + 編集可能）
+- 📍 データフロー図の追加（STEP1 → STEP6 → PDF）
+- 🗄️ データベース設計とマイグレーション履歴
+- 💻 実装詳細（HTML、JavaScript、TypeScript、SQL）
+- 🔒 保護すべき要素の明確化
+- ✅ 動作確認チェックリスト
+- 🚨 トラブルシューティング
+- 📝 運用ルール
+
+📌 追加理由:
+このセクションは、以下の経緯で追加されました：
+- 担当者名がPDFに反映されない問題の発生と解決
+- 顧客担当者と見積作成担当者の混同問題
+- customer_contact_person カラムの追加経緯の記録
+- PDF生成SQLの COALESCE ロジックの重要性
+- 今後の開発・修正時に担当者名機能を保護するため
+
+完成機能保護対象に「担当者名管理機能」を追加し、
+今後の開発で誤って破壊されないようにしました。
+```
 
 ### Version 2.1 - 2025-10-29
 ```
