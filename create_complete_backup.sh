@@ -422,6 +422,14 @@ echo -e "${GREEN}10. ダウンロード用にコピー...${NC}"
 cp "${ZIP_FILE}" /home/user/webapp/public/
 echo -e "   ✅ public/にコピー完了"
 
+# 11. AI Driveにバックアップをコピー（永続保存用）
+echo -e "${GREEN}11. AI Driveに永続保存...${NC}"
+if sudo cp "${ZIP_FILE}" /mnt/aidrive/ 2>/dev/null; then
+    echo -e "   ✅ AI Driveにコピー完了"
+else
+    echo -e "   ⚠️  AI Driveへのコピーをスキップ（権限なし、またはマウントされていません）"
+fi
+
 # 完了メッセージ
 echo ""
 echo -e "${BLUE}==============================================================================${NC}"
@@ -431,6 +439,13 @@ echo ""
 echo -e "${YELLOW}📦 バックアップファイル: ${ZIP_FILE}${NC}"
 echo -e "${YELLOW}📊 ファイルサイズ: ${ZIP_SIZE}${NC}"
 echo -e "${YELLOW}💾 データベース: ${DB_SIZE} (${DB_LINES}行)${NC}"
+echo ""
+echo -e "${YELLOW}📍 保存場所:${NC}"
+echo -e "  1️⃣  メインバックアップ: ${ZIP_FILE}"
+echo -e "  2️⃣  Web配信用: /home/user/webapp/public/${BACKUP_NAME}.zip"
+if [ -f "/mnt/aidrive/${BACKUP_NAME}.zip" ]; then
+    echo -e "  3️⃣  AI Drive永続保存: /mnt/aidrive/${BACKUP_NAME}.zip"
+fi
 echo ""
 echo -e "${GREEN}このZIPファイルを保存するだけで、いつでも完全に復元できます！${NC}"
 echo ""
