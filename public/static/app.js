@@ -3046,6 +3046,9 @@ const Step6Implementation = {
 
     // 見積データを統合
     Step6Implementation.estimateData = flowData;
+    
+    // 見積作成担当者名を追加
+    Step6Implementation.estimateData.created_by_name = window._currentUser?.userName || '担当者未設定';
 
     // サービスレートを取得（buildLineItems用）
     try {
@@ -3128,11 +3131,15 @@ const Step6Implementation = {
   displayProjectInfo: () => {
     const project = Step6Implementation.estimateData.project;
     const delivery = Step6Implementation.estimateData.delivery;
+    const createdBy = Step6Implementation.estimateData.created_by_name || window._currentUser?.userName || '担当者未設定';
     document.getElementById('projectInfo').innerHTML = `
       <div><strong>${project.name}</strong></div>
       <div>配送先: ${delivery.address}</div>
       <div>エリア: ${delivery.area}エリア（${delivery.area_name}）</div>
       ${project.description ? `<div>概要: ${project.description}</div>` : ''}
+      <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #e5e7eb;">
+        <strong>見積作成担当者:</strong> ${createdBy}
+      </div>
     `;
   },
 
@@ -4257,7 +4264,8 @@ const Step6Implementation = {
         
         // メタ情報
         notes: Step6Implementation.estimateData.services?.notes || '',
-        user_id: currentUser
+        user_id: currentUser,
+        created_by_name: window._currentUser?.userName || '担当者未設定'
       };
 
       // undefined値をチェックして除去

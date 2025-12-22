@@ -6464,7 +6464,8 @@ app.get('/estimate/step6', (c) => {
                     見積書 #<span id="estimateNumber">EST-2025-001</span>
                   </h3>
                   <div className="text-sm text-blue-700">
-                    作成日: <span id="createDate">2025-08-18</span>
+                    <div>作成日: <span id="createDate">2025-08-18</span></div>
+                    <div>担当者: <span id="createdByName">-</span></div>
                   </div>
                 </div>
                 
