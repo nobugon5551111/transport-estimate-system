@@ -3785,6 +3785,18 @@ const Step6Implementation = {
     lineItems.staff.subtotal = finalStaffCost;
 
     // 3. サービス費用明細
+    // 現地調査（最初に表示）
+    if (services.site_survey_people > 0 && services.site_survey_cost > 0) {
+      const peopleText = services.site_survey_people === 1 ? '1人' : services.site_survey_people === 2 ? '2人' : 'なし';
+      lineItems.services.items.push({
+        description: `現地調査 ${peopleText}（${services.site_survey_distance || 0}km）`,
+        detail: `調査料金 ¥${(services.site_survey_base_cost || 0).toLocaleString()} + 車両費 ¥${(services.site_survey_vehicle_cost || 0).toLocaleString()} + 追加距離 ¥${(services.site_survey_distance_cost || 0).toLocaleString()}`,
+        quantity: 1,
+        unit_price: services.site_survey_cost,
+        amount: services.site_survey_cost
+      });
+    }
+    
     if (services.parking_officer_hours > 0 && services.parking_officer_cost > 0) {
       const hourlyRate = services.parking_officer_cost / services.parking_officer_hours;
       lineItems.services.items.push({
