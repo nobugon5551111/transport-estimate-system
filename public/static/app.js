@@ -2715,6 +2715,10 @@ const Step5Implementation = {
     }
 
     // 各サービスの値を取得
+    // 現地調査
+    const siteSurveyPeople = parseInt(document.getElementById('site_survey_people').value) || 0;
+    const siteSurveyDistance = parseFloat(document.getElementById('site_survey_distance').value) || 0;
+    
     const parkingOfficerHours = parseFloat(document.getElementById('parking_officer_hours').value) || 0;
     const transportVehicles = parseInt(document.getElementById('transport_vehicles').value) || 0;
     const transportDistanceType = document.querySelector('input[name="transport_distance_type"]:checked')?.value || '20km';
@@ -2748,7 +2752,49 @@ const Step5Implementation = {
 
     // 各費用計算（安全なアクセス）
     const rates = Step5Implementation.serviceRates || {};
+    
+    // 現地調査費用計算
+    let siteSurveyBaseCost = 0;
+    let siteSurveyVehicleCost = 0;
+    let siteSurveyDistanceCost = 0;
+    let siteSurveyTotalCost = 0;
+    
+    if (siteSurveyPeople > 0) {
+      // 基本調査料金
+      siteSurveyBaseCost = siteSurveyPeople === 1 ? 
+        (rates['site_survey.survey_1_person'] || rates.survey_1_person || 20000) : 
+        (rates['site_survey.survey_2_person'] || rates.survey_2_person || 25000);
+      
+      // 基本車両費（20km以内含む）
+      siteSurveyVehicleCost = rates['site_survey.vehicle_base'] || rates.vehicle_base || 5000;
+      
+      // 追加距離料金計算（20km超過分、8kmごとに150円）
+      const baseDistance = rates['site_survey.distance_base'] || rates.distance_base || 20;
+      const distanceUnit = rates['site_survey.distance_unit'] || rates.distance_unit || 8;
+      const distanceRate = rates['site_survey.distance_rate'] || rates.distance_rate || 150;
+      
+      if (siteSurveyDistance > baseDistance) {
+        const extraDistance = siteSurveyDistance - baseDistance;
+        siteSurveyDistanceCost = Math.round((extraDistance / distanceUnit) * distanceRate);
+      }
+      
+      siteSurveyTotalCost = siteSurveyBaseCost + siteSurveyVehicleCost + siteSurveyDistanceCost;
+      
+      // UIに表示
+      document.getElementById('survey-base-cost').textContent = siteSurveyBaseCost.toLocaleString();
+      document.getElementById('survey-vehicle-cost').textContent = siteSurveyVehicleCost.toLocaleString();
+      document.getElementById('survey-distance-cost').textContent = siteSurveyDistanceCost.toLocaleString();
+      document.getElementById('survey-total-cost').textContent = siteSurveyTotalCost.toLocaleString();
+    } else {
+      // なしの場合はすべて0にリセット
+      document.getElementById('survey-base-cost').textContent = '0';
+      document.getElementById('survey-vehicle-cost').textContent = '0';
+      document.getElementById('survey-distance-cost').textContent = '0';
+      document.getElementById('survey-total-cost').textContent = '0';
+    }
+    
     const costs = {
+      site_survey: siteSurveyTotalCost,
       parking_officer: parkingOfficerHours * (rates.parking_officer_hourly || 2500),
       transport_vehicle: 0,
       waste_disposal: (rates.waste_disposal && rates.waste_disposal[wasteDisposal]) || 0,
@@ -2796,12 +2842,13 @@ const Step5Implementation = {
     costs.work_time_multiplier = timeMultiplierCost;
 
     // 全サービス費用の合計を計算（作業時間帯割増も含む）
-    const totalServicesCost = costs.parking_officer + costs.transport_vehicle + costs.waste_disposal + 
+    const totalServicesCost = costs.site_survey + costs.parking_officer + costs.transport_vehicle + costs.waste_disposal + 
                              costs.protection_work + costs.material_collection + costs.construction + 
                              costs.work_time_multiplier + costs.parking_fee + costs.highway_fee;
 
     // 内訳表示を生成
     const breakdown = [];
+    if (costs.site_survey > 0) breakdown.push(`現地調査 ${siteSurveyPeople}人（${siteSurveyDistance}km）: ${Utils.formatCurrency(costs.site_survey)}`);
     if (costs.parking_officer > 0) breakdown.push(`駐車対策員 ${parkingOfficerHours}時間: ${Utils.formatCurrency(costs.parking_officer)}`);
     if (costs.transport_vehicle > 0) {
       const distanceText = transportDistanceType === '20km' ? '20km圏内' : `${transportDistance}km + 燃料費`;
@@ -2830,6 +2877,12 @@ const Step5Implementation = {
     // サービス情報を保存（total_costが確実に数値になるようにする）
     
     Step5Implementation.currentServicesInfo = {
+      site_survey_people: siteSurveyPeople,
+      site_survey_distance: siteSurveyDistance,
+      site_survey_base_cost: siteSurveyBaseCost,
+      site_survey_vehicle_cost: siteSurveyVehicleCost,
+      site_survey_distance_cost: siteSurveyDistanceCost,
+      site_survey_cost: costs.site_survey || 0,
       parking_officer_hours: parkingOfficerHours,
       parking_officer_cost: costs.parking_officer || 0,
       transport_vehicles: transportVehicles,

@@ -5800,6 +5800,60 @@ app.get('/estimate/step5', (c) => {
 
           <div className="p-6">
             <div className="space-y-8">
+              {/* 現地調査 */}
+              <div className="border rounded-lg p-4 bg-gradient-to-r from-green-50 to-blue-50">
+                <div className="flex items-center mb-4">
+                  <i className="fas fa-map-marked-alt text-green-600 text-xl mr-3"></i>
+                  <h4 className="text-lg font-medium text-gray-900">現地調査</h4>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">調査員人数</label>
+                    <select 
+                      id="site_survey_people" 
+                      className="form-select w-full"
+                      onChange="updateServicesCost()"
+                    >
+                      <option value="0">なし</option>
+                      <option value="1">1人（¥<span id="rate-display-survey-1person">20,000</span>）</option>
+                      <option value="2">2人（¥<span id="rate-display-survey-2person">25,000</span>）</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">距離（km）</label>
+                    <div className="flex items-center space-x-3">
+                      <input 
+                        type="number" 
+                        id="site_survey_distance" 
+                        className="form-input w-full" 
+                        min="0" 
+                        max="500" 
+                        step="0.1"
+                        value="0"
+                        placeholder="20km以内は基本料金に含む"
+                        onChange="updateServicesCost()"
+                      />
+                      <span className="text-sm text-gray-600">km</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">基本車両費: ¥<span id="rate-display-vehicle-base">5,000</span>（20km含む）</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">計算費用</label>
+                    <div className="bg-white border rounded p-3">
+                      <div className="text-sm text-gray-600 space-y-1">
+                        <div>調査料金: ¥<span id="survey-base-cost">0</span></div>
+                        <div>車両費: ¥<span id="survey-vehicle-cost">0</span></div>
+                        <div>追加距離: ¥<span id="survey-distance-cost">0</span></div>
+                        <div className="border-t pt-1 font-bold text-green-600">
+                          合計: ¥<span id="survey-total-cost">0</span>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">20km超: ¥<span id="rate-display-distance-rate">150</span>/8km</p>
+                  </div>
+                </div>
+              </div>
+
               {/* 駐車対策員 */}
               <div className="border rounded-lg p-4">
                 <div className="flex items-center mb-4">
@@ -14251,6 +14305,11 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
               
               return vehicleRows.join('') + staffRows.join('');
             })()}
+            ${!lineItems && estimate.site_survey_cost > 0 ? `
+            <tr>
+                <td>&nbsp;&nbsp;現地調査（${estimate.site_survey_people || 0}人・${estimate.site_survey_distance || 0}km）</td>
+                <td class="amount-cell">¥${(estimate.site_survey_cost || 0).toLocaleString()}</td>
+            </tr>` : ''}
             ${!lineItems && estimate.parking_officer_cost > 0 ? `
             <tr>
                 <td>&nbsp;&nbsp;駐車対策員（${estimate.parking_officer_hours || 0}時間）</td>
@@ -14342,7 +14401,8 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                   const vehicleCost = estimate.vehicle_cost || 0;
                   const staffCost = calculatedStaffCost; // 既に計算済みの値を使用
                   
-                  const servicesCost = (estimate.parking_officer_cost || 0) + 
+                  const servicesCost = (estimate.site_survey_cost || 0) +
+                                     (estimate.parking_officer_cost || 0) + 
                                      (estimate.transport_cost || 0) + 
                                      (estimate.waste_disposal_cost || 0) + 
                                      (estimate.protection_cost || 0) + 
@@ -14415,7 +14475,8 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                   const vehicleCost = estimate.vehicle_cost || 0;
                   const staffCost = calculatedStaffCost; // 既に計算済みの値を使用
                   
-                  const servicesCost = (estimate.parking_officer_cost || 0) + 
+                  const servicesCost = (estimate.site_survey_cost || 0) +
+                                     (estimate.parking_officer_cost || 0) + 
                                      (estimate.transport_cost || 0) + 
                                      (estimate.waste_disposal_cost || 0) + 
                                      (estimate.protection_cost || 0) + 
@@ -14447,7 +14508,8 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                   const vehicleCost = estimate.vehicle_cost || 0;
                   const staffCost = calculatedStaffCost; // 既に計算済みの値を使用 
                   
-                  const servicesCost = (estimate.parking_officer_cost || 0) + 
+                  const servicesCost = (estimate.site_survey_cost || 0) +
+                                     (estimate.parking_officer_cost || 0) + 
                                      (estimate.transport_cost || 0) + 
                                      (estimate.waste_disposal_cost || 0) + 
                                      (estimate.protection_cost || 0) + 
