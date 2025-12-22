@@ -12436,10 +12436,13 @@ app.get('/estimate/:id/pdf', async (c) => {
 
 // フリー見積用PDF生成関数（通常見積と同じフォーマット）
 function generateFreePdfHTML(estimate: any, items: any[], basicSettings: any = {}, customerInfo: any = {}): string {
-  const currentDate = new Date().toLocaleDateString('ja-JP', {
+  // 日本時間で現在日時を取得（UTC+9）
+  const jstDate = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const currentDate = jstDate.toLocaleDateString('ja-JP', {
     year: 'numeric',
     month: 'long',
-    day: 'numeric'
+    day: 'numeric',
+    timeZone: 'Asia/Tokyo'
   })
   
   // フリー見積項目をテーブル行として生成
@@ -13855,10 +13858,13 @@ app.notFound((c) => {
 })
 
 function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {}, basicSettings: any = {}, calculatedStaffCost: number = 0): string {
-  const currentDate = new Date().toLocaleDateString('ja-JP', {
+  // 日本時間で現在日時を取得（UTC+9）
+  const jstDate = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const currentDate = jstDate.toLocaleDateString('ja-JP', {
     year: 'numeric',
     month: 'long',
-    day: 'numeric'
+    day: 'numeric',
+    timeZone: 'Asia/Tokyo'
   })
   
   // line_items_jsonをパース（存在する場合）
@@ -14568,11 +14574,6 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
             <strong>作業条件:</strong> 天候・交通事情により作業日程が変更になる場合があります<br>
             <strong>有効期限:</strong> 本見積書の有効期限は発行日より30日間です
         </p>
-    </div>
-    
-    <div class="footer">
-        この見積書はOffice M2 見積システムにより自動生成されました<br>
-        生成日時: ${new Date().toLocaleString('ja-JP')}
     </div>
 
     <script>
