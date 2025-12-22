@@ -3394,6 +3394,7 @@ const Step6Implementation = {
 
     // 各サービス項目の詳細チェック（デバッグ情報付き）
     console.log('🔍 サービス項目詳細チェック:', {
+      site_survey_cost: services.site_survey_cost,
       parking_officer_cost: services.parking_officer_cost,
       transport_cost: services.transport_cost,
       waste_disposal_cost: services.waste_disposal_cost,
@@ -3406,7 +3407,8 @@ const Step6Implementation = {
     });
 
     // 何らかのサービス項目があるかチェック（より詳細に）
-    const hasAnyService = services.parking_officer_cost > 0 ||
+    const hasAnyService = services.site_survey_cost > 0 ||
+                         services.parking_officer_cost > 0 ||
                          services.transport_cost > 0 ||
                          services.waste_disposal_cost > 0 ||
                          services.protection_cost > 0 ||
@@ -3437,7 +3439,26 @@ const Step6Implementation = {
     const details = [];
     let totalServicesCost = 0;
     
-    // 1. 駐車対策員（マスター単価連携）
+    // 1. 現地調査（新機能）
+    if (services.site_survey_people > 0 || services.site_survey_cost > 0) {
+      const peopleText = services.site_survey_people === 1 ? '1人' : services.site_survey_people === 2 ? '2人' : 'なし';
+      const distanceText = services.site_survey_distance || 0;
+      details.push(`<div class="flex justify-between px-4 py-2">
+        <span>現地調査 ${peopleText} (${distanceText}km)</span>
+        <span>${Utils.formatCurrency(services.site_survey_cost)}</span>
+      </div>`);
+      totalServicesCost += services.site_survey_cost;
+      console.log('🔍 現地調査:', { 
+        people: services.site_survey_people, 
+        distance: services.site_survey_distance,
+        base_cost: services.site_survey_base_cost,
+        vehicle_cost: services.site_survey_vehicle_cost,
+        distance_cost: services.site_survey_distance_cost,
+        total_cost: services.site_survey_cost 
+      });
+    }
+    
+    // 2. 駐車対策員（マスター単価連携）
     if (services.parking_officer_hours > 0 || services.parking_officer_cost > 0) {
       const masterRate = serviceMasterRates.parking_officer_hourly_rate;
       const calculatedCost = services.parking_officer_hours * masterRate;
