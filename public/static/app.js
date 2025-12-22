@@ -10684,55 +10684,8 @@ const resetData = async () => {
 
 // フォーム送信処理
 document.addEventListener('DOMContentLoaded', () => {
-  // マスター管理案件フォーム
-  const masterProjectForm = document.getElementById('masterProjectForm');
-  if (masterProjectForm) {
-    masterProjectForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      const formData = new FormData(event.target);
-      
-      const projectData = {
-        customer_id: parseInt(formData.get('customer_id')),
-        name: formData.get('name'),
-        status: formData.get('status'),
-        priority: formData.get('priority'),
-        description: formData.get('description'),
-        notes: formData.get('notes'),
-        user_id: currentUser
-      };
-
-      try {
-        const saveButton = event.target.querySelector('button[type="submit"]');
-        Utils.showLoading(saveButton);
-
-        let response;
-        if (MasterManagement.currentEditId) {
-          response = await API.put(`/projects/${MasterManagement.currentEditId}`, projectData);
-        } else {
-          response = await API.post('/projects', projectData);
-        }
-        
-        if (response.success) {
-          Utils.hideLoading(saveButton, '<i class="fas fa-save mr-2"></i>保存');
-          Utils.showSuccess(response.message);
-          
-          Modal.close('masterProjectModal');
-          event.target.reset();
-          
-          await MasterManagement.loadProjects();
-          MasterManagement.displayProjects();
-        } else {
-          Utils.hideLoading(saveButton, '<i class="fas fa-save mr-2"></i>保存');
-          Utils.showError('案件の保存に失敗しました: ' + response.error);
-        }
-        
-      } catch (error) {
-        const saveButton = event.target.querySelector('button[type="submit"]');
-        Utils.hideLoading(saveButton, '<i class="fas fa-save mr-2"></i>保存');
-        Utils.showError('保存中にエラーが発生しました: ' + error.message);
-      }
-    });
-  }
+  // マスター管理案件フォームは ProjectManagement.handleProjectFormSubmit で処理されるため、
+  // ここでのイベントリスナー登録は不要（HTMLのonsubmit属性で直接呼び出し）
 
   // マスター管理ページの初期化
   if (document.getElementById('masterCustomersTable') || document.getElementById('masterProjectsTable')) {
@@ -11777,6 +11730,7 @@ const ProjectManagement = {
       
       if (!formData.name || !formData.customer_id) {
         Utils.showError('案件名と顧客は必須項目です');
+        ProjectManagement._submitting = false; // フラグをリセット
         return false;
       }
       
