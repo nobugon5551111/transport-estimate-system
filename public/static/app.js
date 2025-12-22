@@ -1672,18 +1672,21 @@ const Step3Implementation = {
       console.log('STEP3 次へボタン状態:', { hasVehicles, hasOperation, shouldEnable, disabled: nextBtn.disabled });
       
       // 次へボタンが有効になったら車両情報を保存
+      // ただし、costは calculateMultipleVehiclePricing で設定されるので、
+      // ここでは currentVehicleInfo が存在する場合は cost を保持する
       if (shouldEnable) {
         const externalCost = 0; // 外注費用フィールド削除により0固定
+        const existingCost = Step3Implementation.currentVehicleInfo?.cost || 0;
         Step3Implementation.currentVehicleInfo = {
           vehicle_2t_count: vehicle2tCount,
           vehicle_4t_count: vehicle4tCount,
           operation: selectedOperation,
           area: Step3Implementation.currentArea,
-          cost: 0, // 料金はupdateIndividualVehiclePricingで計算される
+          cost: existingCost, // 既存のコストを保持（料金計算関数で更新される）
           external_contractor_cost: externalCost,
           uses_multiple_vehicles: true
         };
-        console.log('STEP3 車両情報保存:', Step3Implementation.currentVehicleInfo);
+        console.log('STEP3 車両情報保存（cost保持）:', Step3Implementation.currentVehicleInfo);
       }
     }
   },
@@ -1807,16 +1810,17 @@ const Step3Implementation = {
       }
       
       console.log('🔧 緊急修正: 車両情報を強制設定');
+      const existingCost = Step3Implementation.currentVehicleInfo?.cost || 0;
       Step3Implementation.currentVehicleInfo = {
         vehicle_2t_count: vehicle2tCount,
         vehicle_4t_count: vehicle4tCount,
         operation: selectedOperation,
         area: Step3Implementation.currentArea || 'D',
-        cost: 0,
+        cost: existingCost, // 既存のコストを保持
         external_contractor_cost: externalCost,
         uses_multiple_vehicles: true
       };
-      console.log('✅ 車両情報強制設定完了:', Step3Implementation.currentVehicleInfo);
+      console.log('✅ 車両情報強制設定完了（cost保持）:', Step3Implementation.currentVehicleInfo);
     }
 
     try {
