@@ -721,6 +721,8 @@ if (typeof EstimateFlowImplementation === 'undefined') {
   handleProjectChange: async () => {
     const projectSelect = document.getElementById('projectSelect');
     const nextBtn = document.getElementById('nextStepBtn');
+    const contactPersonInput = document.getElementById('customerContactPerson');
+    const contactPersonContainer = document.getElementById('customerContactPersonContainer');
 
     if (projectSelect.value) {
       try {
@@ -729,6 +731,15 @@ if (typeof EstimateFlowImplementation === 'undefined') {
         const customerSelect = document.getElementById('customerSelect');
         if (customerSelect && customerSelect.value) {
           EstimateFlowImplementation.selectedCustomer = customerResponse.data.find(c => c.id == customerSelect.value);
+          
+          // 担当者フィールドを表示し、値を更新（既に入力されている場合は保持）
+          if (contactPersonContainer && contactPersonInput) {
+            contactPersonContainer.classList.remove('hidden');
+            // 担当者が未入力の場合のみ自動入力
+            if (!contactPersonInput.value || contactPersonInput.value.trim() === '') {
+              contactPersonInput.value = EstimateFlowImplementation.selectedCustomer.contact_person || '';
+            }
+          }
         }
         
         // 案件情報を取得
@@ -753,8 +764,14 @@ if (typeof EstimateFlowImplementation === 'undefined') {
     const customerDetails = document.getElementById('customerDetails');
     const projectDetails = document.getElementById('projectDetails');
     const contactPersonInput = document.getElementById('customerContactPerson');
+    const contactPersonContainer = document.getElementById('customerContactPersonContainer');
 
     if (EstimateFlowImplementation.selectedCustomer) {
+      // 担当者フィールドを表示
+      if (contactPersonContainer) {
+        contactPersonContainer.classList.remove('hidden');
+      }
+      
       // 担当者情報を取得（入力フィールドから、または顧客マスターから）
       const contactPerson = contactPersonInput ? contactPersonInput.value : 
                            (EstimateFlowImplementation.selectedCustomer.contact_person || '未設定');
@@ -777,6 +794,10 @@ if (typeof EstimateFlowImplementation === 'undefined') {
       }
     } else {
       detailsDiv.classList.add('hidden');
+      // 担当者フィールドを非表示
+      if (contactPersonContainer) {
+        contactPersonContainer.classList.add('hidden');
+      }
     }
   },
 
