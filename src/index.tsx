@@ -13312,7 +13312,7 @@ app.get('/api/estimates/:id/pdf', async (c) => {
         SELECT 
           e.*,
           c.name as customer_name,
-          c.contact_person as customer_contact_person,
+          COALESCE(e.customer_contact_person, c.contact_person, '') as customer_contact_person,
           c.phone as customer_phone,
           c.email as customer_email,
           c.address as customer_address,
@@ -13338,7 +13338,7 @@ app.get('/api/estimates/:id/pdf', async (c) => {
           SELECT 
             e.*,
             c.name as customer_name,
-            c.contact_person as customer_contact_person,
+            COALESCE(e.customer_contact_person, c.contact_person, '') as customer_contact_person,
             c.phone as customer_phone,
             c.email as customer_email,
             c.address as customer_address,
@@ -13365,7 +13365,7 @@ app.get('/api/estimates/:id/pdf', async (c) => {
           SELECT 
             e.*,
             c.name as customer_name,
-            c.contact_person as customer_contact_person,
+            COALESCE(e.customer_contact_person, c.contact_person, '') as customer_contact_person,
             c.phone as customer_phone,
             c.email as customer_email,
             c.address as customer_address,
