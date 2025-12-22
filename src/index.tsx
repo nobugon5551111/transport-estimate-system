@@ -15851,6 +15851,33 @@ app.post('/api/projects', async (c) => {
       }, 400);
     }
     
+    // 重複送信防止（3秒以内の同一リクエストをブロック）
+    const duplicateCheck = await env.DB.prepare(`
+      SELECT id, created_at 
+      FROM projects 
+      WHERE name = ? AND customer_id = ? AND user_id = ?
+      AND created_at >= datetime('now', '-3 seconds')
+      ORDER BY created_at DESC
+      LIMIT 1
+    `).bind(data.name.trim(), data.customer_id, userId).first();
+    
+    if (duplicateCheck) {
+      console.warn('🚫 重複案件作成をブロック（3秒以内）:', {
+        name: data.name,
+        customer_id: data.customer_id,
+        existing_id: duplicateCheck.id,
+        created_at: duplicateCheck.created_at
+      });
+      
+      // 重複の場合は既存のIDを返す（エラーではなく成功として扱う）
+      return c.json({
+        success: true,
+        message: '案件が正常に追加されました',
+        data: { id: duplicateCheck.id },
+        duplicate: true
+      });
+    }
+    
     // 案件作成
     const result = await env.DB.prepare(`
       INSERT INTO projects (customer_id, name, description, status, priority, notes, user_id, created_at, updated_at)
