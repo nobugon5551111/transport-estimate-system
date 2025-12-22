@@ -6808,13 +6808,13 @@ app.post('/api/estimates', async (c) => {
         parking_fee, highway_fee,
         subtotal, tax_rate, tax_amount, total_amount,
         user_id, vehicle_2t_count, vehicle_4t_count, external_contractor_cost, 
-        uses_multiple_vehicles, notes, line_items_json, created_by_name
+        uses_multiple_vehicles, notes, line_items_json, created_by_name, customer_contact_person
       ) VALUES (
         ?, ?, ?, ?, ?, ?, ?, ?, ?, 
         ?, ?, ?, ?, ?, ?, 
         ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `).bind(
       data.customer_id,
@@ -6865,7 +6865,8 @@ app.post('/api/estimates', async (c) => {
       data.uses_multiple_vehicles || false,
       data.notes || '',
       data.line_items_json || null,
-      createdByName  // 作成者名を保存
+      createdByName,  // 作成者名を保存
+      data.customer_contact_person || ''  // 顧客担当者を保存
     ).run()
     
     console.log('見積保存結果:', result)

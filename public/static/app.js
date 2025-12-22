@@ -4285,6 +4285,9 @@ const Step6Implementation = {
         project_id: Step6Implementation.estimateData.project.id,
         estimate_number: document.getElementById('estimateNumber').textContent,
         
+        // 顧客担当者（見積ごとに保存）
+        customer_contact_person: Step6Implementation.estimateData.customer.contact_person || '',
+        
         // 配送先情報
         delivery_address: Step6Implementation.estimateData.delivery.address,
         delivery_postal_code: Step6Implementation.estimateData.delivery.postal_code,
