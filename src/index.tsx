@@ -6780,6 +6780,8 @@ app.post('/api/estimates', async (c) => {
         vehicle_cost, staff_cost, 
         supervisor_count, leader_count, m2_staff_half_day, m2_staff_full_day,
         temp_staff_half_day, temp_staff_full_day,
+        site_survey_people, site_survey_distance, site_survey_base_cost,
+        site_survey_vehicle_cost, site_survey_distance_cost, site_survey_cost,
         parking_officer_hours, parking_officer_cost,
         transport_vehicles, transport_cost,
         waste_disposal_size, waste_disposal_cost,
@@ -6794,6 +6796,7 @@ app.post('/api/estimates', async (c) => {
       ) VALUES (
         ?, ?, ?, ?, ?, ?, ?, ?, ?, 
         ?, ?, ?, ?, ?, ?, 
+        ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
@@ -6813,6 +6816,12 @@ app.post('/api/estimates', async (c) => {
       data.m2_staff_full_day || 0,
       data.temp_staff_half_day || 0,
       data.temp_staff_full_day || 0,
+      data.site_survey_people || 0,
+      data.site_survey_distance || 0,
+      data.site_survey_base_cost || 0,
+      data.site_survey_vehicle_cost || 0,
+      data.site_survey_distance_cost || 0,
+      data.site_survey_cost || 0,
       data.parking_officer_hours || 0,
       data.parking_officer_cost || 0,
       data.transport_vehicles || 0,
