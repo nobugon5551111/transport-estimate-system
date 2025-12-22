@@ -6759,8 +6759,16 @@ window.saveStaffRates = async function() {
 window.Validator = Validator;
 window.MasterManagement = MasterManagement;
 
-// 新規案件追加ボタンの設定
+// 新規案件追加ボタンの設定（重複登録防止フラグ付き）
+let projectAddButtonSetup = false;
+
 function setupProjectAddButton() {
+  // 既にセットアップ済みの場合は何もしない
+  if (projectAddButtonSetup) {
+    console.log('⚠️ Project add button already set up, skipping...');
+    return;
+  }
+  
   const addProjectBtn = document.getElementById('addProjectBtn');
   if (addProjectBtn) {
     console.log('🎯 Setting up project add button event listener');
@@ -6785,6 +6793,7 @@ function setupProjectAddButton() {
     console.log('✅ Project add button event listener set up successfully');
   } else {
     console.log('❌ addProjectBtn element not found');
+    return; // ボタンが見つからない場合はフラグを立てない
   }
   
   // フォーム送信処理の設定
@@ -6868,7 +6877,12 @@ function setupProjectAddButton() {
     console.log('✅ Project form submit listener set up successfully');
   } else {
     console.log('❌ projectForm element not found');
+    return; // フォームが見つからない場合はフラグを立てない
   }
+  
+  // セットアップ完了フラグを立てる
+  projectAddButtonSetup = true;
+  console.log('✅ Project add button setup completed');
 }
 
 // 案件追加モーダル用の顧客選択肢更新関数
@@ -6914,12 +6928,6 @@ function updateProjectCustomerOptions() {
 // DOMContentLoaded時にボタン設定を実行
 document.addEventListener('DOMContentLoaded', function() {
   console.log('🚀 Setting up project button on DOMContentLoaded');
-  setupProjectAddButton();
-});
-
-// window.onloadでも設定（念のため）
-window.addEventListener('load', function() {
-  console.log('🚀 Setting up project button on window load');
   setupProjectAddButton();
 });
 // 顧客・案件管理機能の実装
