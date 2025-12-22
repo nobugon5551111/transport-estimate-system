@@ -710,6 +710,14 @@ if (typeof EstimateFlowImplementation === 'undefined') {
 
     if (projectSelect.value) {
       try {
+        // 顧客情報を再取得（担当者情報の更新のため）
+        const customerResponse = await API.get(`/customers`);
+        const customerSelect = document.getElementById('customerSelect');
+        if (customerSelect && customerSelect.value) {
+          EstimateFlowImplementation.selectedCustomer = customerResponse.data.find(c => c.id == customerSelect.value);
+        }
+        
+        // 案件情報を取得
         const projectResponse = await API.get(`/projects/${EstimateFlowImplementation.selectedCustomer.id}`);
         EstimateFlowImplementation.selectedProject = projectResponse.data.find(p => p.id == projectSelect.value);
         

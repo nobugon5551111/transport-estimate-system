@@ -4064,14 +4064,11 @@ app.get('/estimate/step1', (c) => {
                 <select id="projectCustomerId" name="customer_id" className="form-select" required>
                   <option value="">顧客を選択してください</option>
                 </select>
+                <p className="mt-1 text-sm text-gray-500">※ 顧客の担当者は「マスター管理」→「顧客管理」で設定してください</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">案件名 *</label>
                 <input type="text" id="projectName" name="name" className="form-input" required />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">担当者名 *</label>
-                <input type="text" id="projectContactPerson" name="contact_person" className="form-input" required placeholder="例: 田中太郎" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">案件説明</label>
@@ -15482,14 +15479,11 @@ app.get('/customers', (c) => {
                 <select id="projectCustomerId" name="customer_id" className="form-select" required>
                   <option value="">顧客を選択してください</option>
                 </select>
+                <p className="mt-1 text-sm text-gray-500">※ 顧客の担当者は「マスター管理」→「顧客管理」で設定してください</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">案件名 *</label>
                 <input type="text" id="projectName" name="name" className="form-input" required />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">担当者名 *</label>
-                <input type="text" id="projectContactPerson" name="contact_person" className="form-input" required placeholder="例: 田中太郎" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">案件説明</label>
