@@ -14085,7 +14085,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
             <div class="info-box">
                 <h3>お客様情報</h3>
                 <strong>${estimate.customer_name || ''}</strong><br>
-                ${estimate.customer_contact_person ? `担当者: ${estimate.customer_contact_person}<br>` : ''}
+                <strong>担当者:</strong> ${estimate.customer_contact_person || '未設定'}<br>
                 ${estimate.customer_address || ''}<br>
                 ${estimate.customer_phone ? `TEL: ${estimate.customer_phone}<br>` : ''}
                 ${estimate.customer_email ? `Email: ${estimate.customer_email}` : ''}

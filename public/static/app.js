@@ -3121,7 +3121,7 @@ const Step6Implementation = {
     const customer = Step6Implementation.estimateData.customer;
     document.getElementById('customerInfo').innerHTML = `
       <div><strong>${customer.name}</strong></div>
-      ${customer.contact_person ? `<div>担当者: ${customer.contact_person}</div>` : ''}
+      <div><strong>担当者:</strong> ${customer.contact_person || '未設定'}</div>
       ${customer.phone ? `<div>TEL: ${customer.phone}</div>` : ''}
       ${customer.email ? `<div>Email: ${customer.email}</div>` : ''}
     `;
