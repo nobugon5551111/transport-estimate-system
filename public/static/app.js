@@ -10,6 +10,34 @@
     return;
   }
   
+  // ログイン直後フラグをチェック（ログイン成功直後は認証チェックをスキップ）
+  const justLoggedIn = sessionStorage.getItem('_just_logged_in');
+  if (justLoggedIn === 'true') {
+    console.log('🔓 ログイン直後のため認証チェックをスキップします');
+    sessionStorage.removeItem('_just_logged_in');
+    // ログイン情報を取得してセット
+    try {
+      const response = await axios.get('/api/auth/session');
+      if (response.data.data) {
+        window._currentUser = response.data.data;
+        console.log('✅ ユーザー認証確認:', window._currentUser.userName);
+      }
+    } catch (error) {
+      console.error('認証情報取得エラー:', error);
+    }
+    
+    // ユーザー名を表示
+    if (window.location.pathname === '/') {
+      setTimeout(() => {
+        const userNameElement = document.getElementById('currentUserName');
+        if (userNameElement && window._currentUser) {
+          userNameElement.textContent = window._currentUser.userName;
+        }
+      }, 100);
+    }
+    return;
+  }
+  
   try {
     const response = await axios.get('/api/auth/session');
     

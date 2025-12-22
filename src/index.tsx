@@ -2051,6 +2051,8 @@ app.get('/login.html', (c) => {
                 });
 
                 if (response.data.success) {
+                    // ログイン成功フラグをセット（認証チェックをスキップさせるため）
+                    sessionStorage.setItem('_just_logged_in', 'true');
                     window.location.href = '/';
                 } else {
                     showError(response.data.message || 'ログインに失敗しました');
