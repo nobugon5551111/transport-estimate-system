@@ -1938,6 +1938,11 @@ app.get('/admin/users.html', (c) => {
 </html>`)
 })
 
+// ログインリダイレクト
+app.get('/login', (c) => {
+  return c.redirect('/login.html')
+})
+
 // ログイン画面
 app.get('/login.html', (c) => {
   return c.html(`<!DOCTYPE html>
