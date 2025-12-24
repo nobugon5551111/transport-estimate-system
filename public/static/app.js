@@ -4084,7 +4084,8 @@ const Step6Implementation = {
     
     if (services) {
       // 基本サービス費用（割増を除く）
-      const baseServicesCost = (services.parking_officer_cost || 0) + 
+      const baseServicesCost = (services.site_survey_cost || 0) +
+                               (services.parking_officer_cost || 0) + 
                                (services.transport_cost || 0) + 
                                (services.waste_disposal_cost || 0) + 
                                (services.protection_cost || 0) + 
