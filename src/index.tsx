@@ -6890,14 +6890,24 @@ app.post('/api/estimates', async (c) => {
     
   } catch (error) {
     console.error('見積保存エラー:', error)
+    console.error('エラー詳細:', {
+      name: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    })
+    
     try {
-      const { data } = c.req
-      if (data) {
-        console.error('エラーが発生したデータ:', JSON.stringify(data, null, 2))
-      }
+      const data = await c.req.json()
+      console.error('エラーが発生したリクエストデータ:', {
+        customer_id: data.customer_id,
+        project_id: data.project_id,
+        estimate_number: data.estimate_number,
+        keys: Object.keys(data).join(', ')
+      })
     } catch (jsonError) {
-      console.error('データのJSON化に失敗:', jsonError)
+      console.error('リクエストデータの取得に失敗:', jsonError)
     }
+    
     return c.json({ 
       success: false,
       error: '見積の保存に失敗しました', 

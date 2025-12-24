@@ -284,9 +284,16 @@ if (typeof API === 'undefined') {
       return response.data;
     } catch (error) {
       console.error('API Error:', error);
+      console.error('Error details:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message
+      });
       
       if (error.response) {
-        throw new Error(error.response.data.error || 'API呼び出しに失敗しました');
+        const errorDetail = error.response.data?.detail || error.response.data?.error || 'API呼び出しに失敗しました';
+        throw new Error(errorDetail);
       } else if (error.request) {
         throw new Error('サーバーに接続できませんでした');
       } else {
