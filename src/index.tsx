@@ -6908,10 +6908,19 @@ app.post('/api/estimates', async (c) => {
       console.error('リクエストデータの取得に失敗:', jsonError)
     }
     
+    // より親切なエラーメッセージを提供
+    let errorMessage = '見積の保存に失敗しました'
+    let errorDetail = error instanceof Error ? error.message : String(error)
+    
+    if (errorDetail.includes('FOREIGN KEY constraint failed')) {
+      errorMessage = '選択された顧客または案件が見つかりません'
+      errorDetail = '顧客・案件データが削除された可能性があります。最初から見積作成をやり直してください。'
+    }
+    
     return c.json({ 
       success: false,
-      error: '見積の保存に失敗しました', 
-      detail: error instanceof Error ? error.message : String(error)
+      error: errorMessage, 
+      detail: errorDetail
     }, 500)
   }
 })
