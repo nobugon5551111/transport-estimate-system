@@ -6902,9 +6902,6 @@ function setupProjectAddButton() {
         if (!data.name || data.name.trim() === '') {
           throw new Error('案件名を入力してください');
         }
-        if (!data.contact_person || data.contact_person.trim() === '') {
-          throw new Error('担当者名を入力してください');
-        }
         
         console.log('🚀 Sending request to /api/projects...');
         const response = await fetch('/api/projects', {
