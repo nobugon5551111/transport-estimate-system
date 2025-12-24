@@ -6,7 +6,7 @@
   'use strict';
   
   // ログインページの場合はスキップ
-  if (window.location.pathname === '/login.html') {
+  if (window.location.pathname === '/login.html' || window.location.pathname === '/login') {
     return;
   }
   
