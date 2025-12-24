@@ -549,7 +549,7 @@ app.get('/admin/backup', (c) => {
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/app.js?v=1760939908&cache=bust&t=1760939908"></script>
+        <script src="/static/app.js?v=1766551870&cache=bust&t=1766551870"></script>
         <script>
             // バックアップ管理機能の実装
             const BackupManager = {
@@ -1025,7 +1025,7 @@ app.get('/test-step4-session', (c) => {
         </div>
     </div>
 
-    <script src="/static/app.js?v=1760939908&cache=bust"></script>
+    <script src="/static/app.js?v=1766551870&cache=bust"></script>
     <script>
         console.log('🧪 Step4 セッション付き動作確認開始');
         
@@ -1229,7 +1229,7 @@ app.get('/test-step4-fixed', (c) => {
         </div>
     </div>
 
-    <script src="/static/app.js?v=1760939908&cache=bust"></script>
+    <script src="/static/app.js?v=1766551870&cache=bust"></script>
     <script>
         console.log('🧪 Step4動的ラベル修正テスト開始');
         
@@ -1450,7 +1450,7 @@ app.get('/test-step4-labels', (c) => {
         </div>
     </div>
 
-    <script src="/static/app.js?v=1760939908&cache=bust"></script>
+    <script src="/static/app.js?v=1766551870&cache=bust"></script>
     <script>
         console.log('🧪 動的ラベルテストページ初期化開始');
         
@@ -17257,7 +17257,7 @@ app.get('/settings', (c) => {
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/app.js?v=1760939908&cache=bust&t=1760939908"></script>
+        <script src="/static/app.js?v=1766551870&cache=bust&t=1766551870"></script>
         <script>
             // 設定機能の実装
             const Settings = {
