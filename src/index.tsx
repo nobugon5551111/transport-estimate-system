@@ -4496,183 +4496,183 @@ function getAreaFromPostalCode(postalCode) {
     
     // 豊中市 - 560
     if (code.startsWith('560')) {
-      return { area_rank: 'A', area_name: '豊中市' }
+      return { area_rank: 'B', area_name: '豊中市' }
     }
     
     // 池田市 - 563（能勢町・豊能町の範囲を除く）
     if (code.startsWith('563') && 
         !(code.startsWith('5630') || code.startsWith('5631') || code.startsWith('5632') || code.startsWith('5633'))) {
-      return { area_rank: 'A', area_name: '池田市' }
+      return { area_rank: 'B', area_name: '池田市' }
     }
     
     // 吹田市 - 564, 565
     if (code.startsWith('564') || code.startsWith('565')) {
-      return { area_rank: 'A', area_name: '吹田市' }
+      return { area_rank: 'B', area_name: '吹田市' }
     }
     
     // 箕面市 - 562
     if (code.startsWith('562')) {
-      return { area_rank: 'A', area_name: '箕面市' }
+      return { area_rank: 'B', area_name: '箕面市' }
     }
     
     // 茨木市 - 567, 568
     if (code.startsWith('567') || code.startsWith('568')) {
-      return { area_rank: 'A', area_name: '茨木市' }
+      return { area_rank: 'B', area_name: '茨木市' }
     }
     
     // 摂津市 - 566
     if (code.startsWith('566')) {
-      return { area_rank: 'A', area_name: '摂津市' }
+      return { area_rank: 'B', area_name: '摂津市' }
     }
     
     // 高槻市 - 569
     if (code.startsWith('569')) {
-      return { area_rank: 'A', area_name: '高槻市' }
+      return { area_rank: 'B', area_name: '高槻市' }
     }
     
     // 枚方市 - 573
     if (code.startsWith('573')) {
-      return { area_rank: 'A', area_name: '枚方市' }
+      return { area_rank: 'B', area_name: '枚方市' }
     }
     
     // 寝屋川市 - 572
     if (code.startsWith('572')) {
-      return { area_rank: 'A', area_name: '寝屋川市' }
+      return { area_rank: 'B', area_name: '寝屋川市' }
     }
     
     // 交野市 - 576
     if (code.startsWith('576')) {
-      return { area_rank: 'A', area_name: '交野市' }
+      return { area_rank: 'B', area_name: '交野市' }
     }
     
     // 守口市 - 570
     if (code.startsWith('570')) {
-      return { area_rank: 'A', area_name: '守口市' }
+      return { area_rank: 'B', area_name: '守口市' }
     }
     
     // 門真市 - 571
     if (code.startsWith('571')) {
-      return { area_rank: 'A', area_name: '門真市' }
+      return { area_rank: 'B', area_name: '門真市' }
     }
     
     // 四条畷市 - 575
     if (code.startsWith('575')) {
-      return { area_rank: 'A', area_name: '四条畷市' }
+      return { area_rank: 'B', area_name: '四条畷市' }
     }
     
     // 大東市 - 574
     if (code.startsWith('574')) {
-      return { area_rank: 'A', area_name: '大東市' }
+      return { area_rank: 'B', area_name: '大東市' }
     }
     
     // 東大阪市 - 577, 578, 579
     if (code.startsWith('577') || code.startsWith('578') || code.startsWith('579')) {
-      return { area_rank: 'A', area_name: '東大阪市' }
+      return { area_rank: 'B', area_name: '東大阪市' }
     }
     
     // 八尾市 - 581
     if (code.startsWith('581')) {
-      return { area_rank: 'A', area_name: '八尾市' }
+      return { area_rank: 'B', area_name: '八尾市' }
     }
     
     // 柏原市 - 582
     if (code.startsWith('582')) {
-      return { area_rank: 'A', area_name: '柏原市' }
+      return { area_rank: 'B', area_name: '柏原市' }
     }
     
     // 藤井寺市 - 583
     if (code.startsWith('583') && !(code.substring(0, 5) >= '58396' && code.substring(0, 5) <= '58399')) {
-      return { area_rank: 'A', area_name: '藤井寺市' }
+      return { area_rank: 'B', area_name: '藤井寺市' }
     }
     
     // 松原市 - 580
     if (code.startsWith('580')) {
-      return { area_rank: 'A', area_name: '松原市' }
+      return { area_rank: 'B', area_name: '松原市' }
     }
     
     // 羽曳野市 - 583
     if (code.startsWith('583') && (code.substring(0, 4) >= '5830' && code.substring(0, 4) <= '5835')) {
-      return { area_rank: 'A', area_name: '羽曳野市' }
+      return { area_rank: 'B', area_name: '羽曳野市' }
     }
     
     // 富田林市 - 584
     if (code.startsWith('584')) {
-      return { area_rank: 'A', area_name: '富田林市' }
+      return { area_rank: 'B', area_name: '富田林市' }
     }
     
     // 大阪狭山市 - 589
     if (code.startsWith('589')) {
-      return { area_rank: 'A', area_name: '大阪狭山市' }
+      return { area_rank: 'B', area_name: '大阪狭山市' }
     }
     
     // 河内長野市 - 586
     if (code.startsWith('586')) {
-      return { area_rank: 'A', area_name: '河内長野市' }
+      return { area_rank: 'B', area_name: '河内長野市' }
     }
     
     // 南河内郡太子町 - 583-86xx
     if (code.startsWith('58386')) {
-      return { area_rank: 'A', area_name: '南河内郡太子町' }
+      return { area_rank: 'B', area_name: '南河内郡太子町' }
     }
     
     // 南河内郡河南町 - 585-85xx
     if (code.startsWith('58585')) {
-      return { area_rank: 'A', area_name: '南河内郡河南町' }
+      return { area_rank: 'B', area_name: '南河内郡河南町' }
     }
     
     // 南河内郡千早赤阪村 - 585-87xx
     if (code.startsWith('58587')) {
-      return { area_rank: 'A', area_name: '南河内郡千早赤阪村' }
+      return { area_rank: 'B', area_name: '南河内郡千早赤阪村' }
     }
     
-    // 堺市全域 - 590-599
+    // 堺市全域 - 590-599（大阪府→Bランク：2026年3月改定）
     if (code.startsWith('59') && !(code.startsWith('599') && (code.substring(0, 4) >= '5990' && code.substring(0, 4) <= '5999'))) {
-      return { area_rank: 'A', area_name: '堺市' }
+      return { area_rank: 'B', area_name: '堺市' }
     }
     
-    // 高石市 - 592
+    // 高石市 - 592（大阪府→Bランク）
     if (code.startsWith('592')) {
-      return { area_rank: 'A', area_name: '高石市' }
+      return { area_rank: 'B', area_name: '高石市' }
     }
     
     // 泉大津市 - 595
     if (code.startsWith('595') && !(code.substring(0, 5) >= '59540' && code.substring(0, 5) <= '59549')) {
-      return { area_rank: 'A', area_name: '泉大津市' }
+      return { area_rank: 'B', area_name: '泉大津市' }
     }
     
     // 和泉市 - 594
     if (code.startsWith('594')) {
-      return { area_rank: 'A', area_name: '和泉市' }
+      return { area_rank: 'B', area_name: '和泉市' }
     }
     
     // 泉北郡忠岡町 - 595-40xx
     if (code.startsWith('59540')) {
-      return { area_rank: 'A', area_name: '泉北郡忠岡町' }
+      return { area_rank: 'B', area_name: '泉北郡忠岡町' }
     }
     
     // 岸和田市 - 596
     if (code.startsWith('596')) {
-      return { area_rank: 'A', area_name: '岸和田市' }
+      return { area_rank: 'B', area_name: '岸和田市' }
     }
     
     // 貝塚市 - 597
     if (code.startsWith('597')) {
-      return { area_rank: 'A', area_name: '貝塚市' }
+      return { area_rank: 'B', area_name: '貝塚市' }
     }
     
     // 泉佐野市 - 598
     if (code.startsWith('598') && !(code.substring(0, 5) >= '59805' && code.substring(0, 5) <= '59809')) {
-      return { area_rank: 'A', area_name: '泉佐野市' }
+      return { area_rank: 'B', area_name: '泉佐野市' }
     }
     
     // 泉南郡熊取町 - 590-04xx
     if (code.startsWith('59004')) {
-      return { area_rank: 'A', area_name: '泉南郡熊取町' }
+      return { area_rank: 'B', area_name: '泉南郡熊取町' }
     }
     
     // 泉南郡田尻町 - 598-05xx
     if (code.startsWith('59805')) {
-      return { area_rank: 'A', area_name: '泉南郡田尻町' }
+      return { area_rank: 'B', area_name: '泉南郡田尻町' }
     }
     
     // Bランク市町村（限定的）
@@ -4705,7 +4705,7 @@ function getAreaFromPostalCode(postalCode) {
     
     // 三島郡島本町 - 618-00xx（京都府との境界）
     if (code.startsWith('61800')) {
-      return { area_rank: 'A', area_name: '三島郡島本町' }
+      return { area_rank: 'B', area_name: '三島郡島本町' }
     }
   }
   
@@ -4716,32 +4716,32 @@ function getAreaFromPostalCode(postalCode) {
     // 神戸市（全区）- 650, 651, 652, 653, 654, 655, 657, 658
     if (code.startsWith('650') || code.startsWith('651') || code.startsWith('652') || code.startsWith('653') ||
         code.startsWith('654') || code.startsWith('655') || code.startsWith('657') || code.startsWith('658')) {
-      return { area_rank: 'A', area_name: '神戸市' }
+      return { area_rank: 'B', area_name: '神戸市' }
     }
     
     // 尼崎市 - 660
     if (code.startsWith('660')) {
-      return { area_rank: 'A', area_name: '尼崎市' }
+      return { area_rank: 'B', area_name: '尼崎市' }
     }
     
     // 西宮市 - 662, 663の一部
     if (code.startsWith('662') || (code.startsWith('663') && (code.substring(0, 4) >= '6630' && code.substring(0, 4) <= '6639'))) {
-      return { area_rank: 'A', area_name: '西宮市' }
+      return { area_rank: 'B', area_name: '西宮市' }
     }
     
     // 芦屋市 - 659
     if (code.startsWith('659')) {
-      return { area_rank: 'A', area_name: '芦屋市' }
+      return { area_rank: 'B', area_name: '芦屋市' }
     }
     
     // 伊丹市 - 664
     if (code.startsWith('664')) {
-      return { area_rank: 'A', area_name: '伊丹市' }
+      return { area_rank: 'B', area_name: '伊丹市' }
     }
     
     // 宝塚市 - 665
     if (code.startsWith('665')) {
-      return { area_rank: 'A', area_name: '宝塚市' }
+      return { area_rank: 'B', area_name: '宝塚市' }
     }
     
     // Bランク市町村（より具体的な範囲を先に判定）
@@ -4752,7 +4752,7 @@ function getAreaFromPostalCode(postalCode) {
     
     // 川西市 - 666（猪名川町以外の666）
     if (code.startsWith('666')) {
-      return { area_rank: 'A', area_name: '川西市' }
+      return { area_rank: 'B', area_name: '川西市' }
     }
     // その他Bランク市町村
     // 三田市 - 669
@@ -4807,16 +4807,47 @@ function getAreaFromPostalCode(postalCode) {
       return { area_rank: 'B', area_name: '加東市' }
     }
     
-    // 姫路市（離島除く）- 670, 671, 672
+    // 淡路島 - 656（洲本市、南あわじ市、淡路市）→ Eランク
+    if (code.startsWith('656')) {
+      return { area_rank: 'E', area_name: '淡路島' }
+    }
+    
+    // 姫路市（離島除く）- 670, 671, 672 → Dランク（東播磨圏）
     if (code.startsWith('670') || code.startsWith('671') || code.startsWith('672')) {
-      // 離島の郵便番号は除外（具体的な離島郵便番号は要調査）
-      return { area_rank: 'B', area_name: '姫路市' }
+      return { area_rank: 'D', area_name: '姫路市' }
+    }
+    
+    // 西播磨（たつの市、赤穂市、宍粟市、佐用郡等）- 678, 679 → Eランク
+    if (code.startsWith('678') || code.startsWith('679')) {
+      return { area_rank: 'E', area_name: '西播磨' }
+    }
+    
+    // 但馬（豊岡市、養父市、朝来市）- 668, 669の一部 → Fランク
+    if (code.startsWith('668')) {
+      return { area_rank: 'F', area_name: '但馬（豊岡市）' }
     }
   }
   
-  // 兵庫県のその他地域（Cランク）
-  if (code.startsWith('67') || code.startsWith('68') || code.startsWith('69')) {
-    return { area_rank: 'C', area_name: '兵庫県その他市町村' }
+  // 兵庫県のその他地域（残り67x等）→ Dランク（東播磨圏として扱う）
+  if (code.startsWith('67')) {
+    return { area_rank: 'D', area_name: '兵庫県その他市町村' }
+  }
+  // 鳥取県 - 680-689番台（兵庫県68xブロックより先に判定）
+  if (code.startsWith('680') || code.startsWith('681') || code.startsWith('682') ||
+      code.startsWith('683') || code.startsWith('684') || code.startsWith('685') ||
+      code.startsWith('686') || code.startsWith('687') || code.startsWith('688') || code.startsWith('689')) {
+    return { area_rank: 'G', area_name: '鳥取県' }
+  }
+  // 島根県 - 690-699番台（兵庫県69xブロックより先に判定）
+  if (code.startsWith('690') || code.startsWith('691') || code.startsWith('692') ||
+      code.startsWith('693') || code.startsWith('694') || code.startsWith('695') ||
+      code.startsWith('696') || code.startsWith('697') || code.startsWith('698') || code.startsWith('699')) {
+    return { area_rank: 'H', area_name: '島根県' }
+  }
+  // 兵庫県但馬・丹後地域（68x, 69x）→ Fランク
+  // ※鳥取・島根を先に判定するため、ここには到達しない（残存用セーフティ）
+  if (code.startsWith('68') || code.startsWith('69')) {
+    return { area_rank: 'F', area_name: '兵庫県北部' }
   }
   
   // 離島等（Dランク）- 離島の具体的な郵便番号は要調査
@@ -4832,67 +4863,67 @@ function getAreaFromPostalCode(postalCode) {
         code.startsWith('603') || code.startsWith('604') || code.startsWith('605') ||
         code.startsWith('606') || code.startsWith('607') || code.startsWith('608') ||
         code.startsWith('612') || code.startsWith('615') || code.startsWith('616')) {
-      return { area_rank: 'A', area_name: '京都市' }
+      return { area_rank: 'B', area_name: '京都市' }
     }
     
     // 宇治市 - 611番台
     if (code.startsWith('611')) {
-      return { area_rank: 'A', area_name: '宇治市' }
+      return { area_rank: 'B', area_name: '宇治市' }
     }
     
     // 城陽市 - 610番台（一部）
     if (code.startsWith('610') && (code.substring(0, 4) >= '6100' && code.substring(0, 4) <= '6102')) {
-      return { area_rank: 'A', area_name: '城陽市' }
+      return { area_rank: 'B', area_name: '城陽市' }
     }
     
     // 向日市 - 617-0xxx
     if (code.startsWith('6170')) {
-      return { area_rank: 'A', area_name: '向日市' }
+      return { area_rank: 'B', area_name: '向日市' }
     }
     
     // 長岡京市 - 617-8xxx
     if (code.startsWith('6178')) {
-      return { area_rank: 'A', area_name: '長岡京市' }
+      return { area_rank: 'B', area_name: '長岡京市' }
     }
     
     // 八幡市 - 614番台
     if (code.startsWith('614')) {
-      return { area_rank: 'A', area_name: '八幡市' }
+      return { area_rank: 'B', area_name: '八幡市' }
     }
     
     // 京田辺市 - 610-03xx
     if (code.startsWith('61003')) {
-      return { area_rank: 'A', area_name: '京田辺市' }
+      return { area_rank: 'B', area_name: '京田辺市' }
     }
     
     // 木津川市 - 619-0xxx
     if (code.startsWith('6190')) {
-      return { area_rank: 'A', area_name: '木津川市' }
+      return { area_rank: 'B', area_name: '木津川市' }
     }
     
     // 乙訓郡大山崎町 - 618-07xx
     if (code.startsWith('61807')) {
-      return { area_rank: 'A', area_name: '乙訓郡大山崎町' }
+      return { area_rank: 'B', area_name: '乙訓郡大山崎町' }
     }
     
     // 久世郡久御山町 - 613-08xx
     if (code.startsWith('61308')) {
-      return { area_rank: 'A', area_name: '久世郡久御山町' }
+      return { area_rank: 'B', area_name: '久世郡久御山町' }
     }
     
     // 相楽郡精華町 - 619-02xx
     if (code.startsWith('61902')) {
-      return { area_rank: 'A', area_name: '相楽郡精華町' }
+      return { area_rank: 'B', area_name: '相楽郡精華町' }
     }
     
     // 綴喜郡宇治田原町 - 610-02xx
     if (code.startsWith('61002')) {
-      return { area_rank: 'A', area_name: '綴喜郡宇治田原町' }
+      return { area_rank: 'B', area_name: '綴喜郡宇治田原町' }
     }
     
     // 綴喜郡井手町 - 610-04xx
     if (code.startsWith('61004')) {
-      return { area_rank: 'A', area_name: '綴喜郡井手町' }
+      return { area_rank: 'B', area_name: '綴喜郡井手町' }
     }
     
     // Bランク市町村
@@ -4908,29 +4939,29 @@ function getAreaFromPostalCode(postalCode) {
       return { area_rank: 'C', area_name: '亀岡市' }
     }
     
-    // 福知山市 - 620-xxxx
+    // 福知山市 - 620-xxxx → Eランク（中丹）
     if (code.startsWith('620')) {
-      return { area_rank: 'C', area_name: '福知山市' }
+      return { area_rank: 'E', area_name: '福知山市' }
     }
     
-    // 舞鶴市 - 624-xxxx, 625-xxxx
+    // 舞鶴市 - 624-xxxx, 625-xxxx → Fランク（丹後）
     if (code.startsWith('624') || code.startsWith('625')) {
-      return { area_rank: 'C', area_name: '舞鶴市' }
+      return { area_rank: 'F', area_name: '舞鶴市' }
     }
     
-    // 綾部市 - 623-xxxx
+    // 綾部市 - 623-xxxx → Eランク（中丹）
     if (code.startsWith('623')) {
-      return { area_rank: 'C', area_name: '綾部市' }
+      return { area_rank: 'E', area_name: '綾部市' }
     }
     
-    // 宮津市 - 626-xxxx
+    // 宮津市 - 626-xxxx → Fランク（丹後）
     if (code.startsWith('626')) {
-      return { area_rank: 'C', area_name: '宮津市' }
+      return { area_rank: 'F', area_name: '宮津市' }
     }
     
-    // 京丹後市 - 627-xxxx, 629-xxxx
+    // 京丹後市 - 627-xxxx, 629-xxxx → Fランク（丹後）
     if (code.startsWith('627') || code.startsWith('629')) {
-      return { area_rank: 'C', area_name: '京丹後市' }
+      return { area_rank: 'F', area_name: '京丹後市' }
     }
     
     // 南丹市 - 622-xxxx
@@ -4981,12 +5012,9 @@ function getAreaFromPostalCode(postalCode) {
   if (code.startsWith('70') || code.startsWith('71')) {
     return { area_rank: 'G', area_name: '岡山県' }
   }
-  // 鳥取県
-  if (code.startsWith('68')) {
-    return { area_rank: 'G', area_name: '鳥取県' }
-  }
+  // 鳥取県 → 上部で判定済み（680-689）
   // 福井県
-  if (code.startsWith('91') || code.startsWith('91')) {
+  if (code.startsWith('91')) {
     return { area_rank: 'G', area_name: '福井県' }
   }
   // 広島県
@@ -5001,10 +5029,7 @@ function getAreaFromPostalCode(postalCode) {
   if (code.startsWith('78')) {
     return { area_rank: 'H', area_name: '高知県' }
   }
-  // 島根県
-  if (code.startsWith('69')) {
-    return { area_rank: 'H', area_name: '島根県' }
-  }
+  // 島根県 → 上部で判定済み（690-699）
   // 石川県
   if (code.startsWith('92')) {
     return { area_rank: 'H', area_name: '石川県' }
@@ -7126,6 +7151,7 @@ app.post('/api/estimates', async (c) => {
         subtotal, discount_amount, tax_rate, tax_amount, total_amount,
         user_id, vehicle_2t_count, vehicle_4t_count, 
         vehicle_dedicated_count, vehicle_charter_count,
+        vehicle_dedicated_unit_price, vehicle_charter_unit_price,
         external_contractor_cost, 
         uses_multiple_vehicles, notes, line_items_json, created_by_name, customer_contact_person,
         delivery_distance_km, transport_vehicle_fee, road_permit_fee, survey_fee, oneman_discount_applied
@@ -7134,7 +7160,7 @@ app.post('/api/estimates', async (c) => {
         ?, ?, ?, ?, ?, ?, 
         ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `).bind(
       data.customer_id,
@@ -7185,6 +7211,8 @@ app.post('/api/estimates', async (c) => {
       data.vehicle_4t_count || 0,
       data.vehicle_dedicated_count || 0,
       data.vehicle_charter_count || 0,
+      data.vehicle_dedicated_unit_price || 0,
+      data.vehicle_charter_unit_price || 0,
       data.external_contractor_cost || 0,
       data.uses_multiple_vehicles || false,
       data.notes || '',

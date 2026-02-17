@@ -1546,7 +1546,10 @@ const Step3Implementation = {
           area: Step3Implementation.currentArea || 'D',
           cost: 0,
           external_contractor_cost: 0, // 外注費用フィールド削除により0固定
-          uses_multiple_vehicles: true
+          uses_multiple_vehicles: true,
+          // 既存の単価情報を保持
+          vehicle_dedicated_unit_price: Step3Implementation.currentVehicleInfo?.vehicle_dedicated_unit_price || 0,
+          vehicle_charter_unit_price: Step3Implementation.currentVehicleInfo?.vehicle_charter_unit_price || 0
         };
         
         console.log('🔧 緊急修正: 車両情報強制保存:', Step3Implementation.currentVehicleInfo);
@@ -2103,6 +2106,16 @@ if (typeof Step3Implementation !== 'undefined') {
           if (countSpan) countSpan.textContent = count;
           if (totalSpan) totalSpan.textContent = `¥${total.toLocaleString()}`;
           if (pricingDiv) pricingDiv.classList.remove('hidden');
+          
+          // 単価をcurrentVehicleInfoに保存（saveEstimate用）
+          if (!Step3Implementation.currentVehicleInfo) {
+            Step3Implementation.currentVehicleInfo = {};
+          }
+          if (type === 'dedicated') {
+            Step3Implementation.currentVehicleInfo.vehicle_dedicated_unit_price = unitPrice;
+          } else {
+            Step3Implementation.currentVehicleInfo.vehicle_charter_unit_price = unitPrice;
+          }
           
           // distance_area_pricingからも料金情報を取得して表示
           try {
@@ -3477,6 +3490,8 @@ const Step6Implementation = {
               const dedUnitPrice = responseDed.price;
               const dedTotalCost = dedUnitPrice * vehicle.vehicle_dedicated_count;
               totalVehicleCost += dedTotalCost;
+              // 単価をestimateDataに保存（saveEstimate用）
+              Step6Implementation.estimateData.vehicle.vehicle_dedicated_unit_price = dedUnitPrice;
               details.push(`<div class="flex justify-between px-4 py-2"><span>専属便 ${vehicle.vehicle_dedicated_count}台（${vehicle.area}ランク）@ ¥${dedUnitPrice.toLocaleString()}</span><span>${Utils.formatCurrency(dedTotalCost)}</span></div>`);
             }
           } catch (e) {
@@ -3502,6 +3517,8 @@ const Step6Implementation = {
               const chaUnitPrice = responseCha.price;
               const chaTotalCost = chaUnitPrice * vehicle.vehicle_charter_count;
               totalVehicleCost += chaTotalCost;
+              // 単価をestimateDataに保存（saveEstimate用）
+              Step6Implementation.estimateData.vehicle.vehicle_charter_unit_price = chaUnitPrice;
               details.push(`<div class="flex justify-between px-4 py-2"><span>2tチャーター ${vehicle.vehicle_charter_count}台（${vehicle.area}ランク）@ ¥${chaUnitPrice.toLocaleString()}</span><span>${Utils.formatCurrency(chaTotalCost)}</span></div>`);
             }
           } catch (e) {
@@ -4613,6 +4630,8 @@ const Step6Implementation = {
         vehicle_4t_count: Step6Implementation.estimateData.vehicle.vehicle_4t_count || 0,
         vehicle_dedicated_count: Step6Implementation.estimateData.vehicle.vehicle_dedicated_count || 0,
         vehicle_charter_count: Step6Implementation.estimateData.vehicle.vehicle_charter_count || 0,
+        vehicle_dedicated_unit_price: Step6Implementation.estimateData.vehicle.vehicle_dedicated_unit_price || 0,
+        vehicle_charter_unit_price: Step6Implementation.estimateData.vehicle.vehicle_charter_unit_price || 0,
         external_contractor_cost: Step6Implementation.estimateData.vehicle.external_contractor_cost || 0,
         uses_multiple_vehicles: Step6Implementation.estimateData.vehicle.uses_multiple_vehicles || false,
         
