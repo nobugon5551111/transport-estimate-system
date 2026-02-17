@@ -28,7 +28,7 @@ ALTER TABLE estimates ADD COLUMN created_by_name TEXT;
 -- 初期ユーザー作成（パスワード: admin123）
 -- bcryptハッシュは後でAPI経由で正しく生成します
 INSERT OR IGNORE INTO users (id, name, password) VALUES 
-  ('admin', '管理者', '$2b$10$dummy_hash_will_be_replaced');
+  ('admin', '管理者', '5307762ebbc42408cfd2e07263931521f92d5b39221691b0ce2d9a7973565e5f');
 
 -- 既存の見積書に作成者名を遡及適用（オプション）
 UPDATE estimates SET created_by_name = '既存ユーザー' WHERE created_by_name IS NULL;
