@@ -38,7 +38,7 @@ export interface Estimate {
   // 配送先情報
   delivery_address: string;
   delivery_postal_code?: string;
-  delivery_area: 'A' | 'B' | 'C' | 'D';
+  delivery_area: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I';
   
   // 車両情報
   vehicle_type: '2t車' | '4t車';
@@ -120,7 +120,7 @@ export interface AreaSetting {
   id?: number;
   postal_code_prefix: string;
   area_name: string;
-  area_rank: 'A' | 'B' | 'C' | 'D';
+  area_rank: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I';
   user_id: string;
   created_at?: string;
   updated_at?: string;
@@ -145,7 +145,7 @@ export interface PostalCodeApiResponse {
 }
 
 export interface AIOptimizationRequest {
-  delivery_area: 'A' | 'B' | 'C' | 'D';
+  delivery_area: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I';
   vehicle_type: '2t車' | '4t車';
   operation_type: '共配' | '半日' | '終日';
   work_type: string;

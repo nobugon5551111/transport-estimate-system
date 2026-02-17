@@ -994,6 +994,82 @@ if (typeof Step2Implementation === 'undefined') {
   window.Step2Implementation = {
   currentDeliveryInfo: null,
 
+  // A〜Iランクのエリア名マッピング
+  getAreaNames: () => ({
+    'A': '大阪市（15km圏内）',
+    'B': '大阪府・神戸・京都・奈良（30km圏内）',
+    'C': '南丹（50km圏内）',
+    'D': '東播磨・滋賀・和歌山（100km圏内）',
+    'E': '淡路・西播磨・三重（150km圏内）',
+    'F': '但馬・愛知・徳島・香川（200km圏内）',
+    'G': '岡山・鳥取・福井（300km圏内）',
+    'H': '広島・愛媛・島根・石川・富山（400km圏内）',
+    'I': '山口（500km圏内）'
+  }),
+
+  // ランク外警告表示
+  showOutOfRange: (message) => {
+    const warningDiv = document.getElementById('outOfRangeWarning');
+    const warningText = document.getElementById('outOfRangeText');
+    if (warningDiv) {
+      warningDiv.classList.remove('hidden');
+      if (warningText) warningText.textContent = message;
+    }
+    // 次へボタンを無効化
+    const nextBtn = document.getElementById('step2NextBtn');
+    if (nextBtn) nextBtn.disabled = true;
+  },
+
+  // ランク外警告非表示
+  hideOutOfRange: () => {
+    const warningDiv = document.getElementById('outOfRangeWarning');
+    if (warningDiv) warningDiv.classList.add('hidden');
+    const nextBtn = document.getElementById('step2NextBtn');
+    if (nextBtn) nextBtn.disabled = false;
+  },
+
+  // 距離計算結果表示
+  showDistanceResult: (message) => {
+    const resultDiv = document.getElementById('distanceResult');
+    const resultText = document.getElementById('distanceResultText');
+    if (resultDiv) {
+      resultDiv.classList.remove('hidden');
+      if (resultText) resultText.textContent = message;
+    }
+  },
+
+  // 住所から距離ベースのエリア自動判定
+  calculateAreaFromAddress: (address) => {
+    if (typeof DistanceCalculator === 'undefined') {
+      console.log('DistanceCalculator未読込み、郵便番号判定にフォールバック');
+      return null;
+    }
+
+    const result = DistanceCalculator.determineAreaFromAddress(address);
+    
+    if (result.error) {
+      console.log('距離計算エラー:', result.message);
+      return null;
+    }
+    
+    if (result.outOfRange) {
+      Step2Implementation.showOutOfRange(result.message);
+      Step2Implementation.showDistanceResult(result.message);
+      return { rank: 'OUT', distance: result.distance, message: result.message };
+    }
+    
+    Step2Implementation.hideOutOfRange();
+    Step2Implementation.showDistanceResult(result.message);
+    
+    return {
+      rank: result.rank,
+      distance: result.distance,
+      label: result.label,
+      cityName: result.cityName,
+      message: result.message
+    };
+  },
+
   // ページ初期化
   initialize: () => {
     const flowData = JSON.parse(sessionStorage.getItem('estimateFlow') || '{}');
@@ -1087,16 +1163,37 @@ if (typeof Step2Implementation === 'undefined') {
       // エリア判定設定
       if (areaResponse.success) {
         if (areaResponse.detected) {
-          // エリアが検出された場合
-          areaSelect.value = areaResponse.area_rank;
+          // 距離ベース判定を優先的に使用
+          const address = addressInput.value.trim() || areaResponse.address || '';
+          const distanceResult = Step2Implementation.calculateAreaFromAddress(address);
           
-          // 自動判定結果を表示
-          document.getElementById('autoAreaText').innerHTML = `
-            <strong>${areaResponse.area_rank}エリア</strong> - ${areaResponse.area_name}
-          `;
-          autoAreaResult.classList.remove('hidden');
-          
-          // 成功メッセージは自動判定結果の表示で十分なので削除
+          if (distanceResult && distanceResult.rank !== 'OUT') {
+            // 距離計算成功 → 距離ベースのランクを使用
+            areaSelect.value = distanceResult.rank;
+            document.getElementById('autoAreaText').innerHTML = `
+              <strong>${distanceResult.rank}ランク</strong> - ${distanceResult.label}<br>
+              <small>${distanceResult.cityName} → 本社から直線 ${distanceResult.distance}km</small>
+            `;
+            autoAreaResult.classList.remove('hidden');
+          } else if (distanceResult && distanceResult.rank === 'OUT') {
+            // ランク外
+            areaSelect.value = '';
+            autoAreaResult.classList.add('hidden');
+            // showOutOfRange は calculateAreaFromAddress 内で呼ばれる
+          } else {
+            // 距離計算失敗 → 郵便番号ベースのランクを使用（フォールバック）
+            if (areaResponse.area_rank === 'OUT') {
+              areaSelect.value = '';
+              Step2Implementation.showOutOfRange('ランク外です。フリー見積をご利用ください。');
+            } else {
+              areaSelect.value = areaResponse.area_rank;
+            }
+            document.getElementById('autoAreaText').innerHTML = `
+              <strong>${areaResponse.area_rank}ランク</strong> - ${areaResponse.area_name}
+              <small>（郵便番号ベース判定）</small>
+            `;
+            autoAreaResult.classList.remove('hidden');
+          }
         } else {
           // エリアが検出されなかった場合
           areaSelect.value = 'D'; // デフォルトはDランク
@@ -1106,14 +1203,18 @@ if (typeof Step2Implementation === 'undefined') {
         }
         
         // 配送情報を保存
-        Step2Implementation.currentDeliveryInfo = {
-          postal_code: Utils.formatPostalCode(postalCode),
-          address: addressInput.value || `郵便番号: ${Utils.formatPostalCode(postalCode)}`,
-          area: areaResponse.area_rank,
-          area_name: areaResponse.area_name || `${areaResponse.area_rank}エリア`
-        };
-        
-        Step2Implementation.updateConfirmation();
+        const finalAreaRank = areaSelect.value || areaResponse.area_rank;
+        if (finalAreaRank && finalAreaRank !== 'OUT') {
+          const areaNames = Step2Implementation.getAreaNames();
+          Step2Implementation.currentDeliveryInfo = {
+            postal_code: Utils.formatPostalCode(postalCode),
+            address: addressInput.value || `郵便番号: ${Utils.formatPostalCode(postalCode)}`,
+            area: finalAreaRank,
+            area_name: areaNames[finalAreaRank] || areaResponse.area_name || `${finalAreaRank}ランク`
+          };
+          
+          Step2Implementation.updateConfirmation();
+        }
         
       } else {
         // API呼び出し失敗
@@ -1195,12 +1296,7 @@ if (typeof Step2Implementation === 'undefined') {
     const addressInput = document.getElementById('deliveryAddress');
     
     if (areaSelect.value && addressInput.value.trim()) {
-      const areaNames = {
-        'A': '大阪市内・京都市内・神戸市内',
-        'B': '関西近郊主要都市',
-        'C': '関西地方その他都市',
-        'D': '遠方・その他地域'
-      };
+      const areaNames = Step2Implementation.getAreaNames();
       
       Step2Implementation.currentDeliveryInfo = {
         postal_code: Utils.formatPostalCode(postalCodeInput.value.replace(/[^\d]/g, '')),
@@ -1219,13 +1315,14 @@ if (typeof Step2Implementation === 'undefined') {
     const addressInput = document.getElementById('deliveryAddress');
     const areaSelect = document.getElementById('areaSelect');
     
+    // ランク外チェック
+    if (areaSelect.value === 'OUT') {
+      Step2Implementation.showOutOfRange('500km超のためランク外です。フリー見積をご利用ください。');
+      return;
+    }
+    
     if (areaSelect.value) {
-      const areaNames = {
-        'A': '大阪市内・京都市内・神戸市内',
-        'B': '関西近郊主要都市', 
-        'C': '関西地方その他都市',
-        'D': '遠方・その他地域'
-      };
+      const areaNames = Step2Implementation.getAreaNames();
       
       // 住所が空の場合はデフォルト値を設定
       const address = addressInput.value.trim() || '住所未入力';
@@ -1250,12 +1347,7 @@ if (typeof Step2Implementation === 'undefined') {
     const manualAreaSelect = document.getElementById('manualArea');
     
     if (manualAreaSelect.value && addressInput.value.trim()) {
-      const areaNames = {
-        'A': '大阪市内・京都市内・神戸市内',
-        'B': '関西近郊主要都市', 
-        'C': '関西地方その他都市',
-        'D': '遠方・その他地域'
-      };
+      const areaNames = Step2Implementation.getAreaNames();
       
       Step2Implementation.currentDeliveryInfo = {
         postal_code: Utils.formatPostalCode(postalCodeInput.value.replace(/[^\d]/g, '')),
@@ -1268,17 +1360,31 @@ if (typeof Step2Implementation === 'undefined') {
     }
   },
 
-  // 住所入力変更時
+  // 住所入力変更時（距離計算も実行）
   handleAddressChange: () => {
     const postalCodeInput = document.getElementById('postalCode');
     const addressInput = document.getElementById('deliveryAddress');
     const areaSelect = document.getElementById('areaSelect');
+    const address = addressInput.value.trim();
+    
+    // 住所が十分な長さの場合、距離ベース判定を試行
+    if (address && address.length >= 4) {
+      const distanceResult = Step2Implementation.calculateAreaFromAddress(address);
+      if (distanceResult && distanceResult.rank !== 'OUT' && distanceResult.rank) {
+        areaSelect.value = distanceResult.rank;
+      }
+    }
     
     // 既存データがある場合は更新、ない場合はエリアが選択されていれば新規作成
     if (Step2Implementation.currentDeliveryInfo) {
-      Step2Implementation.currentDeliveryInfo.address = addressInput.value.trim();
+      Step2Implementation.currentDeliveryInfo.address = address;
+      if (areaSelect.value) {
+        Step2Implementation.currentDeliveryInfo.area = areaSelect.value;
+        const areaNames = Step2Implementation.getAreaNames();
+        Step2Implementation.currentDeliveryInfo.area_name = areaNames[areaSelect.value] || '';
+      }
       Step2Implementation.updateConfirmation();
-    } else if (areaSelect.value && addressInput.value.trim()) {
+    } else if (areaSelect.value && address) {
       // エリアが選択されていて住所が入力された場合、自動でデータ作成
       Step2Implementation.handleAreaSelectChange();
     }
@@ -1398,11 +1504,13 @@ const Step3Implementation = {
   handleIndividualVehicleCountChange: () => {
     const vehicle2tCount = parseInt(document.getElementById('vehicle2tCount')?.value) || 0;
     const vehicle4tCount = parseInt(document.getElementById('vehicle4tCount')?.value) || 0;
+    const vehicleDedicatedCount = parseInt(document.getElementById('vehicleDedicatedCount')?.value) || 0;
+    const vehicleCharterCount = parseInt(document.getElementById('vehicleCharterCount')?.value) || 0;
     
-    console.log('🚗 車両台数変更:', { vehicle2tCount, vehicle4tCount });
+    console.log('🚗 車両台数変更:', { vehicle2tCount, vehicle4tCount, vehicleDedicatedCount, vehicleCharterCount });
     
     // 合計車両数表示を更新
-    const totalCount = vehicle2tCount + vehicle4tCount;
+    const totalCount = vehicle2tCount + vehicle4tCount + vehicleDedicatedCount + vehicleCharterCount;
     const totalCountElement = document.getElementById('totalVehicleCount');
     if (totalCountElement) {
       totalCountElement.textContent = `${totalCount}台`;
@@ -1432,6 +1540,8 @@ const Step3Implementation = {
         Step3Implementation.currentVehicleInfo = {
           vehicle_2t_count: vehicle2tCount,
           vehicle_4t_count: vehicle4tCount,
+          vehicle_dedicated_count: vehicleDedicatedCount,
+          vehicle_charter_count: vehicleCharterCount,
           operation: operationValue,
           area: Step3Implementation.currentArea || 'D',
           cost: 0,
@@ -1858,21 +1968,26 @@ const Step3Implementation = {
     // 車両情報の詳細チェック
     const vehicle2tCount = parseInt(document.getElementById('vehicle2tCount')?.value) || 0;
     const vehicle4tCount = parseInt(document.getElementById('vehicle4tCount')?.value) || 0;
+    const vehicleDedicatedCount = parseInt(document.getElementById('vehicleDedicatedCount')?.value) || 0;
+    const vehicleCharterCount = parseInt(document.getElementById('vehicleCharterCount')?.value) || 0;
     const operationSelect = document.getElementById('operationType');
     const selectedOperation = operationSelect?.value;
     const externalCost = 0; // 外注費用フィールド削除により0固定
+    const totalAllVehicles = vehicle2tCount + vehicle4tCount + vehicleDedicatedCount + vehicleCharterCount;
     
     console.log('🔍 フォーム入力値:', {
       vehicle2tCount,
       vehicle4tCount,
+      vehicleDedicatedCount,
+      vehicleCharterCount,
       selectedOperation,
       externalCost,
-      totalVehicles: vehicle2tCount + vehicle4tCount
+      totalVehicles: totalAllVehicles
     });
     
     // 車両情報が未設定の場合は強制的に設定
     if (!Step3Implementation.currentVehicleInfo) {
-      if ((vehicle2tCount + vehicle4tCount) === 0) {
+      if (totalAllVehicles === 0) {
         console.error('❌ STEP4遷移エラー: 車両が選択されていません');
         Utils.showError('車種と台数を選択してください');
         return;
@@ -1889,6 +2004,8 @@ const Step3Implementation = {
       Step3Implementation.currentVehicleInfo = {
         vehicle_2t_count: vehicle2tCount,
         vehicle_4t_count: vehicle4tCount,
+        vehicle_dedicated_count: vehicleDedicatedCount,
+        vehicle_charter_count: vehicleCharterCount,
         operation: selectedOperation,
         area: Step3Implementation.currentArea || 'D',
         cost: existingCost, // 既存のコストを保持
@@ -1951,23 +2068,111 @@ window.handleVehicle4tCountChange = () => {
   Step3Implementation.handleIndividualVehicleCountChange();
 };
 
+// 専属便・2tチャーター台数変更ハンドラー
+window.handleVehicleDedicatedCountChange = () => {
+  Step3Implementation.handleNewVehicleCountChange('dedicated', '専属便');
+};
+
+window.handleVehicleCharterCountChange = () => {
+  Step3Implementation.handleNewVehicleCountChange('charter', '2tチャーター');
+};
+
+// 新車種（専属便・2tチャーター）の台数変更処理
+if (typeof Step3Implementation !== 'undefined') {
+  Step3Implementation.handleNewVehicleCountChange = async (type, vehicleName) => {
+    const countInput = document.getElementById(type === 'dedicated' ? 'vehicleDedicatedCount' : 'vehicleCharterCount');
+    const count = parseInt(countInput?.value) || 0;
+    const area = Step3Implementation.currentArea;
+    
+    const pricingDiv = document.getElementById(type === 'dedicated' ? 'pricingDedicated' : 'pricingCharter');
+    const priceSpan = document.getElementById(type === 'dedicated' ? 'priceDedicated' : 'priceCharter');
+    const countSpan = document.getElementById(type === 'dedicated' ? 'countDedicated' : 'countCharter');
+    const totalSpan = document.getElementById(type === 'dedicated' ? 'totalDedicated' : 'totalCharter');
+    
+    if (count > 0 && area) {
+      try {
+        const apiUrl = `/api/vehicle-pricing?vehicle_type=${encodeURIComponent(vehicleName)}&operation_type=${encodeURIComponent('終日')}&delivery_area=${area}`;
+        const response = await fetch(apiUrl);
+        const data = await response.json();
+        
+        if (data.success) {
+          const unitPrice = data.price;
+          const total = unitPrice * count;
+          
+          if (priceSpan) priceSpan.textContent = `¥${unitPrice.toLocaleString()}`;
+          if (countSpan) countSpan.textContent = count;
+          if (totalSpan) totalSpan.textContent = `¥${total.toLocaleString()}`;
+          if (pricingDiv) pricingDiv.classList.remove('hidden');
+          
+          // distance_area_pricingからも料金情報を取得して表示
+          try {
+            const distPriceResp = await fetch(`/api/distance-area-pricing?area_rank=${area}`);
+            const distPriceData = await distPriceResp.json();
+            if (distPriceData.success && distPriceData.pricing) {
+              const p = distPriceData.pricing;
+              const extraInfo = [];
+              if (p.transport_vehicle_fee) extraInfo.push(`輸送車両費: ¥${p.transport_vehicle_fee.toLocaleString()}`);
+              if (p.road_permit_fee) extraInfo.push(`道路許可: ¥${p.road_permit_fee.toLocaleString()}`);
+              if (p.oneman_discount_eligible) extraInfo.push(`ワンマン割引対象（-¥15,000）`);
+              if (extraInfo.length > 0 && pricingDiv) {
+                const infoEl = pricingDiv.querySelector('.extra-info') || document.createElement('div');
+                infoEl.className = 'extra-info text-xs text-gray-500 mt-1';
+                infoEl.textContent = extraInfo.join(' / ');
+                if (!pricingDiv.querySelector('.extra-info')) pricingDiv.appendChild(infoEl);
+              }
+            }
+          } catch (e) { /* non-critical */ }
+        }
+      } catch (error) {
+        console.error(`${vehicleName}料金取得エラー:`, error);
+      }
+    } else {
+      if (pricingDiv) pricingDiv.classList.add('hidden');
+    }
+    
+    // 合計車両数・次へボタンの状態更新
+    Step3Implementation.updateTotalVehicleCount();
+    Step3Implementation.updateNextButtonState();
+  };
+  
+  // 合計車両数を更新（新車種含む）
+  const originalUpdateTotal = Step3Implementation.updateTotalVehicleCount;
+  Step3Implementation.updateTotalVehicleCount = () => {
+    if (originalUpdateTotal) {
+      try { originalUpdateTotal.call(Step3Implementation); } catch(e) {}
+    }
+    const v2t = parseInt(document.getElementById('vehicle2tCount')?.value) || 0;
+    const v4t = parseInt(document.getElementById('vehicle4tCount')?.value) || 0;
+    const vDed = parseInt(document.getElementById('vehicleDedicatedCount')?.value) || 0;
+    const vCha = parseInt(document.getElementById('vehicleCharterCount')?.value) || 0;
+    const total = v2t + v4t + vDed + vCha;
+    const totalEl = document.getElementById('totalVehicleCount');
+    if (totalEl) totalEl.textContent = `${total}台`;
+  };
+}
+
 // 緊急修正: ボタン状態を強制的にチェックするグローバル関数
 window.forceCheckStep3Button = () => {
   const vehicle2tCount = parseInt(document.getElementById('vehicle2tCount')?.value) || 0;
   const vehicle4tCount = parseInt(document.getElementById('vehicle4tCount')?.value) || 0;
+  const vehicleDedicatedCount = parseInt(document.getElementById('vehicleDedicatedCount')?.value) || 0;
+  const vehicleCharterCount = parseInt(document.getElementById('vehicleCharterCount')?.value) || 0;
   const selectedOperation = document.querySelector('input[name="operation_type"]:checked') || document.querySelector('#operationType');
   const nextBtn = document.getElementById('nextStepBtn');
+  const totalAllVehicles = vehicle2tCount + vehicle4tCount + vehicleDedicatedCount + vehicleCharterCount;
   
   console.log('🔧 緊急チェック:', {
     vehicle2tCount,
     vehicle4tCount,
+    vehicleDedicatedCount,
+    vehicleCharterCount,
     hasOperation: !!selectedOperation,
     operationValue: selectedOperation?.value,
     hasButton: !!nextBtn,
     buttonDisabled: nextBtn ? nextBtn.disabled : 'なし'
   });
   
-  if (nextBtn && (vehicle2tCount > 0 || vehicle4tCount > 0)) {
+  if (nextBtn && totalAllVehicles > 0) {
     console.log('🔧 緊急修正: ボタンを強制有効化実行');
     nextBtn.disabled = false;
     nextBtn.style.opacity = '1';
@@ -1979,10 +2184,12 @@ window.forceCheckStep3Button = () => {
     Step3Implementation.currentVehicleInfo = {
       vehicle_2t_count: vehicle2tCount,
       vehicle_4t_count: vehicle4tCount,
+      vehicle_dedicated_count: vehicleDedicatedCount,
+      vehicle_charter_count: vehicleCharterCount,
       operation: operationValue,
       area: Step3Implementation.currentArea || 'D',
       cost: 0,
-      external_contractor_cost: 0, // 外注費用フィールド削除
+      external_contractor_cost: 0,
       uses_multiple_vehicles: true
     };
     
@@ -3261,6 +3468,73 @@ const Step6Implementation = {
           details.push(`<div class="flex justify-between px-4 py-2"><span>外部協力業者費用</span><span>${Utils.formatCurrency(vehicle.external_contractor_cost)}</span></div>`);
         }
         
+        // 専属便（distance_area_pricing対応）
+        if (vehicle.vehicle_dedicated_count > 0) {
+          try {
+            const apiUrlDed = `/vehicle-pricing?vehicle_type=${encodeURIComponent('専属便')}&operation_type=${encodeURIComponent('終日')}&delivery_area=${vehicle.area}`;
+            const responseDed = await API.get(apiUrlDed);
+            if (responseDed && responseDed.success) {
+              const dedUnitPrice = responseDed.price;
+              const dedTotalCost = dedUnitPrice * vehicle.vehicle_dedicated_count;
+              totalVehicleCost += dedTotalCost;
+              details.push(`<div class="flex justify-between px-4 py-2"><span>専属便 ${vehicle.vehicle_dedicated_count}台（${vehicle.area}ランク）@ ¥${dedUnitPrice.toLocaleString()}</span><span>${Utils.formatCurrency(dedTotalCost)}</span></div>`);
+            }
+          } catch (e) {
+            // distance_area_pricingからフォールバック
+            try {
+              const distResp = await API.get(`/distance-area-pricing?area_rank=${vehicle.area}`);
+              if (distResp.success && distResp.pricing) {
+                const dedPrice = distResp.pricing.dedicated_price_1;
+                const dedTotal = dedPrice * vehicle.vehicle_dedicated_count;
+                totalVehicleCost += dedTotal;
+                details.push(`<div class="flex justify-between px-4 py-2"><span>専属便 ${vehicle.vehicle_dedicated_count}台（${vehicle.area}ランク）@ ¥${dedPrice.toLocaleString()}</span><span>${Utils.formatCurrency(dedTotal)}</span></div>`);
+              }
+            } catch (e2) { console.error('専属便料金取得失敗:', e2); }
+          }
+        }
+        
+        // 2tチャーター（distance_area_pricing対応）
+        if (vehicle.vehicle_charter_count > 0) {
+          try {
+            const apiUrlCha = `/vehicle-pricing?vehicle_type=${encodeURIComponent('2tチャーター')}&operation_type=${encodeURIComponent('終日')}&delivery_area=${vehicle.area}`;
+            const responseCha = await API.get(apiUrlCha);
+            if (responseCha && responseCha.success) {
+              const chaUnitPrice = responseCha.price;
+              const chaTotalCost = chaUnitPrice * vehicle.vehicle_charter_count;
+              totalVehicleCost += chaTotalCost;
+              details.push(`<div class="flex justify-between px-4 py-2"><span>2tチャーター ${vehicle.vehicle_charter_count}台（${vehicle.area}ランク）@ ¥${chaUnitPrice.toLocaleString()}</span><span>${Utils.formatCurrency(chaTotalCost)}</span></div>`);
+            }
+          } catch (e) {
+            try {
+              const distResp = await API.get(`/distance-area-pricing?area_rank=${vehicle.area}`);
+              if (distResp.success && distResp.pricing) {
+                const chaPrice = distResp.pricing.charter_2t_price_1;
+                const chaTotal = chaPrice * vehicle.vehicle_charter_count;
+                totalVehicleCost += chaTotal;
+                details.push(`<div class="flex justify-between px-4 py-2"><span>2tチャーター ${vehicle.vehicle_charter_count}台（${vehicle.area}ランク）@ ¥${chaPrice.toLocaleString()}</span><span>${Utils.formatCurrency(chaTotal)}</span></div>`);
+              }
+            } catch (e2) { console.error('2tチャーター料金取得失敗:', e2); }
+          }
+        }
+        
+        // distance_area_pricingの付帯費用（輸送車両費、道路許可費等）
+        if (vehicle.vehicle_dedicated_count > 0 || vehicle.vehicle_charter_count > 0) {
+          try {
+            const distResp = await API.get(`/distance-area-pricing?area_rank=${vehicle.area}`);
+            if (distResp.success && distResp.pricing) {
+              const p = distResp.pricing;
+              if (p.transport_vehicle_fee > 0) {
+                totalVehicleCost += p.transport_vehicle_fee;
+                details.push(`<div class="flex justify-between px-4 py-2"><span>輸送車両費（${vehicle.area}ランク）</span><span>${Utils.formatCurrency(p.transport_vehicle_fee)}</span></div>`);
+              }
+              if (p.road_permit_fee > 0) {
+                totalVehicleCost += p.road_permit_fee;
+                details.push(`<div class="flex justify-between px-4 py-2"><span>道路許可費</span><span>${Utils.formatCurrency(p.road_permit_fee)}</span></div>`);
+              }
+            }
+          } catch (e) { console.warn('付帯費用取得スキップ:', e); }
+        }
+        
         // 車両費用合計を表示
         if (details.length > 0) {
           details.push(`<div class="flex justify-between border-t pt-2 mt-2 font-bold"><span>車両費用合計</span><span>${Utils.formatCurrency(totalVehicleCost)}</span></div>`);
@@ -4010,7 +4284,7 @@ const Step6Implementation = {
     return lineItems;
   },
 
-  // 合計金額計算（修正版：データベース単価で統一計算）
+  // 合計金額計算（修正版：データベース単価で統一計算、修正済み単価を優先）
   calculateTotal: async () => {
     const vehicle = Step6Implementation.estimateData.vehicle;
     const staff = Step6Implementation.estimateData.staff;
@@ -4018,71 +4292,96 @@ const Step6Implementation = {
 
     console.log('🔢 STEP6合計金額計算開始:', { vehicle, staff, services });
 
-    // 1. 車両費用の再計算（複数車両対応）
+    // 1. 車両費用の再計算（複数車両対応、修正済み単価を優先）
     let finalVehicleCost = 0;
     if (vehicle.uses_multiple_vehicles) {
-      try {
-        if (vehicle.vehicle_2t_count > 0) {
-          const apiUrl2t = `/vehicle-pricing?vehicle_type=${encodeURIComponent('2t車')}&operation_type=${encodeURIComponent(vehicle.operation)}&delivery_area=${vehicle.area}`;
-          const response2t = await API.get(apiUrl2t);
-          if (response2t && response2t.success) {
-            vehicle.vehicle_2t_unit_price = response2t.price; // 単価を保存
-            finalVehicleCost += response2t.price * vehicle.vehicle_2t_count;
+      // 修正済みの場合は保存されている値を使用
+      if (vehicle.price_modified) {
+        finalVehicleCost = 
+          (vehicle.vehicle_2t_unit_price || 0) * (vehicle.vehicle_2t_count || 0) +
+          (vehicle.vehicle_4t_unit_price || 0) * (vehicle.vehicle_4t_count || 0) +
+          (vehicle.external_contractor_cost || 0);
+        console.log('✅ 車両費用（修正済み単価使用）:', finalVehicleCost);
+      } else {
+        // マスターから取得
+        try {
+          if (vehicle.vehicle_2t_count > 0) {
+            const apiUrl2t = `/vehicle-pricing?vehicle_type=${encodeURIComponent('2t車')}&operation_type=${encodeURIComponent(vehicle.operation)}&delivery_area=${vehicle.area}`;
+            const response2t = await API.get(apiUrl2t);
+            if (response2t && response2t.success) {
+              vehicle.vehicle_2t_unit_price = response2t.price; // 単価を保存
+              finalVehicleCost += response2t.price * vehicle.vehicle_2t_count;
+            }
           }
-        }
-        
-        if (vehicle.vehicle_4t_count > 0) {
-          const apiUrl4t = `/vehicle-pricing?vehicle_type=${encodeURIComponent('4t車')}&operation_type=${encodeURIComponent(vehicle.operation)}&delivery_area=${vehicle.area}`;
-          const response4t = await API.get(apiUrl4t);
-          if (response4t && response4t.success) {
-            vehicle.vehicle_4t_unit_price = response4t.price; // 単価を保存
-            finalVehicleCost += response4t.price * vehicle.vehicle_4t_count;
+          
+          if (vehicle.vehicle_4t_count > 0) {
+            const apiUrl4t = `/vehicle-pricing?vehicle_type=${encodeURIComponent('4t車')}&operation_type=${encodeURIComponent(vehicle.operation)}&delivery_area=${vehicle.area}`;
+            const response4t = await API.get(apiUrl4t);
+            if (response4t && response4t.success) {
+              vehicle.vehicle_4t_unit_price = response4t.price; // 単価を保存
+              finalVehicleCost += response4t.price * vehicle.vehicle_4t_count;
+            }
           }
+          
+          finalVehicleCost += vehicle.external_contractor_cost || 0;
+          console.log('✅ 車両費用再計算完了:', finalVehicleCost);
+        } catch (error) {
+          console.error('❌ 車両費用再計算エラー、保存値を使用:', error);
+          finalVehicleCost = vehicle.cost || 0;
         }
-        
-        finalVehicleCost += vehicle.external_contractor_cost || 0;
-        console.log('✅ 車両費用再計算完了:', finalVehicleCost);
-      } catch (error) {
-        console.error('❌ 車両費用再計算エラー、保存値を使用:', error);
-        finalVehicleCost = vehicle.cost || 0;
       }
     } else {
       finalVehicleCost = vehicle.cost || 0;
     }
 
-    // 2. スタッフ費用の再計算（データベース単価使用）
+    // 2. スタッフ費用の再計算（修正済み単価を優先）
     let finalStaffCost = 0;
-    try {
-      const ratesResponse = await API.get('/staff-rates');
-      let staffRates = {
-        supervisor: 20000, leader: 17000, m2_half_day: 7000, 
-        m2_full_day: 12500, temp_half_day: 6500, temp_full_day: 11500
-      };
-      
-      if (ratesResponse.success && ratesResponse.data && ratesResponse.data.staffRates) {
-        const dbRates = ratesResponse.data.staffRates;
-        staffRates = {
-          supervisor: dbRates.supervisor_rate || 20000,
-          leader: dbRates.leader_rate || 17000,
-          m2_half_day: dbRates.m2_half_day_rate || 7000,
-          m2_full_day: dbRates.m2_full_day_rate || 12500,
-          temp_half_day: dbRates.temp_half_day_rate || 6500,
-          temp_full_day: dbRates.temp_full_day_rate || 11500
-        };
-      }
-      
+    
+    // 修正済みの場合はその値を使用
+    if (staff.price_modified && staff.modified_rates) {
+      const rates = staff.modified_rates;
       finalStaffCost = 
-        (staff.supervisor_count || 0) * staffRates.supervisor +
-        (staff.leader_count || 0) * staffRates.leader +
-        (staff.m2_staff_half_day || 0) * staffRates.m2_half_day +
-        (staff.m2_staff_full_day || 0) * staffRates.m2_full_day +
-        (staff.temp_staff_half_day || 0) * staffRates.temp_half_day +
-        (staff.temp_staff_full_day || 0) * staffRates.temp_full_day;
+        (staff.supervisor_count || 0) * (rates.supervisor || 20000) +
+        (staff.leader_count || 0) * (rates.leader || 17000) +
+        (staff.m2_staff_half_day || 0) * (rates.m2_half_day || 7000) +
+        (staff.m2_staff_full_day || 0) * (rates.m2_full_day || 12500) +
+        (staff.temp_staff_half_day || 0) * (rates.temp_half_day || 6500) +
+        (staff.temp_staff_full_day || 0) * (rates.temp_full_day || 11500);
+      console.log('✅ スタッフ費用（修正済み単価使用）:', finalStaffCost);
+    } else {
+      // マスターから取得
+      try {
+        const ratesResponse = await API.get('/staff-rates');
+        let staffRates = {
+          supervisor: 20000, leader: 17000, m2_half_day: 7000, 
+          m2_full_day: 12500, temp_half_day: 6500, temp_full_day: 11500
+        };
         
-      console.log('✅ スタッフ費用再計算完了:', finalStaffCost);
-    } catch (error) {
-      console.error('❌ スタッフ費用再計算エラー、保存値を使用:', error);
-      finalStaffCost = staff.total_cost || staff.staff_cost || 0;
+        if (ratesResponse.success && ratesResponse.data && ratesResponse.data.staffRates) {
+          const dbRates = ratesResponse.data.staffRates;
+          staffRates = {
+            supervisor: dbRates.supervisor_rate || 20000,
+            leader: dbRates.leader_rate || 17000,
+            m2_half_day: dbRates.m2_half_day_rate || 7000,
+            m2_full_day: dbRates.m2_full_day_rate || 12500,
+            temp_half_day: dbRates.temp_half_day_rate || 6500,
+            temp_full_day: dbRates.temp_full_day_rate || 11500
+          };
+        }
+        
+        finalStaffCost = 
+          (staff.supervisor_count || 0) * staffRates.supervisor +
+          (staff.leader_count || 0) * staffRates.leader +
+          (staff.m2_staff_half_day || 0) * staffRates.m2_half_day +
+          (staff.m2_staff_full_day || 0) * staffRates.m2_full_day +
+          (staff.temp_staff_half_day || 0) * staffRates.temp_half_day +
+          (staff.temp_staff_full_day || 0) * staffRates.temp_full_day;
+          
+        console.log('✅ スタッフ費用再計算完了:', finalStaffCost);
+      } catch (error) {
+        console.error('❌ スタッフ費用再計算エラー、保存値を使用:', error);
+        finalStaffCost = staff.total_cost || staff.staff_cost || 0;
+      }
     }
 
     // 3. サービス費用の計算（Step5の値を優先）
@@ -4312,6 +4611,8 @@ const Step6Implementation = {
         // 複数車両用フィールド
         vehicle_2t_count: Step6Implementation.estimateData.vehicle.vehicle_2t_count || 0,
         vehicle_4t_count: Step6Implementation.estimateData.vehicle.vehicle_4t_count || 0,
+        vehicle_dedicated_count: Step6Implementation.estimateData.vehicle.vehicle_dedicated_count || 0,
+        vehicle_charter_count: Step6Implementation.estimateData.vehicle.vehicle_charter_count || 0,
         external_contractor_cost: Step6Implementation.estimateData.vehicle.external_contractor_cost || 0,
         uses_multiple_vehicles: Step6Implementation.estimateData.vehicle.uses_multiple_vehicles || false,
         
@@ -4402,6 +4703,573 @@ const Step6Implementation = {
     window.location.href = '/estimate/step5';
   },
 
+  // ========== 単価編集機能（STEP6） ==========
+  
+  // 編集中の単価を一時保存
+  editingPrices: {
+    vehicle: {},
+    staff: {},
+    service: {}
+  },
+
+  // 車両単価編集モードのトグル
+  toggleVehiclePriceEdit: () => {
+    const editMode = document.getElementById('vehiclePriceEditMode');
+    const editBtn = document.getElementById('editVehiclePriceBtn');
+    
+    if (editMode.classList.contains('hidden')) {
+      // 編集モードを表示
+      editMode.classList.remove('hidden');
+      editBtn.innerHTML = '<i class="fas fa-times mr-1"></i>編集を閉じる';
+      Step6Implementation.renderVehiclePriceEditFields();
+    } else {
+      // 編集モードを非表示
+      editMode.classList.add('hidden');
+      editBtn.innerHTML = '<i class="fas fa-edit mr-1"></i>単価編集';
+    }
+  },
+
+  // 車両単価編集フィールドを生成
+  renderVehiclePriceEditFields: () => {
+    const vehicle = Step6Implementation.estimateData.vehicle;
+    const container = document.getElementById('vehiclePriceEditFields');
+    
+    if (!vehicle) {
+      container.innerHTML = '<p class="text-gray-500">車両データがありません</p>';
+      return;
+    }
+
+    let html = '';
+    
+    if (vehicle.uses_multiple_vehicles) {
+      // 複数車両の場合
+      if (vehicle.vehicle_2t_count > 0) {
+        const currentPrice = Step6Implementation.editingPrices.vehicle.vehicle_2t_unit_price || 
+                             vehicle.vehicle_2t_unit_price || 0;
+        html += `
+          <div class="flex items-center justify-between">
+            <label class="text-sm text-gray-700">2t車 単価 (${vehicle.vehicle_2t_count}台)</label>
+            <div class="flex items-center">
+              <span class="mr-2">¥</span>
+              <input type="number" id="edit_vehicle_2t_price" 
+                     class="form-input w-32 text-right" 
+                     value="${currentPrice}" min="0" step="1000"
+                     onchange="Step6Implementation.onVehiclePriceChange('vehicle_2t_unit_price', this.value)">
+            </div>
+          </div>
+        `;
+      }
+      
+      if (vehicle.vehicle_4t_count > 0) {
+        const currentPrice = Step6Implementation.editingPrices.vehicle.vehicle_4t_unit_price || 
+                             vehicle.vehicle_4t_unit_price || 0;
+        html += `
+          <div class="flex items-center justify-between">
+            <label class="text-sm text-gray-700">4t車 単価 (${vehicle.vehicle_4t_count}台)</label>
+            <div class="flex items-center">
+              <span class="mr-2">¥</span>
+              <input type="number" id="edit_vehicle_4t_price" 
+                     class="form-input w-32 text-right" 
+                     value="${currentPrice}" min="0" step="1000"
+                     onchange="Step6Implementation.onVehiclePriceChange('vehicle_4t_unit_price', this.value)">
+            </div>
+          </div>
+        `;
+      }
+      
+      if (vehicle.external_contractor_cost > 0 || vehicle.external_contractor_cost === 0) {
+        const currentPrice = Step6Implementation.editingPrices.vehicle.external_contractor_cost !== undefined ? 
+                             Step6Implementation.editingPrices.vehicle.external_contractor_cost : 
+                             (vehicle.external_contractor_cost || 0);
+        html += `
+          <div class="flex items-center justify-between">
+            <label class="text-sm text-gray-700">外部協力業者費用</label>
+            <div class="flex items-center">
+              <span class="mr-2">¥</span>
+              <input type="number" id="edit_external_contractor_cost" 
+                     class="form-input w-32 text-right" 
+                     value="${currentPrice}" min="0" step="1000"
+                     onchange="Step6Implementation.onVehiclePriceChange('external_contractor_cost', this.value)">
+            </div>
+          </div>
+        `;
+      }
+    } else {
+      // 単一車両の場合
+      const currentPrice = Step6Implementation.editingPrices.vehicle.cost || vehicle.cost || 0;
+      html += `
+        <div class="flex items-center justify-between">
+          <label class="text-sm text-gray-700">${vehicle.type} 単価</label>
+          <div class="flex items-center">
+            <span class="mr-2">¥</span>
+            <input type="number" id="edit_vehicle_cost" 
+                   class="form-input w-32 text-right" 
+                   value="${currentPrice}" min="0" step="1000"
+                   onchange="Step6Implementation.onVehiclePriceChange('cost', this.value)">
+          </div>
+        </div>
+      `;
+    }
+    
+    container.innerHTML = html || '<p class="text-gray-500">編集可能な車両費用がありません</p>';
+  },
+
+  // 車両単価変更イベント
+  onVehiclePriceChange: (key, value) => {
+    Step6Implementation.editingPrices.vehicle[key] = parseInt(value) || 0;
+    console.log('🚚 車両単価編集:', key, value);
+  },
+
+  // 車両単価編集を適用
+  applyVehiclePriceEdit: async () => {
+    const vehicle = Step6Implementation.estimateData.vehicle;
+    const editedPrices = Step6Implementation.editingPrices.vehicle;
+    
+    console.log('✅ 車両単価適用:', editedPrices);
+    
+    // 編集した単価を適用
+    if (vehicle.uses_multiple_vehicles) {
+      if (editedPrices.vehicle_2t_unit_price !== undefined) {
+        vehicle.vehicle_2t_unit_price = editedPrices.vehicle_2t_unit_price;
+      }
+      if (editedPrices.vehicle_4t_unit_price !== undefined) {
+        vehicle.vehicle_4t_unit_price = editedPrices.vehicle_4t_unit_price;
+      }
+      if (editedPrices.external_contractor_cost !== undefined) {
+        vehicle.external_contractor_cost = editedPrices.external_contractor_cost;
+      }
+      
+      // 車両費用合計を再計算
+      vehicle.cost = 
+        (vehicle.vehicle_2t_unit_price || 0) * (vehicle.vehicle_2t_count || 0) +
+        (vehicle.vehicle_4t_unit_price || 0) * (vehicle.vehicle_4t_count || 0) +
+        (vehicle.external_contractor_cost || 0);
+    } else {
+      if (editedPrices.cost !== undefined) {
+        vehicle.cost = editedPrices.cost;
+      }
+    }
+    
+    // 単価修正フラグを設定
+    vehicle.price_modified = true;
+    
+    // sessionStorageに保存
+    const flowData = JSON.parse(sessionStorage.getItem('estimateFlow') || '{}');
+    flowData.vehicle = vehicle;
+    sessionStorage.setItem('estimateFlow', JSON.stringify(flowData));
+    
+    // 編集バッファをクリア
+    Step6Implementation.editingPrices.vehicle = {};
+    
+    // 表示を更新
+    await Step6Implementation.displayVehicleDetailsEdited();
+    await Step6Implementation.calculateTotal();
+    
+    // 編集モードを閉じる
+    Step6Implementation.toggleVehiclePriceEdit();
+    
+    Utils.showSuccess('車両単価を更新しました');
+  },
+
+  // 車両単価編集をキャンセル
+  cancelVehiclePriceEdit: () => {
+    Step6Implementation.editingPrices.vehicle = {};
+    Step6Implementation.toggleVehiclePriceEdit();
+  },
+
+  // 編集後の車両詳細表示
+  displayVehicleDetailsEdited: async () => {
+    const vehicle = Step6Implementation.estimateData.vehicle;
+    let html = '';
+    
+    if (vehicle.uses_multiple_vehicles) {
+      const details = [];
+      let totalVehicleCost = 0;
+      
+      if (vehicle.vehicle_2t_count > 0) {
+        const unitPrice = vehicle.vehicle_2t_unit_price || 0;
+        const totalCost = unitPrice * vehicle.vehicle_2t_count;
+        totalVehicleCost += totalCost;
+        details.push(`<div class="flex justify-between px-4 py-2"><span>2t車 ${vehicle.vehicle_2t_count}台・${vehicle.operation}（${vehicle.area}エリア）@ ¥${unitPrice.toLocaleString()} ${vehicle.price_modified ? '<span class="text-xs text-blue-600">(修正済)</span>' : ''}</span><span>${Utils.formatCurrency(totalCost)}</span></div>`);
+      }
+      
+      if (vehicle.vehicle_4t_count > 0) {
+        const unitPrice = vehicle.vehicle_4t_unit_price || 0;
+        const totalCost = unitPrice * vehicle.vehicle_4t_count;
+        totalVehicleCost += totalCost;
+        details.push(`<div class="flex justify-between px-4 py-2"><span>4t車 ${vehicle.vehicle_4t_count}台・${vehicle.operation}（${vehicle.area}エリア）@ ¥${unitPrice.toLocaleString()} ${vehicle.price_modified ? '<span class="text-xs text-blue-600">(修正済)</span>' : ''}</span><span>${Utils.formatCurrency(totalCost)}</span></div>`);
+      }
+      
+      if (vehicle.external_contractor_cost > 0) {
+        totalVehicleCost += vehicle.external_contractor_cost;
+        details.push(`<div class="flex justify-between px-4 py-2"><span>外部協力業者費用 ${vehicle.price_modified ? '<span class="text-xs text-blue-600">(修正済)</span>' : ''}</span><span>${Utils.formatCurrency(vehicle.external_contractor_cost)}</span></div>`);
+      }
+      
+      if (details.length > 0) {
+        details.push(`<div class="flex justify-between border-t pt-2 mt-2 font-bold"><span>車両費用合計</span><span>${Utils.formatCurrency(totalVehicleCost)}</span></div>`);
+      }
+      
+      html = Step6Implementation.applyZebraStripes(details).join('');
+    } else {
+      html = `
+        <div class="flex justify-between">
+          <span>${vehicle.type}・${vehicle.operation}（${vehicle.area}エリア）${vehicle.price_modified ? '<span class="text-xs text-blue-600 ml-2">(修正済)</span>' : ''}</span>
+          <span class="font-bold">${Utils.formatCurrency(vehicle.cost)}</span>
+        </div>
+      `;
+    }
+    
+    document.getElementById('vehicleDetails').innerHTML = html;
+  },
+
+  // ========== スタッフ単価編集機能 ==========
+  
+  // スタッフ単価編集モードのトグル
+  toggleStaffPriceEdit: () => {
+    const editMode = document.getElementById('staffPriceEditMode');
+    const editBtn = document.getElementById('editStaffPriceBtn');
+    
+    if (editMode.classList.contains('hidden')) {
+      editMode.classList.remove('hidden');
+      editBtn.innerHTML = '<i class="fas fa-times mr-1"></i>編集を閉じる';
+      Step6Implementation.renderStaffPriceEditFields();
+    } else {
+      editMode.classList.add('hidden');
+      editBtn.innerHTML = '<i class="fas fa-edit mr-1"></i>単価編集';
+    }
+  },
+
+  // スタッフ単価編集フィールドを生成
+  renderStaffPriceEditFields: async () => {
+    const staff = Step6Implementation.estimateData.staff;
+    const container = document.getElementById('staffPriceEditFields');
+    
+    if (!staff) {
+      container.innerHTML = '<p class="text-gray-500">スタッフデータがありません</p>';
+      return;
+    }
+
+    // 現在の単価を取得（APIから取得 or デフォルト）
+    let currentRates = {
+      supervisor: 20000,
+      leader: 17000,
+      m2_half_day: 7000,
+      m2_full_day: 12500,
+      temp_half_day: 6500,
+      temp_full_day: 11500
+    };
+    
+    try {
+      const ratesResponse = await API.get('/staff-rates');
+      if (ratesResponse.success && ratesResponse.data && ratesResponse.data.staffRates) {
+        const dbRates = ratesResponse.data.staffRates;
+        currentRates = {
+          supervisor: dbRates.supervisor_rate || 20000,
+          leader: dbRates.leader_rate || 17000,
+          m2_half_day: dbRates.m2_half_day_rate || 7000,
+          m2_full_day: dbRates.m2_full_day_rate || 12500,
+          temp_half_day: dbRates.temp_half_day_rate || 6500,
+          temp_full_day: dbRates.temp_full_day_rate || 11500
+        };
+      }
+    } catch (error) {
+      console.warn('スタッフ単価取得失敗、デフォルト使用');
+    }
+    
+    // 編集中の単価があればそれを使用
+    const editingRates = { ...currentRates, ...Step6Implementation.editingPrices.staff };
+    
+    // 修正済み単価があればそれを使用
+    if (staff.modified_rates) {
+      Object.assign(editingRates, staff.modified_rates);
+    }
+
+    const staffTypes = [
+      { key: 'supervisor', label: 'スーパーバイザー', count: staff.supervisor_count },
+      { key: 'leader', label: 'リーダー以上', count: staff.leader_count },
+      { key: 'm2_half_day', label: 'M2スタッフ（半日）', count: staff.m2_staff_half_day },
+      { key: 'm2_full_day', label: 'M2スタッフ（終日）', count: staff.m2_staff_full_day },
+      { key: 'temp_half_day', label: '派遣スタッフ（半日）', count: staff.temp_staff_half_day },
+      { key: 'temp_full_day', label: '派遣スタッフ（終日）', count: staff.temp_staff_full_day }
+    ];
+
+    let html = '';
+    
+    staffTypes.forEach(type => {
+      if (type.count > 0) {
+        html += `
+          <div class="flex items-center justify-between">
+            <label class="text-sm text-gray-700">${type.label} 単価 (${type.count}人)</label>
+            <div class="flex items-center">
+              <span class="mr-2">¥</span>
+              <input type="number" id="edit_staff_${type.key}" 
+                     class="form-input w-32 text-right" 
+                     value="${editingRates[type.key]}" min="0" step="500"
+                     onchange="Step6Implementation.onStaffPriceChange('${type.key}', this.value)">
+            </div>
+          </div>
+        `;
+      }
+    });
+    
+    container.innerHTML = html || '<p class="text-gray-500">編集可能なスタッフ費用がありません</p>';
+  },
+
+  // スタッフ単価変更イベント
+  onStaffPriceChange: (key, value) => {
+    Step6Implementation.editingPrices.staff[key] = parseInt(value) || 0;
+    console.log('👥 スタッフ単価編集:', key, value);
+  },
+
+  // スタッフ単価編集を適用
+  applyStaffPriceEdit: async () => {
+    const staff = Step6Implementation.estimateData.staff;
+    const editedRates = Step6Implementation.editingPrices.staff;
+    
+    console.log('✅ スタッフ単価適用:', editedRates);
+    
+    // 修正済み単価を保存
+    staff.modified_rates = { ...(staff.modified_rates || {}), ...editedRates };
+    staff.price_modified = true;
+    
+    // スタッフ費用合計を再計算
+    const rates = staff.modified_rates;
+    staff.total_cost = 
+      (staff.supervisor_count || 0) * (rates.supervisor || 20000) +
+      (staff.leader_count || 0) * (rates.leader || 17000) +
+      (staff.m2_staff_half_day || 0) * (rates.m2_half_day || 7000) +
+      (staff.m2_staff_full_day || 0) * (rates.m2_full_day || 12500) +
+      (staff.temp_staff_half_day || 0) * (rates.temp_half_day || 6500) +
+      (staff.temp_staff_full_day || 0) * (rates.temp_full_day || 11500);
+    
+    // sessionStorageに保存
+    const flowData = JSON.parse(sessionStorage.getItem('estimateFlow') || '{}');
+    flowData.staff = staff;
+    sessionStorage.setItem('estimateFlow', JSON.stringify(flowData));
+    
+    // 編集バッファをクリア
+    Step6Implementation.editingPrices.staff = {};
+    
+    // 表示を更新
+    await Step6Implementation.displayStaffDetailsEdited();
+    await Step6Implementation.calculateTotal();
+    
+    // 編集モードを閉じる
+    Step6Implementation.toggleStaffPriceEdit();
+    
+    Utils.showSuccess('スタッフ単価を更新しました');
+  },
+
+  // スタッフ単価編集をキャンセル
+  cancelStaffPriceEdit: () => {
+    Step6Implementation.editingPrices.staff = {};
+    Step6Implementation.toggleStaffPriceEdit();
+  },
+
+  // 編集後のスタッフ詳細表示
+  displayStaffDetailsEdited: async () => {
+    const staff = Step6Implementation.estimateData.staff;
+    const details = [];
+    
+    // 修正済み単価があればそれを使用
+    let staffRates = {
+      supervisor: 20000,
+      leader: 17000,
+      m2_half_day: 7000,
+      m2_full_day: 12500,
+      temp_half_day: 6500,
+      temp_full_day: 11500
+    };
+    
+    if (staff.modified_rates) {
+      Object.assign(staffRates, staff.modified_rates);
+    } else {
+      // APIから取得
+      try {
+        const ratesResponse = await API.get('/staff-rates');
+        if (ratesResponse.success && ratesResponse.data && ratesResponse.data.staffRates) {
+          const dbRates = ratesResponse.data.staffRates;
+          staffRates = {
+            supervisor: dbRates.supervisor_rate || 20000,
+            leader: dbRates.leader_rate || 17000,
+            m2_half_day: dbRates.m2_half_day_rate || 7000,
+            m2_full_day: dbRates.m2_full_day_rate || 12500,
+            temp_half_day: dbRates.temp_half_day_rate || 6500,
+            temp_full_day: dbRates.temp_full_day_rate || 11500
+          };
+        }
+      } catch (error) {
+        console.warn('スタッフ単価取得失敗');
+      }
+    }
+    
+    const modifiedLabel = staff.price_modified ? '<span class="text-xs text-blue-600">(修正済)</span>' : '';
+    let totalCalculatedCost = 0;
+    
+    if (staff.supervisor_count > 0) {
+      const cost = staff.supervisor_count * staffRates.supervisor;
+      totalCalculatedCost += cost;
+      details.push(`<div class="flex justify-between px-4 py-2"><span>スーパーバイザー ${staff.supervisor_count}人 (¥${staffRates.supervisor.toLocaleString()}/人) ${modifiedLabel}</span><span>${Utils.formatCurrency(cost)}</span></div>`);
+    }
+    if (staff.leader_count > 0) {
+      const cost = staff.leader_count * staffRates.leader;
+      totalCalculatedCost += cost;
+      details.push(`<div class="flex justify-between px-4 py-2"><span>リーダー以上 ${staff.leader_count}人 (¥${staffRates.leader.toLocaleString()}/人) ${modifiedLabel}</span><span>${Utils.formatCurrency(cost)}</span></div>`);
+    }
+    if (staff.m2_staff_half_day > 0) {
+      const cost = staff.m2_staff_half_day * staffRates.m2_half_day;
+      totalCalculatedCost += cost;
+      details.push(`<div class="flex justify-between px-4 py-2"><span>M2スタッフ（半日）${staff.m2_staff_half_day}人 (¥${staffRates.m2_half_day.toLocaleString()}/人) ${modifiedLabel}</span><span>${Utils.formatCurrency(cost)}</span></div>`);
+    }
+    if (staff.m2_staff_full_day > 0) {
+      const cost = staff.m2_staff_full_day * staffRates.m2_full_day;
+      totalCalculatedCost += cost;
+      details.push(`<div class="flex justify-between px-4 py-2"><span>M2スタッフ（終日）${staff.m2_staff_full_day}人 (¥${staffRates.m2_full_day.toLocaleString()}/人) ${modifiedLabel}</span><span>${Utils.formatCurrency(cost)}</span></div>`);
+    }
+    if (staff.temp_staff_half_day > 0) {
+      const cost = staff.temp_staff_half_day * staffRates.temp_half_day;
+      totalCalculatedCost += cost;
+      details.push(`<div class="flex justify-between px-4 py-2"><span>派遣スタッフ（半日）${staff.temp_staff_half_day}人 (¥${staffRates.temp_half_day.toLocaleString()}/人) ${modifiedLabel}</span><span>${Utils.formatCurrency(cost)}</span></div>`);
+    }
+    if (staff.temp_staff_full_day > 0) {
+      const cost = staff.temp_staff_full_day * staffRates.temp_full_day;
+      totalCalculatedCost += cost;
+      details.push(`<div class="flex justify-between px-4 py-2"><span>派遣スタッフ（終日）${staff.temp_staff_full_day}人 (¥${staffRates.temp_full_day.toLocaleString()}/人) ${modifiedLabel}</span><span>${Utils.formatCurrency(cost)}</span></div>`);
+    }
+    
+    if (details.length > 0) {
+      details.push(`<div class="flex justify-between border-t pt-2 mt-2 font-bold"><span>スタッフ費用合計</span><span>${Utils.formatCurrency(totalCalculatedCost)}</span></div>`);
+    }
+    
+    document.getElementById('staffDetails').innerHTML = Step6Implementation.applyZebraStripes(details).join('');
+  },
+
+  // ========== サービス単価編集機能 ==========
+  
+  // サービス単価編集モードのトグル
+  toggleServicePriceEdit: () => {
+    const editMode = document.getElementById('servicePriceEditMode');
+    const editBtn = document.getElementById('editServicePriceBtn');
+    
+    if (editMode.classList.contains('hidden')) {
+      editMode.classList.remove('hidden');
+      editBtn.innerHTML = '<i class="fas fa-times mr-1"></i>編集を閉じる';
+      Step6Implementation.renderServicePriceEditFields();
+    } else {
+      editMode.classList.add('hidden');
+      editBtn.innerHTML = '<i class="fas fa-edit mr-1"></i>単価編集';
+    }
+  },
+
+  // サービス単価編集フィールドを生成
+  renderServicePriceEditFields: () => {
+    const services = Step6Implementation.estimateData.services;
+    const container = document.getElementById('servicePriceEditFields');
+    
+    if (!services) {
+      container.innerHTML = '<p class="text-gray-500">サービスデータがありません</p>';
+      return;
+    }
+
+    // 編集中の単価があればそれを使用
+    const editingCosts = { ...Step6Implementation.editingPrices.service };
+    
+    // 修正済み単価があればそれを使用
+    if (services.modified_costs) {
+      Object.assign(editingCosts, services.modified_costs);
+    }
+
+    const serviceItems = [
+      { key: 'site_survey_cost', label: '現地調査費用', value: services.site_survey_cost, condition: services.site_survey_people > 0 },
+      { key: 'parking_officer_cost', label: '駐車対策員費用', value: services.parking_officer_cost, condition: services.parking_officer_hours > 0 },
+      { key: 'transport_cost', label: '人員輸送車両費用', value: services.transport_cost, condition: services.transport_vehicles > 0 },
+      { key: 'waste_disposal_cost', label: '引き取り廃棄費用', value: services.waste_disposal_cost, condition: services.waste_disposal_size && services.waste_disposal_size !== 'none' },
+      { key: 'protection_cost', label: '養生作業費用', value: services.protection_cost, condition: services.protection_work || services.protection_cost > 0 },
+      { key: 'material_collection_cost', label: '残材回収費用', value: services.material_collection_cost, condition: services.material_collection_size && services.material_collection_size !== 'none' },
+      { key: 'construction_cost', label: '施工費用', value: services.construction_cost, condition: services.construction_cost > 0 },
+      { key: 'parking_fee', label: '実費：駐車料金', value: services.parking_fee, condition: services.parking_fee > 0 },
+      { key: 'highway_fee', label: '実費：高速料金', value: services.highway_fee, condition: services.highway_fee > 0 }
+    ];
+
+    let html = '';
+    
+    serviceItems.forEach(item => {
+      if (item.condition) {
+        const currentValue = editingCosts[item.key] !== undefined ? editingCosts[item.key] : (item.value || 0);
+        html += `
+          <div class="flex items-center justify-between">
+            <label class="text-sm text-gray-700">${item.label}</label>
+            <div class="flex items-center">
+              <span class="mr-2">¥</span>
+              <input type="number" id="edit_service_${item.key}" 
+                     class="form-input w-32 text-right" 
+                     value="${currentValue}" min="0" step="500"
+                     onchange="Step6Implementation.onServicePriceChange('${item.key}', this.value)">
+            </div>
+          </div>
+        `;
+      }
+    });
+    
+    container.innerHTML = html || '<p class="text-gray-500">編集可能なサービス費用がありません</p>';
+  },
+
+  // サービス単価変更イベント
+  onServicePriceChange: (key, value) => {
+    Step6Implementation.editingPrices.service[key] = parseInt(value) || 0;
+    console.log('🛎️ サービス単価編集:', key, value);
+  },
+
+  // サービス単価編集を適用
+  applyServicePriceEdit: async () => {
+    const services = Step6Implementation.estimateData.services;
+    const editedCosts = Step6Implementation.editingPrices.service;
+    
+    console.log('✅ サービス単価適用:', editedCosts);
+    
+    // 修正済み費用を保存
+    services.modified_costs = { ...(services.modified_costs || {}), ...editedCosts };
+    services.price_modified = true;
+    
+    // 各費用を更新
+    Object.keys(editedCosts).forEach(key => {
+      services[key] = editedCosts[key];
+    });
+    
+    // サービス費用合計を再計算
+    services.total_cost = 
+      (services.site_survey_cost || 0) +
+      (services.parking_officer_cost || 0) +
+      (services.transport_cost || 0) +
+      (services.waste_disposal_cost || 0) +
+      (services.protection_cost || 0) +
+      (services.material_collection_cost || 0) +
+      (services.construction_cost || 0) +
+      (services.parking_fee || 0) +
+      (services.highway_fee || 0);
+    
+    // sessionStorageに保存
+    const flowData = JSON.parse(sessionStorage.getItem('estimateFlow') || '{}');
+    flowData.services = services;
+    sessionStorage.setItem('estimateFlow', JSON.stringify(flowData));
+    
+    // 編集バッファをクリア
+    Step6Implementation.editingPrices.service = {};
+    
+    // 表示を更新
+    await Step6Implementation.calculateTotal();
+    
+    // 編集モードを閉じる
+    Step6Implementation.toggleServicePriceEdit();
+    
+    Utils.showSuccess('サービス費用を更新しました');
+  },
+
+  // サービス単価編集をキャンセル
+  cancelServicePriceEdit: () => {
+    Step6Implementation.editingPrices.service = {};
+    Step6Implementation.toggleServicePriceEdit();
+  },
 
 };
 
@@ -4419,6 +5287,17 @@ window.copyEmailToClipboard = Step6Implementation.copyEmailToClipboard;
 window.generatePDF = Step6Implementation.generatePDF;
 window.saveEstimate = Step6Implementation.saveEstimate;
 window.goBackToStep5 = Step6Implementation.goBackToStep5;
+
+// STEP6単価編集用関数
+window.toggleVehiclePriceEdit = Step6Implementation.toggleVehiclePriceEdit;
+window.applyVehiclePriceEdit = Step6Implementation.applyVehiclePriceEdit;
+window.cancelVehiclePriceEdit = Step6Implementation.cancelVehiclePriceEdit;
+window.toggleStaffPriceEdit = Step6Implementation.toggleStaffPriceEdit;
+window.applyStaffPriceEdit = Step6Implementation.applyStaffPriceEdit;
+window.cancelStaffPriceEdit = Step6Implementation.cancelStaffPriceEdit;
+window.toggleServicePriceEdit = Step6Implementation.toggleServicePriceEdit;
+window.applyServicePriceEdit = Step6Implementation.applyServicePriceEdit;
+window.cancelServicePriceEdit = Step6Implementation.cancelServicePriceEdit;
 
 // 郵便番号検索機能
 const PostalCodeUtils = {

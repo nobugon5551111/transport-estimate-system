@@ -549,6 +549,8 @@ app.get('/admin/backup', (c) => {
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script src="/static/city-coordinates.js"></script>
+        <script src="/static/distance-calculator.js"></script>
         <script src="/static/app.js?v=1768883464&cache=bust&t=1766551870"></script>
         <script>
             // バックアップ管理機能の実装
@@ -3377,6 +3379,63 @@ app.get('/api/postal-code/:code', async (c) => {
   }
 })
 
+// API: 距離ベース料金区分取得（2026年3月改定対応）
+app.get('/api/distance-area-pricing', async (c) => {
+  try {
+    const { env } = c
+    const areaRank = c.req.query('area_rank')
+    
+    if (areaRank) {
+      // 特定ランクの料金取得
+      const pricing = await env.DB.prepare(`
+        SELECT * FROM distance_area_pricing 
+        WHERE area_rank = ? 
+        ORDER BY effective_date DESC 
+        LIMIT 1
+      `).bind(areaRank).first()
+      
+      if (!pricing) {
+        return c.json({ error: `ランク${areaRank}の料金データが見つかりません` }, 404)
+      }
+      
+      return c.json({ success: true, pricing })
+    }
+    
+    // 全ランクの料金一覧取得
+    const { results } = await env.DB.prepare(`
+      SELECT * FROM distance_area_pricing 
+      ORDER BY distance_km ASC
+    `).all()
+    
+    return c.json({ success: true, pricing: results || [] })
+  } catch (error) {
+    console.error('距離ベース料金取得エラー:', error)
+    return c.json({ error: '料金データの取得に失敗しました' }, 500)
+  }
+})
+
+// API: 本社座標取得
+app.get('/api/office-location', async (c) => {
+  try {
+    const { env } = c
+    const office = await env.DB.prepare(`
+      SELECT * FROM office_locations WHERE is_primary = 1 LIMIT 1
+    `).first()
+    
+    if (!office) {
+      return c.json({ 
+        success: true, 
+        office: { latitude: 34.6725, longitude: 135.4882, office_name: 'オフィスM2本社' }
+      })
+    }
+    
+    return c.json({ success: true, office })
+  } catch (error) {
+    console.error('本社座標取得エラー:', error)
+    return c.json({ error: '本社座標の取得に失敗しました' }, 500)
+  }
+})
+
 // API: エリア設定一覧取得
 app.get('/api/area-settings', async (c) => {
   try {
@@ -4301,11 +4360,43 @@ app.get('/estimate/step2', (c) => {
               className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">エリアを選択してください</option>
-              <option value="A">Aエリア - 大阪市内・京都市内・神戸市内</option>
-              <option value="B">Bエリア - 関西近郊主要都市</option>
-              <option value="C">Cエリア - 関西地方その他都市</option>
-              <option value="D">Dエリア - 遠方・その他地域</option>
+              <option value="A">Aランク - 大阪市（15km圏内）</option>
+              <option value="B">Bランク - 大阪府・神戸・京都・奈良（30km圏内）</option>
+              <option value="C">Cランク - 南丹（50km圏内）</option>
+              <option value="D">Dランク - 東播磨・滋賀・和歌山（100km圏内）</option>
+              <option value="E">Eランク - 淡路・西播磨・三重（150km圏内）</option>
+              <option value="F">Fランク - 但馬・愛知・徳島・香川（200km圏内）</option>
+              <option value="G">Gランク - 岡山・鳥取・福井（300km圏内）</option>
+              <option value="H">Hランク - 広島・愛媛・島根・石川・富山（400km圏内）</option>
+              <option value="I">Iランク - 山口（500km圏内）</option>
             </select>
+          </div>
+
+          {/* ランク外警告表示エリア */}
+          <div id="outOfRangeWarning" className="mb-6 hidden">
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-center">
+                <i className="fas fa-exclamation-triangle text-red-500 mr-2"></i>
+                <span className="font-medium text-red-800">ランク外（500km超）</span>
+              </div>
+              <p id="outOfRangeText" className="mt-2 text-sm text-red-700">
+                この配送先は500km圏外のためランク外です。フリー見積機能をご利用ください。
+              </p>
+              <a href="/free-estimate" className="inline-block mt-3 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded text-sm">
+                <i className="fas fa-edit mr-1"></i>フリー見積へ
+              </a>
+            </div>
+          </div>
+
+          {/* 距離計算結果表示エリア */}
+          <div id="distanceResult" className="mb-6 hidden">
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center">
+                <i className="fas fa-route text-blue-500 mr-2"></i>
+                <span className="font-medium text-blue-800">距離計算結果</span>
+              </div>
+              <p id="distanceResultText" className="mt-2 text-sm text-blue-700"></p>
+            </div>
           </div>
 
           {/* 手動エリア選択（エラー時のフォールバック） */}
@@ -4319,10 +4410,15 @@ app.get('/estimate/step2', (c) => {
               className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">エリアを選択してください</option>
-              <option value="A">Aエリア - 大阪市内・京都市内・神戸市内</option>
-              <option value="B">Bエリア - 関西近郊主要都市</option>
-              <option value="C">Cエリア - 関西地方その他都市</option>
-              <option value="D">Dエリア - 遠方・その他地域</option>
+              <option value="A">Aランク - 大阪市（15km圏内）</option>
+              <option value="B">Bランク - 大阪府・神戸・京都・奈良（30km圏内）</option>
+              <option value="C">Cランク - 南丹（50km圏内）</option>
+              <option value="D">Dランク - 東播磨・滋賀・和歌山（100km圏内）</option>
+              <option value="E">Eランク - 淡路・西播磨・三重（150km圏内）</option>
+              <option value="F">Fランク - 但馬・愛知・徳島・香川（200km圏内）</option>
+              <option value="G">Gランク - 岡山・鳥取・福井（300km圏内）</option>
+              <option value="H">Hランク - 広島・愛媛・島根・石川・富山（400km圏内）</option>
+              <option value="I">Iランク - 山口（500km圏内）</option>
             </select>
           </div>
 
@@ -4848,8 +4944,81 @@ function getAreaFromPostalCode(postalCode) {
     }
   }
   
-  // 上記3府県（京都・大阪・兵庫）以外はサービス対象外
-  return { area_rank: 'D', area_name: 'サービス対象外地域' }
+  // 上記3府県（京都・大阪・兵庫）以外の地域は距離ベースで判定
+  // 滋賀県
+  if (code.startsWith('52')) {
+    return { area_rank: 'D', area_name: '滋賀県' }
+  }
+  // 奈良県
+  if (code.startsWith('63')) {
+    return { area_rank: 'B', area_name: '奈良県' }
+  }
+  // 和歌山県
+  if (code.startsWith('64')) {
+    return { area_rank: 'D', area_name: '和歌山県' }
+  }
+  // 三重県
+  if (code.startsWith('51')) {
+    return { area_rank: 'E', area_name: '三重県' }
+  }
+  // 愛知県
+  if (code.startsWith('44') || code.startsWith('45') || code.startsWith('46') || code.startsWith('47') || code.startsWith('48') || code.startsWith('49')) {
+    return { area_rank: 'F', area_name: '愛知県' }
+  }
+  // 岐阜県
+  if (code.startsWith('50')) {
+    return { area_rank: 'F', area_name: '岐阜県' }
+  }
+  // 徳島県
+  if (code.startsWith('77')) {
+    return { area_rank: 'F', area_name: '徳島県' }
+  }
+  // 香川県
+  if (code.startsWith('76')) {
+    return { area_rank: 'F', area_name: '香川県' }
+  }
+  // 岡山県
+  if (code.startsWith('70') || code.startsWith('71')) {
+    return { area_rank: 'G', area_name: '岡山県' }
+  }
+  // 鳥取県
+  if (code.startsWith('68')) {
+    return { area_rank: 'G', area_name: '鳥取県' }
+  }
+  // 福井県
+  if (code.startsWith('91') || code.startsWith('91')) {
+    return { area_rank: 'G', area_name: '福井県' }
+  }
+  // 広島県
+  if (code.startsWith('72') || code.startsWith('73')) {
+    return { area_rank: 'H', area_name: '広島県' }
+  }
+  // 愛媛県
+  if (code.startsWith('79')) {
+    return { area_rank: 'H', area_name: '愛媛県' }
+  }
+  // 高知県
+  if (code.startsWith('78')) {
+    return { area_rank: 'H', area_name: '高知県' }
+  }
+  // 島根県
+  if (code.startsWith('69')) {
+    return { area_rank: 'H', area_name: '島根県' }
+  }
+  // 石川県
+  if (code.startsWith('92')) {
+    return { area_rank: 'H', area_name: '石川県' }
+  }
+  // 富山県
+  if (code.startsWith('93')) {
+    return { area_rank: 'H', area_name: '富山県' }
+  }
+  // 山口県
+  if (code.startsWith('74') || code.startsWith('75')) {
+    return { area_rank: 'I', area_name: '山口県' }
+  }
+  // その他 → 距離計算で判定推奨（ランク外の可能性）
+  return { area_rank: 'OUT', area_name: 'ランク外（500km超・フリー見積をご利用ください）' }
 }
 
 // 郵便番号検索API
@@ -5085,6 +5254,56 @@ app.get('/estimate/step3', (c) => {
               </div>
               <div id="pricing4t" className="text-sm text-gray-600 hidden">
                 単価: <span id="price4t" className="font-semibold">-</span> × <span id="count4t">0</span>台 = <span id="total4t" className="font-bold text-blue-600">¥0</span>
+              </div>
+            </div>
+
+            {/* 専属便（料金改定対応） */}
+            <div className="mb-4 p-4 border border-orange-200 rounded-lg bg-orange-50">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-lg font-medium text-orange-900">
+                  <i className="fas fa-truck-moving mr-2"></i>専属便
+                  <span className="text-xs text-orange-600 ml-2">（2026年3月改定料金）</span>
+                </h4>
+                <div className="flex items-center space-x-3">
+                  <label className="text-sm font-medium text-gray-600">台数:</label>
+                  <input 
+                    type="number" 
+                    id="vehicleDedicatedCount" 
+                    min="0" 
+                    max="99"
+                    value="0"
+                    onChange="handleVehicleDedicatedCountChange()"
+                    className="w-20 px-2 py-1 border border-orange-300 rounded-md text-center focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                  />
+                </div>
+              </div>
+              <div id="pricingDedicated" className="text-sm text-gray-600 hidden">
+                単価: <span id="priceDedicated" className="font-semibold">-</span> × <span id="countDedicated">0</span>台 = <span id="totalDedicated" className="font-bold text-orange-600">¥0</span>
+              </div>
+            </div>
+
+            {/* 2tチャーター（料金改定対応） */}
+            <div className="mb-4 p-4 border border-purple-200 rounded-lg bg-purple-50">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-lg font-medium text-purple-900">
+                  <i className="fas fa-truck mr-2"></i>2tチャーター
+                  <span className="text-xs text-purple-600 ml-2">（2026年3月改定料金）</span>
+                </h4>
+                <div className="flex items-center space-x-3">
+                  <label className="text-sm font-medium text-gray-600">台数:</label>
+                  <input 
+                    type="number" 
+                    id="vehicleCharterCount" 
+                    min="0" 
+                    max="99"
+                    value="0"
+                    onChange="handleVehicleCharterCountChange()"
+                    className="w-20 px-2 py-1 border border-purple-300 rounded-md text-center focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                  />
+                </div>
+              </div>
+              <div id="pricingCharter" className="text-sm text-gray-600 hidden">
+                単価: <span id="priceCharter" className="font-semibold">-</span> × <span id="countCharter">0</span>台 = <span id="totalCharter" className="font-bold text-purple-600">¥0</span>
               </div>
             </div>
 
@@ -6511,34 +6730,127 @@ app.get('/estimate/step6', (c) => {
 
                 {/* 車両費用 */}
                 <div className="border rounded-lg p-4 bg-green-50">
-                  <h4 className="font-medium text-green-900 mb-3">
-                    <i className="fas fa-truck mr-2"></i>
-                    車両費用
-                  </h4>
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="font-medium text-green-900">
+                      <i className="fas fa-truck mr-2"></i>
+                      車両費用
+                    </h4>
+                    <button 
+                      id="editVehiclePriceBtn" 
+                      onclick="toggleVehiclePriceEdit()" 
+                      className="text-sm text-green-600 hover:text-green-800 transition-colors"
+                      title="単価を編集"
+                    >
+                      <i className="fas fa-edit mr-1"></i>
+                      単価編集
+                    </button>
+                  </div>
                   <div id="vehicleDetails" className="text-sm text-green-800">
                     {/* 車両詳細がJavaScriptで動的に生成される */}
+                  </div>
+                  {/* 車両単価編集モード */}
+                  <div id="vehiclePriceEditMode" className="hidden mt-4 p-4 bg-white rounded-lg border border-green-300">
+                    <h5 className="font-medium text-green-800 mb-3">
+                      <i className="fas fa-yen-sign mr-2"></i>
+                      車両単価を編集
+                    </h5>
+                    <div id="vehiclePriceEditFields" className="space-y-3">
+                      {/* 編集フィールドがJavaScriptで動的に生成される */}
+                    </div>
+                    <div className="mt-4 flex space-x-2">
+                      <button onclick="applyVehiclePriceEdit()" className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm">
+                        <i className="fas fa-check mr-1"></i>
+                        適用
+                      </button>
+                      <button onclick="cancelVehiclePriceEdit()" className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 text-sm">
+                        <i className="fas fa-times mr-1"></i>
+                        キャンセル
+                      </button>
+                    </div>
                   </div>
                 </div>
 
                 {/* スタッフ費用 */}
                 <div className="border rounded-lg p-4 bg-blue-50">
-                  <h4 className="font-medium text-blue-900 mb-3">
-                    <i className="fas fa-users mr-2"></i>
-                    スタッフ費用
-                  </h4>
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="font-medium text-blue-900">
+                      <i className="fas fa-users mr-2"></i>
+                      スタッフ費用
+                    </h4>
+                    <button 
+                      id="editStaffPriceBtn" 
+                      onclick="toggleStaffPriceEdit()" 
+                      className="text-sm text-blue-600 hover:text-blue-800 transition-colors"
+                      title="単価を編集"
+                    >
+                      <i className="fas fa-edit mr-1"></i>
+                      単価編集
+                    </button>
+                  </div>
                   <div id="staffDetails" className="text-sm text-blue-800">
                     {/* スタッフ詳細がJavaScriptで動的に生成される */}
+                  </div>
+                  {/* スタッフ単価編集モード */}
+                  <div id="staffPriceEditMode" className="hidden mt-4 p-4 bg-white rounded-lg border border-blue-300">
+                    <h5 className="font-medium text-blue-800 mb-3">
+                      <i className="fas fa-yen-sign mr-2"></i>
+                      スタッフ単価を編集
+                    </h5>
+                    <div id="staffPriceEditFields" className="space-y-3">
+                      {/* 編集フィールドがJavaScriptで動的に生成される */}
+                    </div>
+                    <div className="mt-4 flex space-x-2">
+                      <button onclick="applyStaffPriceEdit()" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm">
+                        <i className="fas fa-check mr-1"></i>
+                        適用
+                      </button>
+                      <button onclick="cancelStaffPriceEdit()" className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 text-sm">
+                        <i className="fas fa-times mr-1"></i>
+                        キャンセル
+                      </button>
+                    </div>
                   </div>
                 </div>
 
                 {/* その他サービス費用 */}
                 <div id="servicesSection" className="border rounded-lg p-4 bg-orange-50 hidden">
-                  <h4 className="font-medium text-orange-900 mb-3">
-                    <i className="fas fa-concierge-bell mr-2"></i>
-                    その他サービス
-                  </h4>
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="font-medium text-orange-900">
+                      <i className="fas fa-concierge-bell mr-2"></i>
+                      その他サービス
+                    </h4>
+                    <button 
+                      id="editServicePriceBtn" 
+                      onclick="toggleServicePriceEdit()" 
+                      className="text-sm text-orange-600 hover:text-orange-800 transition-colors"
+                      title="単価を編集"
+                    >
+                      <i className="fas fa-edit mr-1"></i>
+                      単価編集
+                    </button>
+                  </div>
                   <div id="servicesDetails" className="text-sm text-orange-800">
                     {/* サービス詳細がJavaScriptで動的に生成される */}
+                  </div>
+                  {/* サービス単価編集モード */}
+                  <div id="servicePriceEditMode" className="hidden mt-4 p-4 bg-white rounded-lg border border-orange-300">
+                    <h5 className="font-medium text-orange-800 mb-3">
+                      <i className="fas fa-yen-sign mr-2"></i>
+                      サービス単価を編集
+                    </h5>
+                    <div id="servicePriceEditFields" className="space-y-3">
+                      {/* 編集フィールドがJavaScriptで動的に生成される */}
+                    </div>
+                    <div className="mt-4 flex space-x-2">
+                      <button onclick="applyServicePriceEdit()" className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 text-sm">
+                        <i className="fas fa-check mr-1"></i>
+                        適用
+                      </button>
+                      <button onclick="cancelServicePriceEdit()" className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 text-sm">
+                        <i className="fas fa-times mr-1"></i>
+                        キャンセル
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -6797,7 +7109,7 @@ app.post('/api/estimates', async (c) => {
     const result = await env.DB.prepare(`
       INSERT INTO estimates (
         customer_id, project_id, estimate_number,
-        delivery_address, delivery_area, vehicle_type, operation_type,
+        delivery_address, delivery_postal_code, delivery_area, vehicle_type, operation_type,
         vehicle_cost, staff_cost, 
         supervisor_count, leader_count, m2_staff_half_day, m2_staff_full_day,
         temp_staff_half_day, temp_staff_full_day,
@@ -6811,21 +7123,25 @@ app.post('/api/estimates', async (c) => {
         construction_m2_staff, construction_cost,
         work_time_type, work_time_multiplier,
         parking_fee, highway_fee,
-        subtotal, tax_rate, tax_amount, total_amount,
-        user_id, vehicle_2t_count, vehicle_4t_count, external_contractor_cost, 
-        uses_multiple_vehicles, notes, line_items_json, created_by_name, customer_contact_person
+        subtotal, discount_amount, tax_rate, tax_amount, total_amount,
+        user_id, vehicle_2t_count, vehicle_4t_count, 
+        vehicle_dedicated_count, vehicle_charter_count,
+        external_contractor_cost, 
+        uses_multiple_vehicles, notes, line_items_json, created_by_name, customer_contact_person,
+        delivery_distance_km, transport_vehicle_fee, road_permit_fee, survey_fee, oneman_discount_applied
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, 
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
         ?, ?, ?, ?, ?, ?, 
         ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `).bind(
       data.customer_id,
       data.project_id, 
       estimateNumber,
       data.delivery_address || '',
+      data.delivery_postal_code || '',
       data.delivery_area || 'other',
       data.vehicle_type || '4t_truck',
       data.operation_type || 'standard',
@@ -6860,18 +7176,26 @@ app.post('/api/estimates', async (c) => {
       data.parking_fee || 0,
       data.highway_fee || 0,
       data.subtotal || 0,
+      data.discount_amount || 0,
       data.tax_rate || 0.1,
       data.tax_amount || 0,
       data.total_amount || 0,
       finalUserId,
       data.vehicle_2t_count || 0,
       data.vehicle_4t_count || 0,
+      data.vehicle_dedicated_count || 0,
+      data.vehicle_charter_count || 0,
       data.external_contractor_cost || 0,
       data.uses_multiple_vehicles || false,
       data.notes || '',
       data.line_items_json || null,
-      createdByName,  // 作成者名を保存
-      data.customer_contact_person || ''  // 顧客担当者を保存
+      createdByName,
+      data.customer_contact_person || '',
+      data.delivery_distance_km || 0,
+      data.transport_vehicle_fee || 0,
+      data.road_permit_fee || 0,
+      data.survey_fee || 0,
+      data.oneman_discount_applied || 0
     ).run()
     
     console.log('見積保存結果:', result)
@@ -7805,10 +8129,15 @@ app.get('/masters', (c) => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">エリアランク *</label>
                 <select name="area_rank" className="form-select" required>
                   <option value="">選択してください</option>
-                  <option value="A">Aエリア（大阪市内・京都市内・神戸市内）</option>
-                  <option value="B">Bエリア（関西近郊主要都市）</option>
-                  <option value="C">Cエリア（関西地方その他都市）</option>
-                  <option value="D">Dエリア（関西地方遠方）</option>
+                  <option value="A">Aランク（15km圏内）大阪市</option>
+                  <option value="B">Bランク（30km圏内）大阪府・神戸・京都・奈良</option>
+                  <option value="C">Cランク（50km圏内）南丹</option>
+                  <option value="D">Dランク（100km圏内）東播磨・滋賀・和歌山</option>
+                  <option value="E">Eランク（150km圏内）淡路・西播磨・三重</option>
+                  <option value="F">Fランク（200km圏内）但馬・愛知・徳島・香川</option>
+                  <option value="G">Gランク（300km圏内）岡山・鳥取・福井</option>
+                  <option value="H">Hランク（400km圏内）広島・愛媛・島根・石川・富山</option>
+                  <option value="I">Iランク（500km圏内）山口</option>
                 </select>
               </div>
             </div>
@@ -12873,10 +13202,15 @@ app.get('/test/postal', (c) => {
               className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">エリアを選択してください</option>
-              <option value="A">Aエリア - 大阪市内・京都市内・神戸市内</option>
-              <option value="B">Bエリア - 関西近郊主要都市</option>
-              <option value="C">Cエリア - 関西地方その他都市</option>
-              <option value="D">Dエリア - 遠方・その他地域</option>
+              <option value="A">Aランク - 大阪市（15km圏内）</option>
+              <option value="B">Bランク - 大阪府・神戸・京都・奈良（30km圏内）</option>
+              <option value="C">Cランク - 南丹（50km圏内）</option>
+              <option value="D">Dランク - 東播磨・滋賀・和歌山（100km圏内）</option>
+              <option value="E">Eランク - 淡路・西播磨・三重（150km圏内）</option>
+              <option value="F">Fランク - 但馬・愛知・徳島・香川（200km圏内）</option>
+              <option value="G">Gランク - 岡山・鳥取・福井（300km圏内）</option>
+              <option value="H">Hランク - 広島・愛媛・島根・石川・富山（400km圏内）</option>
+              <option value="I">Iランク - 山口（500km圏内）</option>
             </select>
           </div>
         </div>
@@ -13899,6 +14233,21 @@ app.notFound((c) => {
 })
 
 function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {}, basicSettings: any = {}, calculatedStaffCost: number = 0): string {
+  // エリアランク説明マッピング（A-I）
+  const areaRankDescriptions: Record<string, string> = {
+    'A': '大阪市内（15km圏）',
+    'B': '大阪府・神戸市・京都市・奈良県（30km圏）',
+    'C': '南丹（50km圏）',
+    'D': '東播磨・北播磨・丹波・滋賀県・和歌山県（100km圏）',
+    'E': '淡路・西播磨・中丹・三重県（150km圏）',
+    'F': '但馬・丹後・愛知県・岐阜県・徳島県・香川県（200km圏）',
+    'G': '岡山県・鳥取県・福井県（300km圏）',
+    'H': '広島県・愛媛県・高知県・島根県・石川県・富山県（400km圏）',
+    'I': '山口県（500km圏）'
+  };
+  
+  const areaDesc = areaRankDescriptions[estimate.delivery_area] || '';
+  
   // 日本時間で現在日時を取得（UTC+9）
   const jstDate = new Date(Date.now() + 9 * 60 * 60 * 1000);
   const currentDate = jstDate.toLocaleDateString('ja-JP', {
@@ -14157,7 +14506,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                     <strong>配送サービス</strong><br>
                     配送先: ${estimate.delivery_address || ''}<br>
                     ${estimate.delivery_postal_code ? `〒${estimate.delivery_postal_code}` : ''}<br>
-                    エリア: ${estimate.delivery_area}ランク
+                    エリア: ${estimate.delivery_area}ランク${areaDesc ? `（${areaDesc}）` : ''}${estimate.delivery_distance_km > 0 ? `<br>距離: 約${estimate.delivery_distance_km}km` : ''}
                 </td>
                 <td class="amount-cell">-</td>
             </tr>
@@ -14256,11 +14605,54 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                   </tr>
                 `);
               } else if (vehicleCost > 0) {
-                // 車両タイプが未指定だが費用がある場合
                 vehicleRows.push(`
                   <tr>
                     <td>&nbsp;&nbsp;車両費用1台 ¥${vehicleCost.toLocaleString()} × 1 = ¥${vehicleCost.toLocaleString()}</td>
                     <td class="amount-cell">¥${vehicleCost.toLocaleString()}</td>
+                  </tr>
+                `);
+              }
+              
+              // 専属便表示
+              if (estimate.vehicle_dedicated_count && estimate.vehicle_dedicated_count > 0) {
+                const dedUnitPrice = estimate.vehicle_dedicated_unit_price || 0;
+                const dedTotal = dedUnitPrice * estimate.vehicle_dedicated_count;
+                vehicleRows.push(`
+                  <tr>
+                    <td>&nbsp;&nbsp;専属便${estimate.vehicle_dedicated_count}台（${estimate.delivery_area}ランク）¥${dedUnitPrice.toLocaleString()} × ${estimate.vehicle_dedicated_count}</td>
+                    <td class="amount-cell">¥${dedTotal.toLocaleString()}</td>
+                  </tr>
+                `);
+              }
+              
+              // 2tチャーター表示
+              if (estimate.vehicle_charter_count && estimate.vehicle_charter_count > 0) {
+                const chaUnitPrice = estimate.vehicle_charter_unit_price || 0;
+                const chaTotal = chaUnitPrice * estimate.vehicle_charter_count;
+                vehicleRows.push(`
+                  <tr>
+                    <td>&nbsp;&nbsp;2tチャーター${estimate.vehicle_charter_count}台（${estimate.delivery_area}ランク）¥${chaUnitPrice.toLocaleString()} × ${estimate.vehicle_charter_count}</td>
+                    <td class="amount-cell">¥${chaTotal.toLocaleString()}</td>
+                  </tr>
+                `);
+              }
+              
+              // 輸送車両費
+              if (estimate.transport_vehicle_fee && estimate.transport_vehicle_fee > 0) {
+                vehicleRows.push(`
+                  <tr>
+                    <td>&nbsp;&nbsp;輸送車両費（${estimate.delivery_area}ランク）</td>
+                    <td class="amount-cell">¥${estimate.transport_vehicle_fee.toLocaleString()}</td>
+                  </tr>
+                `);
+              }
+              
+              // 道路許可費
+              if (estimate.road_permit_fee && estimate.road_permit_fee > 0) {
+                vehicleRows.push(`
+                  <tr>
+                    <td>&nbsp;&nbsp;道路許可費</td>
+                    <td class="amount-cell">¥${estimate.road_permit_fee.toLocaleString()}</td>
                   </tr>
                 `);
               }
@@ -14453,9 +14845,16 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
             <tr>
                 <th>小計</th>
                 <td>¥${(() => {
-                  // 実際の項目費用を計算
+                  // 実際の項目費用を計算（専属便・チャーター・付帯費用含む）
                   const vehicleCost = estimate.vehicle_cost || 0;
-                  const staffCost = calculatedStaffCost; // 既に計算済みの値を使用
+                  const staffCost = calculatedStaffCost;
+                  
+                  // 専属便・チャーター費用
+                  const dedicatedCost = (estimate.vehicle_dedicated_unit_price || 0) * (estimate.vehicle_dedicated_count || 0);
+                  const charterCost = (estimate.vehicle_charter_unit_price || 0) * (estimate.vehicle_charter_count || 0);
+                  const transportVehicleFee = estimate.transport_vehicle_fee || 0;
+                  const roadPermitFee = estimate.road_permit_fee || 0;
+                  const surveyFee = estimate.survey_fee || 0;
                   
                   const servicesCost = (estimate.site_survey_cost || 0) +
                                      (estimate.parking_officer_cost || 0) + 
@@ -14468,26 +14867,18 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                                      (estimate.highway_fee || 0) +
                                      (estimate.external_contractor_cost || 0);
                   
-                  // 作業時間割増料金を計算
                   let workTimePremium = 0;
                   if (estimate.work_time_type && estimate.work_time_type !== 'normal' && estimate.work_time_multiplier > 1) {
                     const baseAmount = vehicleCost + staffCost;
                     workTimePremium = Math.round(baseAmount * (estimate.work_time_multiplier - 1));
                   }
                   
-                  const calculatedSubtotal = Math.round(vehicleCost + staffCost + servicesCost + workTimePremium);
+                  const calculatedSubtotal = Math.round(vehicleCost + staffCost + servicesCost + workTimePremium + dedicatedCost + charterCost + transportVehicleFee + roadPermitFee + surveyFee);
                   
-                  console.log('📄 PDF小計計算:', {
-                    vehicleCost,
-                    staffCost,
-                    servicesCost,
-                    workTimePremium,
-                    calculatedSubtotal,
-                    storedSubtotal: estimate.subtotal,
-                    使用値: '再計算値'
-                  });
-                  
-                  // 常に再計算値を使用（データベース値との整合性確保）
+                  // line_items_jsonがある場合はDB保存値を使用（STEP6で計算済み）
+                  if (lineItems && estimate.subtotal > 0) {
+                    return estimate.subtotal.toLocaleString();
+                  }
                   return calculatedSubtotal.toLocaleString();
                 })()}</td>
             </tr>
@@ -14499,10 +14890,16 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
             <tr>
                 <th>値引き後小計</th>
                 <td>¥${(() => {
-                  // 値引き後小計を計算
+                  if (lineItems && estimate.subtotal > 0) {
+                    return Math.max(0, estimate.subtotal - (estimate.discount_amount || 0)).toLocaleString();
+                  }
                   const vehicleCost = estimate.vehicle_cost || 0;
-                  const staffCost = calculatedStaffCost; // 既に計算済みの値を使用
-                  
+                  const staffCost = calculatedStaffCost;
+                  const dedicatedCost = (estimate.vehicle_dedicated_unit_price || 0) * (estimate.vehicle_dedicated_count || 0);
+                  const charterCost = (estimate.vehicle_charter_unit_price || 0) * (estimate.vehicle_charter_count || 0);
+                  const transportVehicleFee = estimate.transport_vehicle_fee || 0;
+                  const roadPermitFee = estimate.road_permit_fee || 0;
+                  const surveyFee = estimate.survey_fee || 0;
                   const servicesCost = (estimate.parking_officer_cost || 0) + 
                                      (estimate.transport_cost || 0) + 
                                      (estimate.waste_disposal_cost || 0) + 
@@ -14511,26 +14908,27 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                                      (estimate.construction_cost || 0) + 
                                      (estimate.parking_fee || 0) + 
                                      (estimate.highway_fee || 0);
-                  
-                  // 作業時間割増料金を計算
                   let workTimePremium = 0;
                   if (estimate.work_time_type && estimate.work_time_type !== 'normal' && estimate.work_time_multiplier > 1) {
-                    const baseAmount = vehicleCost + staffCost;
-                    workTimePremium = Math.round(baseAmount * (estimate.work_time_multiplier - 1));
+                    workTimePremium = Math.round((vehicleCost + staffCost) * (estimate.work_time_multiplier - 1));
                   }
-                  
-                  const calculatedSubtotal = Math.round(vehicleCost + staffCost + servicesCost + workTimePremium);
-                  const discountedSubtotal = Math.max(0, calculatedSubtotal - (estimate.discount_amount || 0));
-                  return discountedSubtotal.toLocaleString();
+                  const sub = Math.round(vehicleCost + staffCost + servicesCost + workTimePremium + dedicatedCost + charterCost + transportVehicleFee + roadPermitFee + surveyFee);
+                  return Math.max(0, sub - (estimate.discount_amount || 0)).toLocaleString();
                 })()}</td>
             </tr>` : ''}
             <tr>
                 <th>消費税（${Math.round((estimate.tax_rate || 0.1) * 100)}%）</th>
                 <td>¥${(() => {
-                  // 消費税計算
+                  if (lineItems && estimate.tax_amount > 0) {
+                    return estimate.tax_amount.toLocaleString();
+                  }
                   const vehicleCost = estimate.vehicle_cost || 0;
-                  const staffCost = calculatedStaffCost; // 既に計算済みの値を使用
-                  
+                  const staffCost = calculatedStaffCost;
+                  const dedicatedCost = (estimate.vehicle_dedicated_unit_price || 0) * (estimate.vehicle_dedicated_count || 0);
+                  const charterCost = (estimate.vehicle_charter_unit_price || 0) * (estimate.vehicle_charter_count || 0);
+                  const transportVehicleFee = estimate.transport_vehicle_fee || 0;
+                  const roadPermitFee = estimate.road_permit_fee || 0;
+                  const surveyFee = estimate.survey_fee || 0;
                   const servicesCost = (estimate.site_survey_cost || 0) +
                                      (estimate.parking_officer_cost || 0) + 
                                      (estimate.transport_cost || 0) + 
@@ -14541,29 +14939,28 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                                      (estimate.parking_fee || 0) + 
                                      (estimate.highway_fee || 0) +
                                      (estimate.external_contractor_cost || 0);
-                  
-                  // 作業時間割増料金を計算
                   let workTimePremium = 0;
                   if (estimate.work_time_type && estimate.work_time_type !== 'normal' && estimate.work_time_multiplier > 1) {
-                    const baseAmount = vehicleCost + staffCost;
-                    workTimePremium = Math.round(baseAmount * (estimate.work_time_multiplier - 1));
+                    workTimePremium = Math.round((vehicleCost + staffCost) * (estimate.work_time_multiplier - 1));
                   }
-                  
-                  const calculatedSubtotal = Math.round(vehicleCost + staffCost + servicesCost + workTimePremium);
-                  const discountedSubtotal = Math.max(0, calculatedSubtotal - (estimate.discount_amount || 0));
-                  const taxRate = estimate.tax_rate || 0.1;
-                  const calculatedTaxAmount = Math.floor(discountedSubtotal * taxRate);
-                  
-                  return calculatedTaxAmount.toLocaleString();
+                  const sub = Math.round(vehicleCost + staffCost + servicesCost + workTimePremium + dedicatedCost + charterCost + transportVehicleFee + roadPermitFee + surveyFee);
+                  const discounted = Math.max(0, sub - (estimate.discount_amount || 0));
+                  return Math.floor(discounted * (estimate.tax_rate || 0.1)).toLocaleString();
                 })()}</td>
             </tr>
             <tr class="grand-total">
                 <th>合計金額</th>
                 <td style="font-size: 18px;">¥${(() => {
-                  // 合計金額を計算
+                  if (lineItems && estimate.total_amount > 0) {
+                    return estimate.total_amount.toLocaleString();
+                  }
                   const vehicleCost = estimate.vehicle_cost || 0;
-                  const staffCost = calculatedStaffCost; // 既に計算済みの値を使用 
-                  
+                  const staffCost = calculatedStaffCost;
+                  const dedicatedCost = (estimate.vehicle_dedicated_unit_price || 0) * (estimate.vehicle_dedicated_count || 0);
+                  const charterCost = (estimate.vehicle_charter_unit_price || 0) * (estimate.vehicle_charter_count || 0);
+                  const transportVehicleFee = estimate.transport_vehicle_fee || 0;
+                  const roadPermitFee = estimate.road_permit_fee || 0;
+                  const surveyFee = estimate.survey_fee || 0;
                   const servicesCost = (estimate.site_survey_cost || 0) +
                                      (estimate.parking_officer_cost || 0) + 
                                      (estimate.transport_cost || 0) + 
@@ -14574,33 +14971,14 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                                      (estimate.parking_fee || 0) + 
                                      (estimate.highway_fee || 0) +
                                      (estimate.external_contractor_cost || 0);
-                  
-                  // 作業時間割増料金を計算
                   let workTimePremium = 0;
                   if (estimate.work_time_type && estimate.work_time_type !== 'normal' && estimate.work_time_multiplier > 1) {
-                    const baseAmount = vehicleCost + staffCost;
-                    workTimePremium = Math.round(baseAmount * (estimate.work_time_multiplier - 1));
+                    workTimePremium = Math.round((vehicleCost + staffCost) * (estimate.work_time_multiplier - 1));
                   }
-                  
-                  const calculatedSubtotal = Math.round(vehicleCost + staffCost + servicesCost + workTimePremium);
-                  const discountedSubtotal = Math.max(0, calculatedSubtotal - (estimate.discount_amount || 0));
-                  const taxRate = estimate.tax_rate || 0.1;
-                  const calculatedTaxAmount = Math.floor(discountedSubtotal * taxRate);
-                  const calculatedTotalAmount = discountedSubtotal + calculatedTaxAmount;
-                  
-                  console.log('📄 PDF合計金額計算:', {
-                    vehicleCost,
-                    originalStaffCost: estimate.staff_cost,
-                    validatedStaffCost: staffCost,
-                    servicesCost,
-                    workTimePremium,
-                    calculatedSubtotal,
-                    calculatedTaxAmount,
-                    calculatedTotalAmount,
-                    storedTotalAmount: estimate.total_amount
-                  });
-                  
-                  return calculatedTotalAmount.toLocaleString();
+                  const sub = Math.round(vehicleCost + staffCost + servicesCost + workTimePremium + dedicatedCost + charterCost + transportVehicleFee + roadPermitFee + surveyFee);
+                  const discounted = Math.max(0, sub - (estimate.discount_amount || 0));
+                  const tax = Math.floor(discounted * (estimate.tax_rate || 0.1));
+                  return (discounted + tax).toLocaleString();
                 })()}</td>
             </tr>
         </table>
@@ -17276,6 +17654,8 @@ app.get('/settings', (c) => {
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script src="/static/city-coordinates.js"></script>
+        <script src="/static/distance-calculator.js"></script>
         <script src="/static/app.js?v=1768883464&cache=bust&t=1766551870"></script>
         <script>
             // 設定機能の実装
