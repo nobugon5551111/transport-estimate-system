@@ -5,433 +5,180 @@
 [![Cloudflare](https://img.shields.io/badge/Cloudflare-F38020?style=flat-square&logo=Cloudflare&logoColor=white)](https://www.cloudflare.com/)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 
-## 📋 プロジェクト概要
+## プロジェクト概要
 
 Office M2の輸送業務における見積作成・管理システム。6ステップの直感的なフローで見積を作成し、PDF生成やAIメール文生成が可能です。
 
-### 🎯 主要機能
-
-- **🔐 認証システム**: シンプルなID/パスワード認証（本番環境のみ）
-- **👤 ユーザー管理**: WebUIでユーザーの登録・変更・削除
-- **📝 見積作成フロー**: 6ステップの使いやすい見積作成プロセス
-- **🚛 複数車両対応**: 2t車・4t車の混在選択と個別台数指定
-- **👥 スタッフ管理**: 役職別・時間別のスタッフ配置と費用計算
-- **🎛️ サービス管理**: 各種付帯サービスの詳細設定
-- **📄 PDF生成**: プロフェッショナルな見積書PDF自動生成（担当者名印刷）
-- **🤖 AI機能**: メール文の自動生成
-- **📊 エリア別料金**: 郵便番号ベースの自動エリア判定と料金設定
-
-### 🌟 最新の改善点
-
-**v2.4 (2025-10-29) - PDF生成エラー修正完了**
-- ✅ **PDF生成エラー修正**: KVストレージからD1データベースへ移行
-- ✅ **基本設定取得修正**: 会社情報・ロゴをD1から取得
-- ✅ **見積PDF生成**: 通常見積とフリー見積の両方で正常動作
-- ✅ **設定保存修正**: 会社設定の保存・読み込み完全動作
-- ✅ **車両料金API修正**: vehicle_pricingテーブルから正確な料金取得
-- ✅ **案件作成修複**: 重複作成問題を解決（3重作成→1回作成）
-- ✅ **認証統合**: すべての設定APIで認証情報を正しく取得
-
-**v2.3 (2025-10-28) - 本番環境クリーンスタートデプロイ完了**
-- ✅ **マイグレーションエラー修正**: FOREIGN KEY制約エラーを解決
-- ✅ **全マイグレーション適用**: 10個のマイグレーションすべて成功
-- ✅ **本番デプロイ完了**: Cloudflare Pagesにクリーンスタートデプロイ
-- ✅ **新規D1データベース**: 既存データベースを削除し、新規作成
-- ✅ **管理者アカウント**: admin/admin123で本番ログイン可能
-- ✅ **フリー見積機能**: 本番環境で動作確認済み
-
-**v2.2 (2025-10-27) - ユーザー管理画面追加**
-- ✅ **ユーザー管理画面**: WebUIでユーザーの登録・変更・削除が可能
-- ✅ **パスワード変更**: ユーザーごとのパスワード変更機能
-- ✅ **ユーザー削除**: 不要なユーザーを削除可能
-- ✅ **新規登録**: 直感的なフォームでユーザー追加
-- ✅ **ログアウト機能**: 確認ダイアログ付きログアウト
-- ✅ **ユーザー表示**: ログイン中のユーザー名をヘッダーに表示
-
-**v2.1 (2025-10-27) - シンプル認証システム追加**
-- ✅ **ログイン認証**: ID/パスワードによるシンプルな認証システム
-- ✅ **作成者名記録**: 見積書作成時に担当者名を自動記録
-- ✅ **PDF印刷対応**: 見積書PDFに「見積もり制作担当者」として名前を表示
-- ✅ **一覧表示**: 見積一覧で作成担当者名を表示
-- ✅ **開発環境保護**: 環境変数で認証ON/OFF切り替え可能（既存システムに影響ゼロ）
-- ✅ **権限管理なし**: 全ユーザーが全機能にアクセス可能（シンプル設計）
-
-**v2.0 (2025-10-27) - レポート・AI機能完全実装**
-- ✅ **レポート機能**: 売上分析・業務効率・予測分析の完全実装
-- ✅ **Chart.js統合**: 折れ線・円・棒グラフの高品質可視化
-- ✅ **AIヘルパー関数**: メール生成・スタッフ最適化の完全動作化
-- ✅ **データベース整備**: AI学習テーブル・レポートキャッシュの追加
-- ✅ **カスタムレポート**: CSV出力APIの動作確認完了
-
-**v1.0 (2024-08-22) - スタッフ費用保存問題完全修正**
-- ✅ STEP4→STEP5進行時のスタッフ費用データ保存問題を解決
-- ✅ PDF生成時のスタッフ費用¥0表示問題を修正  
-- ✅ 複数レベルのフォールバック処理により確実なデータ保持
-- ✅ 詳細なデバッグログで問題の早期発見が可能
-
-## 🚀 本番デプロイ状況
-
+- **名前**: Office M2 見積システム (transport-estimate-system)
+- **目標**: 輸送見積業務の完全デジタル化・自動化
 - **本番URL**: https://transport-estimate-system.pages.dev
-- **最新デプロイURL**: https://1125f348.transport-estimate-system.pages.dev
-- **プロジェクト名**: transport-estimate-system
-- **ステータス**: ✅ Active (v2.4 - PDF生成修正完了)
-- **最終デプロイ**: 2025-10-29
-- **技術スタック**: Hono + TypeScript + Cloudflare Pages/Workers
-- **データベース**: Cloudflare D1 (全マイグレーション適用済み)
-- **ストレージ**: D1データベースのみ（KVストレージから移行完了）
-- **初期管理者**: admin / admin123
+- **技術スタック**: Hono + TypeScript + Cloudflare Pages/Workers + D1
 
-## 📊 データアーキテクチャ
+## 現在完了している機能
 
-### データベース設計
+### 認証・ユーザー管理
+- シンプルなID/パスワード認証（本番環境のみ有効）
+- WebUIでユーザーの登録・変更・削除
+- ログイン中のユーザー名をヘッダー表示
+
+### 見積作成フロー（6ステップ）
+- **STEP1**: 顧客・案件選択（新規作成可）
+- **STEP2**: 配送先設定（郵便番号から自動エリア判定 A-I ランク対応）
+- **STEP3**: 車両選択（2t車・4t車・専属便・2tチャーターの混在選択と個別台数指定）
+- **STEP4**: スタッフ設定（役職別・時間帯別の人数設定とリアルタイム費用計算）
+- **STEP5**: その他サービス（駐車対策員、人員輸送、廃棄、養生、施工、早朝/夜間割増）
+- **STEP6**: 最終確認・保存（費用確認、見積保存、PDF生成、AIメール生成）
+
+### エリア料金体系（2026年3月改定対応）
+| ランク | エリア | 距離目安 |
+|--------|--------|----------|
+| A | 大阪市 | 15km圏内 |
+| B | 大阪府・神戸・京都・奈良・阪神間・山城 | 30km圏内 |
+| C | 南丹（亀岡・南丹） | 50km圏内 |
+| D | 東播磨・滋賀・和歌山・姫路 | 100km圏内 |
+| E | 淡路・西播磨・中丹（福知山・綾部）・三重 | 150km圏内 |
+| F | 但馬・丹後（舞鶴・宮津）・愛知・岐阜・徳島・香川 | 200km圏内 |
+| G | 岡山・鳥取・福井 | 300km圏内 |
+| H | 広島・愛媛・高知・島根・石川・富山 | 400km圏内 |
+| I | 山口 | 500km圏内 |
+
+### 車両タイプ
+- **2t車**: 共配/午前/午後/終日対応
+- **4t車**: 共配/午前/午後/終日対応
+- **専属便** (2026年3月新設): 終日対応、distance_area_pricingテーブルから料金取得
+- **2tチャーター** (2026年3月新設): 終日対応、distance_area_pricingテーブルから料金取得
+
+### PDF見積書
+- プロフェッショナルな見積書HTML/PDF自動生成
+- 会社ロゴ・住所・連絡先自動挿入
+- A-Iランク名称・地域説明をPDFに表示
+- 専属便/2tチャーターの単価・台数・小計を表示
+- 付帯費用（輸送車両費、道路許可費等）の表示
+- 消費税10%自動計算、割引対応
+
+### その他
+- レポート・分析機能（Chart.js統合）
+- AIメール文自動生成
+- フリー見積機能（品目自由入力）
+- 見積一覧・検索・編集
+
+## 主要APIエンドポイント
+
+| メソッド | パス | 説明 |
+|---------|------|------|
+| GET | `/` | トップページ |
+| GET | `/estimate/step2` - `/estimate/step6` | 見積作成各ステップ |
+| GET | `/estimates` | 見積一覧 |
+| POST | `/api/estimates` | 見積保存 |
+| GET | `/api/estimates/:id/pdf` | PDF見積書生成 |
+| GET | `/api/postal-code/:code` | 郵便番号→エリア判定 |
+| GET | `/api/vehicle-pricing?vehicle_type=&operation_type=&delivery_area=` | 車両料金取得 |
+| GET | `/api/distance-area-pricing?area_rank=` | エリア別距離料金取得 |
+| GET | `/api/customers` | 顧客一覧 |
+| GET | `/api/staff-rates` | スタッフ料金取得 |
+| GET | `/api/service-rates` | サービス料金取得 |
+| GET | `/api/area-settings` | エリア設定取得 |
+| GET | `/api/office-location` | 本社座標取得 |
+
+## データアーキテクチャ
+
+### データベーステーブル
 ```sql
 -- 基本テーブル
-customers (顧客マスター)
-projects (案件マスター) 
-estimates (見積データ)
-vehicle_pricing (車両料金マスター)
-staff_rates (スタッフ料金マスター)
+customers          -- 顧客マスター
+projects           -- 案件マスター
+estimates          -- 見積データ（61カラム: 専属便/チャーター単価含む）
+vehicle_pricing    -- 車両料金マスター（2t/4t）
+staff_rates        -- スタッフ料金マスター
+distance_area_pricing -- エリア別距離料金（A-I、専属便/チャーター料金含む）
+master_settings    -- 会社基本設定
+users              -- ユーザーマスター
+free_estimate_items -- フリー見積品目
 
--- AI機能テーブル
-ai_email_templates (AIメールテンプレートマスター)
-staff_optimization_patterns (スタッフ最適化パターン)
-ai_optimization_feedback (AI最適化フィードバック)
-ai_email_effectiveness (AIメール効果測定)
-ai_prediction_accuracy (AI予測精度トラッキング)
-
--- レポート機能テーブル
-report_cache (レポートキャッシュ)
+-- AI・レポートテーブル
+ai_email_templates, staff_optimization_patterns, report_cache
 ```
+
+### estimatesテーブル主要カラム
+- `vehicle_2t_count`, `vehicle_4t_count` - 2t/4t車台数
+- `vehicle_dedicated_count`, `vehicle_dedicated_unit_price` - 専属便台数・単価
+- `vehicle_charter_count`, `vehicle_charter_unit_price` - 2tチャーター台数・単価
+- `delivery_area` - エリアランク（A-I）
+- `delivery_distance_km` - 配送距離
+- `transport_vehicle_fee`, `road_permit_fee` - 付帯費用
+- `discount_amount` - 値引額
+- `subtotal`, `tax_rate`, `tax_amount`, `total_amount` - 金額
 
 ### ストレージサービス
 - **Cloudflare D1**: メインデータベース（SQLite分散版）
 - **ローカル開発**: SQLite（--localモード）
 - **セッション管理**: ブラウザのsessionStorage
 
-## 🎮 ユーザーガイド
+## ユーザーガイド
 
-### 見積作成フロー
+### 見積作成
+1. トップページから「新規見積作成」をクリック
+2. 顧客・案件を選択/作成（STEP1）
+3. 配送先住所を入力、郵便番号でエリア自動判定（STEP2）
+4. 車両タイプ・台数を選択、稼働形態を選択（STEP3）
+5. スタッフ人数を設定（STEP4）
+6. 付帯サービスを設定（STEP5）
+7. 確認後「保存」→ PDF生成・AIメール生成が可能（STEP6）
 
-1. **STEP1: 顧客・案件選択**
-   - 既存顧客の選択または新規作成
-   - 案件の選択または新規作成
+### PDF見積書
+- 保存後に「PDF出力」ボタンで見積書を表示
+- ブラウザの印刷機能でPDF保存
 
-2. **STEP2: 配送先設定**
-   - 配送先住所の入力
-   - 郵便番号による自動エリア判定（A/B/C/D）
+### 初期管理者アカウント
+- **ID**: `admin` / **パスワード**: `admin123`
 
-3. **STEP3: 車両選択**
-   - 単一車両選択 または 複数車両選択
-   - 2t車・4t車の台数個別指定
-   - 作業種別の選択（引越・搬入・搬出）
-
-4. **STEP4: スタッフ設定**
-   - 現場監督・作業リーダーの人数設定
-   - M2スタッフ（半日・全日）の人数設定  
-   - 派遣スタッフ（半日・全日）の人数設定
-   - リアルタイム費用計算表示
-
-5. **STEP5: その他サービス**
-   - 駐車対策員・人員輸送車両
-   - 引き取り廃棄・養生作業
-   - 資材回収・施工作業
-   - 作業時間帯設定（通常・早朝・夜間・深夜）
-
-6. **STEP6: 最終確認・保存**
-   - 全体の費用確認
-   - 見積保存・PDF生成・AIメール生成
-
-### 主要機能の使用方法
-
-#### PDF見積書生成
-1. 見積作成完了後、STEP6で「PDF生成」ボタンをクリック
-2. プロフェッショナルな見積書PDFが自動生成・ダウンロード
-3. 会社情報・明細・合計金額が整理されたフォーマット
-
-#### AIメール文生成
-1. STEP6で「AIメール生成」ボタンをクリック
-2. 見積内容に基づいた丁寧な営業メール文を自動生成
-3. 件名・本文をクリップボードにコピーして利用
-
-## 🛠️ 技術仕様
-
-### フロントエンド
-- **HTML/CSS/JavaScript**: バニラJS + TailwindCSS
-- **アイコン**: Font Awesome 6.4.0
-- **レスポンシブ対応**: モバイル・タブレット・デスクトップ
-
-### バックエンド
-- **フレームワーク**: Hono (軽量・高速)
-- **言語**: TypeScript
-- **ランタイム**: Cloudflare Workers (エッジコンピューティング)
-
-### データベース・ストレージ
-- **メインDB**: Cloudflare D1 (グローバル分散SQLite)
-- **開発DB**: SQLite (ローカル)
-- **ファイル**: Cloudflare R2 (将来対応)
-
-## 📁 プロジェクト構造
-
-```
-webapp/
-├── src/
-│   ├── index.tsx              # メインアプリケーション
-│   ├── renderer.tsx           # JSXレンダラー
-│   └── types.ts              # TypeScript型定義
-├── public/
-│   └── static/
-│       ├── app.js            # フロントエンドJS
-│       └── style.css         # カスタムCSS
-├── migrations/               # データベースマイグレーション
-│   ├── 0001_initial_schema.sql
-│   └── meta/
-├── docs/                     # ドキュメント
-│   ├── API_SPECIFICATION.md  # API仕様書
-│   ├── DETAILED_DESIGN.md    # 詳細設計書
-│   └── OPERATION_MANUAL.md   # 運用マニュアル
-├── wrangler.jsonc           # Cloudflare設定
-├── package.json             # 依存関係・スクリプト
-├── ecosystem.config.cjs     # PM2設定（開発用）
-└── README.md               # このファイル
-```
-
-## 🚀 クイックスタート
-
-### 開発環境セットアップ
+## 開発セットアップ
 
 ```bash
-# 1. リポジトリクローン
-git clone https://github.com/your-username/transport-estimate-system.git
-cd transport-estimate-system
-
-# 2. 依存関係インストール
+# 依存関係インストール
 npm install
 
-# 3. ローカルデータベース初期化
+# ローカルDB初期化
 npm run db:migrate:local
 npm run db:seed
 
-# 4. 開発サーバー起動
-npm run dev:sandbox
-
-# 5. ブラウザでアクセス
-# http://localhost:3000
-```
-
-### 本番デプロイ
-
-```bash
-# 1. Cloudflare認証設定
-# setup_cloudflare_api_key ツールを使用
-
-# 2. プロジェクトビルド
+# 開発サーバー起動
 npm run build
+npm run dev:sandbox   # http://localhost:3000
 
-# 3. データベース準備
-npm run db:migrate:prod
-
-# 4. デプロイ実行
+# 本番デプロイ
 npm run deploy
 ```
 
-## 📜 利用可能なスクリプト
+## 未実装・今後の機能
 
-```bash
-# 開発
-npm run dev                    # Vite開発サーバー（ローカル）
-npm run dev:sandbox            # Wrangler開発サーバー（sandbox用）
-npm run build                  # プロダクションビルド
-npm run preview               # ビルド確認用プレビュー
+- 見積書の郵送/メール送信機能
+- 顧客別の過去見積検索・比較
+- ダッシュボード（月次売上・案件数グラフ）
+- モバイルアプリ対応
+- 会計システム・顧客管理システム連携
 
-# データベース
-npm run db:migrate:local      # ローカルマイグレーション
-npm run db:migrate:prod       # 本番マイグレーション
-npm run db:seed              # サンプルデータ投入
-npm run db:reset             # データベースリセット
-npm run db:console:local     # ローカルDBコンソール
-npm run db:console:prod      # 本番DBコンソール
+## 最新の変更履歴
 
-# デプロイ
-npm run deploy               # 本番デプロイ
-npm run deploy:prod          # プロジェクト指定デプロイ
+**v3.0 (2026-02-17) - 新料金体系・A-Iランク完全対応**
+- エリアランクA-I（9段階）完全対応
+- 専属便・2tチャーター車両タイプ追加
+- distance_area_pricingテーブルによるエリア別料金管理
+- 郵便番号→エリアランク判定ロジック全面改修
+  - 淡路(656)→E、姫路(670)→D、西播磨(678)→E
+  - 福知山(620)→E、舞鶴(624)→F、但馬(668)→F
+  - 鳥取/島根の68x/69x競合解消
+- PDF見積書: A-Iランク名称・地域説明、専属便/チャーター単価表示
+- DB: estimatesテーブルに専属便/チャーター関連カラム追加（61列）
+- Step3→Step6→保存のデータフロー修正（単価の保持・保存）
 
-# ユーティリティ
-npm run clean-port           # ポート3000をクリーンアップ
-npm run test                 # サービステスト
-```
-
-## 🔧 設定
-
-### 環境変数 (.dev.vars)
-```bash
-# 開発環境用設定
-CLOUDFLARE_API_TOKEN=your_api_token
-DATABASE_URL=local_sqlite
-USER_ID=development_user
-```
-
-### Cloudflare設定 (wrangler.jsonc)
-```jsonc
-{
-  "name": "transport-estimate-system",
-  "main": "src/index.tsx",
-  "compatibility_date": "2024-08-22",
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "transport-estimate-production",
-      "database_id": "your-database-id"
-    }
-  ]
-}
-```
-
-## 🚨 トラブルシューティング
-
-### よくある問題
-
-#### 1. スタッフ費用が¥0で保存される
-**解決済み** - v1.0で完全修正済み
-
-#### 2. 車両料金が正しく計算されない
-```bash
-# マスターデータの確認
-npm run db:console:local
-> SELECT * FROM vehicle_pricing WHERE area='A';
-```
-
-#### 3. PDF生成が失敗する
-**解決済み** - v2.4で完全修正済み（KVストレージ依存を削除し、D1データベースに統一）
-
-```bash
-# 見積データの確認
-curl http://localhost:3000/api/estimates/EST-2025-001
-```
-
-#### 4. 開発サーバーが起動しない
-```bash
-# ポートクリーンアップして再起動
-npm run clean-port
-pm2 delete all
-npm run dev:sandbox
-```
-
-## 📚 ドキュメント
-
-- **[API仕様書](./docs/API_SPECIFICATION.md)**: 全APIエンドポイントの詳細
-- **[詳細設計書](./docs/DETAILED_DESIGN.md)**: システム全体の詳細設計
-- **[運用マニュアル](./docs/OPERATION_MANUAL.md)**: 運用・保守の手順書
-
-## 🔐 セキュリティ
-
-- **入力値検証**: SQLインジェクション・XSS対策実装済み
-- **データ暗号化**: 将来のフェーズで実装予定
-- **アクセス制御**: 認証機能は将来のフェーズで実装予定
-
-## 📈 パフォーマンス
-
-- **レスポンス時間**: 2秒以内（目標）
-- **稼働率**: 99.9%（Cloudflareインフラ基盤）
-- **グローバル配信**: エッジネットワーク活用
-
-## 🔄 今後のロードマップ
-
-### フェーズ2: 認証・権限管理
-- [ ] ユーザー登録・ログイン機能
-- [ ] ロールベースアクセス制御
-- [ ] 操作ログ記録
-
-### フェーズ3: 高度な機能
-- [ ] ダッシュボード機能
-- [ ] レポート・分析機能
-- [ ] モバイルアプリ対応
-
-### フェーズ4: 統合機能
-- [ ] 会計システム連携
-- [ ] 顧客管理システム連携
-- [ ] API エコシステム構築
-
-## 💾 バックアップ・ダウンロード
-
-**完全プロジェクトバックアップ**: 
-📦 [transport_estimate_system_v1.0.tar.gz](https://page.gensparksite.com/project_backups/tooluse_0Gc4eRXjS1qY9JXHA9Gjtg.tar.gz)
-
-- サイズ: 71.4MB
-- 内容: 完全なソースコード、設定ファイル、ドキュメント
-- 更新日: 2024-08-22
-
-## 🤝 コントリビューション
-
-1. フォークしてブランチを作成
-2. 機能追加・バグ修正
-3. テスト実行（将来実装）
-4. プルリクエスト送信
-
-## 📄 ライセンス
-
-このプロジェクトは MIT License の下で公開されています。
-
-## 📞 サポート
-
-- **Issue報告**: GitHub Issues
-- **機能要望**: GitHub Discussions
-- **技術サポート**: 開発チームに連絡
-
-## ⭐ 謝辞
-
-このプロジェクトは以下の優れたオープンソースプロジェクトを活用しています：
-
-- [Hono](https://hono.dev/) - 高速軽量Webフレームワーク
-- [Cloudflare](https://www.cloudflare.com/) - エッジコンピューティングプラットフォーム
-- [TailwindCSS](https://tailwindcss.com/) - ユーティリティファーストCSSフレームワーク
-- [TypeScript](https://www.typescriptlang.org/) - 型安全JavaScript
+**v2.4 (2025-10-29) - PDF生成エラー修正**
+- KVストレージからD1データベースへ移行
+- 基本設定取得修正、車両料金API修正
 
 ---
 
-## 📊 プロジェクト統計
-
-- **総行数**: 約15,000行
-- **ファイル数**: 50+
-- **機能数**: 20+ 
-- **APIエンドポイント**: 15+
-- **開発期間**: 2024年8月
-
-**最終更新**: 2025年10月29日  
-**バージョン**: 2.4.0  
-**ステータス**: 本番運用中 🚀  
-**デプロイURL**: https://transport-estimate-system.pages.dev  
-**最新ビルド**: https://1125f348.transport-estimate-system.pages.dev
-
----
-
-## 🔐 認証システムの使い方
-
-### 開発環境（認証スキップ）
-`.dev.vars` ファイルで `ENABLE_AUTH=false` が設定されている場合、認証なしでシステムを利用できます。
-
-### 本番環境（認証有効化）
-本番環境では認証が有効化されます：
-
-1. **ログイン画面**: `/login.html` にアクセス
-2. **ユーザーID**: 管理者から付与されたID
-3. **パスワード**: 初期パスワードまたは変更後のパスワード
-
-### 初期ユーザー
-本番環境の初期管理者アカウント：
-- **ID**: `admin`
-- **パスワード**: `admin123`
-- **名前**: システム管理者
-
-**重要**: 初回ログイン後、セキュリティのため必ずパスワードを変更してください。
-
-### 新規ユーザー作成
-管理者は以下のAPIでユーザーを追加できます：
-```bash
-curl -X POST http://localhost:3000/api/auth/users \
-  -H "Content-Type: application/json" \
-  -d '{"userId":"新ID","name":"表示名","password":"パスワード"}'
-```
-
-### 作成者名の表示
-- **見積書PDF**: 最下部に「見積もり制作担当者: ○○」として印刷
-- **見積一覧**: `created_by_name` カラムに担当者名が表示されます
+**最終更新**: 2026年2月17日
+**バージョン**: 3.0.0
+**ステータス**: 本番運用中
+**デプロイURL**: https://transport-estimate-system.pages.dev
