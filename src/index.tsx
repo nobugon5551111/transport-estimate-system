@@ -18279,8 +18279,8 @@ app.post('/api/auth/login', async (c) => {
       VALUES (?, ?, ?)
     `).bind(sessionId, user.id, expiresAt.toISOString()).run()
     
-    // Cookie設定（Secure属性を追加してHTTPS環境に対応）
-    c.header('Set-Cookie', `session_id=${sessionId}; Path=/; Max-Age=${7 * 24 * 60 * 60}; HttpOnly; SameSite=Lax; Secure`)
+    // Cookie設定（SameSite=Laxでセキュリティ確保、Secureはプロキシ環境で問題があるため省略）
+    c.header('Set-Cookie', `session_id=${sessionId}; Path=/; Max-Age=${7 * 24 * 60 * 60}; HttpOnly; SameSite=Lax`)
     
     return c.json({
       success: true,
@@ -18322,7 +18322,7 @@ app.post('/api/auth/logout', async (c) => {
     }
     
     // Cookie削除
-    c.header('Set-Cookie', 'session_id=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax; Secure')
+    c.header('Set-Cookie', `session_id=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`)
     
     return c.json({
       success: true,
