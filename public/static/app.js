@@ -3063,10 +3063,44 @@ const Step6Implementation = {
     const vehicle = Step6Implementation.estimateData.vehicle;
     let html = '';
     
-    console.log('🚚 STEP6車両詳細表示:', vehicle);
+    console.log('STEP6車両詳細表示:', vehicle);
     
-    // 複数車両形式の場合
-    if (vehicle.uses_multiple_vehicles) {
+    // 新体系：専属便/混載便
+    if (vehicle.service_type) {
+      const details = [];
+      let totalVehicleCost = vehicle.cost || 0;
+      
+      if (vehicle.service_type === 'dedicated') {
+        // 専属便
+        const unitPrice = vehicle.unit_price || 0;
+        const count = vehicle.vehicle_count || 1;
+        const discount = vehicle.oneman_discount ? 15000 : 0;
+        const perVehicle = unitPrice - discount;
+        
+        details.push(`<div class="flex justify-between px-4 py-2"><span>専属便 ${count}台（${vehicle.area}ランク）@ ¥${unitPrice.toLocaleString()}</span><span>${Utils.formatCurrency(unitPrice * count)}</span></div>`);
+        
+        if (vehicle.oneman_discount) {
+          details.push(`<div class="flex justify-between px-4 py-2 text-green-600"><span>ワンマン割引 × ${count}台</span><span>-${Utils.formatCurrency(discount * count)}</span></div>`);
+        }
+      } else if (vehicle.service_type === 'konsai') {
+        // 混載便
+        const basePrice = vehicle.unit_price || 0;
+        const discount = vehicle.oneman_discount ? 15000 : 0;
+        
+        details.push(`<div class="flex justify-between px-4 py-2"><span>混載便 1台（${vehicle.area}ランク）基本料金</span><span>${Utils.formatCurrency(basePrice)}</span></div>`);
+        details.push(`<div class="flex justify-between px-4 py-2 text-gray-500"><span>超過料金（¥${(vehicle.overtime_fee || 7000).toLocaleString()}/h）</span><span>自動付加</span></div>`);
+        
+        if (vehicle.oneman_discount) {
+          details.push(`<div class="flex justify-between px-4 py-2 text-green-600"><span>ワンマン割引</span><span>-${Utils.formatCurrency(discount)}</span></div>`);
+        }
+      }
+      
+      details.push(`<div class="flex justify-between border-t pt-2 mt-2 font-bold"><span>車両費用合計</span><span>${Utils.formatCurrency(totalVehicleCost)}</span></div>`);
+      
+      html = details.join('');
+      
+    // 旧体系：複数車両形式
+    } else if (vehicle.uses_multiple_vehicles) {
       const details = [];
       let totalVehicleCost = 0;
       
@@ -3649,7 +3683,47 @@ const Step6Implementation = {
     };
 
     // 1. 車両費用明細
-    if (vehicle.uses_multiple_vehicles) {
+    if (vehicle.service_type) {
+      // 新体系：専属便/混載便
+      if (vehicle.service_type === 'dedicated') {
+        const unitPrice = vehicle.unit_price || 0;
+        const count = vehicle.vehicle_count || 1;
+        lineItems.vehicle.items.push({
+          description: `専属便 ${count}台（${vehicle.area}ランク）`,
+          detail: `@ ¥${unitPrice.toLocaleString()}`,
+          quantity: count,
+          unit_price: unitPrice,
+          amount: unitPrice * count
+        });
+        if (vehicle.oneman_discount) {
+          lineItems.vehicle.items.push({
+            description: 'ワンマン割引',
+            detail: `× ${count}台`,
+            quantity: count,
+            unit_price: -15000,
+            amount: -15000 * count
+          });
+        }
+      } else if (vehicle.service_type === 'konsai') {
+        const basePrice = vehicle.unit_price || 0;
+        lineItems.vehicle.items.push({
+          description: `混載便 1台（${vehicle.area}ランク）`,
+          detail: `基本料金`,
+          quantity: 1,
+          unit_price: basePrice,
+          amount: basePrice
+        });
+        if (vehicle.oneman_discount) {
+          lineItems.vehicle.items.push({
+            description: 'ワンマン割引',
+            detail: '',
+            quantity: 1,
+            unit_price: -15000,
+            amount: -15000
+          });
+        }
+      }
+    } else if (vehicle.uses_multiple_vehicles) {
       // 複数車両の場合
       if (vehicle.vehicle_2t_count > 0 && vehicle.vehicle_2t_unit_price) {
         lineItems.vehicle.items.push({
@@ -3929,9 +4003,14 @@ const Step6Implementation = {
 
     console.log('🔢 STEP6合計金額計算開始:', { vehicle, staff, services });
 
-    // 1. 車両費用の再計算（複数車両対応、修正済み単価を優先）
+    // 1. 車両費用の計算
     let finalVehicleCost = 0;
-    if (vehicle.uses_multiple_vehicles) {
+    
+    // 新体系：専属便/混載便
+    if (vehicle.service_type) {
+      finalVehicleCost = vehicle.cost || 0;
+      console.log('車両費用（新体系）:', finalVehicleCost, vehicle.service_type_label);
+    } else if (vehicle.uses_multiple_vehicles) {
       // 修正済みの場合は保存されている値を使用
       if (vehicle.price_modified) {
         finalVehicleCost = 
@@ -4237,23 +4316,29 @@ const Step6Implementation = {
         delivery_postal_code: Step6Implementation.estimateData.delivery.postal_code,
         delivery_area: Step6Implementation.estimateData.delivery.area,
         
-        // 車両情報（複数車両対応）
-        vehicle_type: Step6Implementation.estimateData.vehicle.type || (
-          Step6Implementation.estimateData.vehicle.uses_multiple_vehicles ? 
-          '複数車両' : 
-          '2t車' // デフォルト値
-        ),
-        operation_type: Step6Implementation.estimateData.vehicle.operation,
+        // 車両情報（新体系：専属便/混載便対応）
+        vehicle_type: Step6Implementation.estimateData.vehicle.service_type_label || 
+          Step6Implementation.estimateData.vehicle.type || 
+          (Step6Implementation.estimateData.vehicle.uses_multiple_vehicles ? '複数車両' : '2t車'),
+        operation_type: Step6Implementation.estimateData.vehicle.service_type === 'konsai' ? '混載' : 
+          (Step6Implementation.estimateData.vehicle.operation || '終日'),
         vehicle_cost: Step6Implementation.estimateData.vehicle.cost,
-        // 複数車両用フィールド
+        // 新体系: service_type, oneman_discount
+        service_type: Step6Implementation.estimateData.vehicle.service_type || '',
+        oneman_discount_applied: Step6Implementation.estimateData.vehicle.oneman_discount ? 1 : 0,
+        // 複数車両用フィールド（後方互換）
         vehicle_2t_count: Step6Implementation.estimateData.vehicle.vehicle_2t_count || 0,
         vehicle_4t_count: Step6Implementation.estimateData.vehicle.vehicle_4t_count || 0,
-        vehicle_dedicated_count: Step6Implementation.estimateData.vehicle.vehicle_dedicated_count || 0,
+        vehicle_dedicated_count: Step6Implementation.estimateData.vehicle.service_type === 'dedicated' ? 
+          (Step6Implementation.estimateData.vehicle.vehicle_count || 1) : 
+          (Step6Implementation.estimateData.vehicle.vehicle_dedicated_count || 0),
         vehicle_charter_count: Step6Implementation.estimateData.vehicle.vehicle_charter_count || 0,
-        vehicle_dedicated_unit_price: Step6Implementation.estimateData.vehicle.vehicle_dedicated_unit_price || 0,
+        vehicle_dedicated_unit_price: Step6Implementation.estimateData.vehicle.unit_price || 
+          Step6Implementation.estimateData.vehicle.vehicle_dedicated_unit_price || 0,
         vehicle_charter_unit_price: Step6Implementation.estimateData.vehicle.vehicle_charter_unit_price || 0,
         external_contractor_cost: Step6Implementation.estimateData.vehicle.external_contractor_cost || 0,
-        uses_multiple_vehicles: Step6Implementation.estimateData.vehicle.uses_multiple_vehicles || false,
+        uses_multiple_vehicles: Step6Implementation.estimateData.vehicle.service_type === 'dedicated' ? 
+          (Step6Implementation.estimateData.vehicle.vehicle_count > 1) : false,
         
         // スタッフ情報（詳細データも保存）
         ...Step6Implementation.estimateData.staff,
