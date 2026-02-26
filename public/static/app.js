@@ -2020,6 +2020,8 @@ const Step4Implementation = {
       if (ratesResponse.success && ratesResponse.data) {
         Step4Implementation.staffRates = ratesResponse.data.staffRates;
         console.log('✅ STEP4: スタッフ単価取得完了:', Step4Implementation.staffRates);
+        // フォーム表示をマスターデータで更新
+        updateStaffRateDisplays(Step4Implementation.staffRates);
       } else {
         console.warn('⚠️ STEP4: スタッフ単価取得失敗、デフォルト値を使用');
         Step4Implementation.staffRates = {
@@ -2030,6 +2032,8 @@ const Step4Implementation = {
           temp_half_day_rate: 6500,
           temp_full_day_rate: 11500
         };
+        // デフォルト値でもフォーム表示を更新
+        updateStaffRateDisplays(Step4Implementation.staffRates);
       }
     } catch (error) {
       Utils.showError('スタッフ単価の取得に失敗しました: ' + error.message);
@@ -2508,6 +2512,7 @@ const Step5Implementation = {
           parking_officer_hourly: parseFloat(apiData.hourly_rate) || 2500,
           transport_vehicle_20km: parseFloat(apiData.base_rate_20km) || 15000,
           transport_vehicle_per_km: parseFloat(apiData.rate_per_km) || 150,
+          fuel_per_liter: parseFloat(apiData.rate_per_liter || apiData.fuel_rate_per_liter) || 160,
           waste_disposal: {
             none: 0,
             small: parseFloat(apiData.waste_disposal_small) || 10000,
@@ -2531,6 +2536,8 @@ const Step5Implementation = {
           }
         };
         console.log('✅ サービスレート変換完了（マスターデータ使用）:', Step5Implementation.serviceRates);
+        // フォーム表示をマスターデータで更新
+        updateServiceRateDisplays(Step5Implementation.serviceRates);
       } else {
         // API取得失敗時のデフォルト値を設定
         Step5Implementation.serviceRates = {
@@ -2545,6 +2552,8 @@ const Step5Implementation = {
           work_time_multiplier: { normal: 1.0, early: 1.25, night: 1.25, midnight: 1.5 }
         };
         console.warn('⚠️ サービス料金APIエラー、デフォルト値を使用します');
+        // デフォルト値でもフォーム表示を更新
+        updateServiceRateDisplays(Step5Implementation.serviceRates);
       }
     } catch (error) {
       // エラー時のデフォルト値を設定
@@ -2559,6 +2568,8 @@ const Step5Implementation = {
         construction_m2_staff: 12500,
         work_time_multiplier: { normal: 1.0, early: 1.25, night: 1.25, midnight: 1.5 }
       };
+      // デフォルト値でもフォーム表示を更新
+      updateServiceRateDisplays(Step5Implementation.serviceRates);
       console.error('❌ サービス料金の取得に失敗しました、デフォルト値を使用します:', error);
     }
 
@@ -2988,6 +2999,95 @@ window.applyAISuggestion = Step4Implementation.applyAISuggestion;
 window.goBackToStep3 = Step4Implementation.goBackToStep3;
 window.proceedToStep5 = Step4Implementation.proceedToStep5;
 
+// === マスター料金 → フォーム表示 連動更新ヘルパー ===
+
+// Step4: スタッフ料金表示を API / staffRates オブジェクトから更新
+function updateStaffRateDisplays(rates) {
+  if (!rates) return;
+  const fmt = (v) => Number(v).toLocaleString();
+  // APIレスポンスは supervisor_rate/supervisor, leader_rate/leader,
+  // m2_half_rate/m2_half, m2_full_rate/m2_full, temp_half_rate/temp_half, temp_full_rate/temp_full
+  // フォールバックは m2_half_day_rate 等のキーも対応
+  const map = {
+    'rate-display-supervisor': rates.supervisor_rate || rates.supervisor,
+    'rate-display-leader':    rates.leader_rate || rates.leader,
+    'rate-display-m2-half':   rates.m2_half_day_rate || rates.m2_half_rate || rates.m2_half,
+    'rate-display-m2-full':   rates.m2_full_day_rate || rates.m2_full_rate || rates.m2_full,
+    'rate-display-temp-half': rates.temp_half_day_rate || rates.temp_half_rate || rates.temp_half,
+    'rate-display-temp-full': rates.temp_full_day_rate || rates.temp_full_rate || rates.temp_full
+  };
+  for (const [id, val] of Object.entries(map)) {
+    if (val == null) continue;
+    document.querySelectorAll(`#${id}`).forEach(el => { el.textContent = fmt(val); });
+    // 同じ id が複数ページに存在する場合、querySelectorAll でまとめて更新
+  }
+  console.log('✅ スタッフ料金表示を更新しました:', map);
+}
+
+// Step5: サービス料金表示を API / serviceRates オブジェクトから更新
+function updateServiceRateDisplays(rates) {
+  if (!rates) return;
+  const fmt = (v) => Number(v).toLocaleString();
+  const simple = {
+    'rate-display-parking-officer':  rates.parking_officer_hourly,
+    'rate-display-transport-20km':   rates.transport_vehicle_20km,
+    'rate-display-transport-km':     rates.transport_vehicle_per_km,
+    'rate-display-protection-base':  rates.protection_work_base,
+    'rate-display-protection-floor': rates.protection_work_per_floor,
+    'rate-display-construction-m2':  rates.construction_m2_staff
+  };
+  if (rates.waste_disposal) {
+    simple['rate-display-waste-small']  = rates.waste_disposal.small;
+    simple['rate-display-waste-medium'] = rates.waste_disposal.medium;
+    simple['rate-display-waste-large']  = rates.waste_disposal.large;
+  }
+  if (rates.material_collection) {
+    simple['rate-display-material-few']    = rates.material_collection.few;
+    simple['rate-display-material-medium'] = rates.material_collection.medium;
+    simple['rate-display-material-many']   = rates.material_collection.many;
+  }
+  // 現地調査関連（APIにキーがある場合のみ更新）
+  if (rates.survey_1_person || rates['site_survey.survey_1_person']) {
+    simple['rate-display-survey-1person'] = rates['site_survey.survey_1_person'] || rates.survey_1_person;
+  }
+  if (rates.survey_2_person || rates['site_survey.survey_2_person']) {
+    simple['rate-display-survey-2person'] = rates['site_survey.survey_2_person'] || rates.survey_2_person;
+  }
+  if (rates.vehicle_base || rates['site_survey.vehicle_base']) {
+    simple['rate-display-vehicle-base'] = rates['site_survey.vehicle_base'] || rates.vehicle_base;
+  }
+  if (rates.distance_rate || rates['site_survey.distance_rate']) {
+    simple['rate-display-distance-rate'] = rates['site_survey.distance_rate'] || rates.distance_rate;
+  }
+  // 燃料費
+  if (rates.fuel_per_liter) {
+    simple['rate-display-fuel'] = rates.fuel_per_liter;
+  }
+  for (const [id, val] of Object.entries(simple)) {
+    if (val == null) continue;
+    document.querySelectorAll(`[id="${id}"]`).forEach(el => { el.textContent = fmt(val); });
+  }
+  // 割増率ラベルも更新
+  if (rates.work_time_multiplier) {
+    const wm = rates.work_time_multiplier;
+    const pct = (v) => Math.round((v - 1) * 100);
+    const earlyLabel = document.querySelector('label[for="work_time_early"]') || document.querySelector('input[value="early"]')?.closest('label');
+    const nightLabel = document.querySelector('label[for="work_time_night"]') || document.querySelector('input[value="night"]')?.closest('label');
+    const midnightLabel = document.querySelector('label[for="work_time_midnight"]') || document.querySelector('input[value="midnight"]')?.closest('label');
+    // ラジオボタン横のテキストを更新（ラベル内に%表示がある場合）
+    if (earlyLabel && wm.early) {
+      earlyLabel.innerHTML = earlyLabel.innerHTML.replace(/\d+%割増/, pct(wm.early) + '%割増');
+    }
+    if (nightLabel && wm.night) {
+      nightLabel.innerHTML = nightLabel.innerHTML.replace(/\d+%割増/, pct(wm.night) + '%割増');
+    }
+    if (midnightLabel && wm.midnight) {
+      midnightLabel.innerHTML = midnightLabel.innerHTML.replace(/\d+%割増/, pct(wm.midnight) + '%割増');
+    }
+  }
+  console.log('✅ サービス料金表示を更新しました:', simple);
+}
+
 // STEP5用関数
 window.updateServicesCost = Step5Implementation.updateServicesCost;
 window.handleTransportDistanceChange = Step5Implementation.handleTransportDistanceChange;
@@ -3035,6 +3135,7 @@ const Step6Implementation = {
           parking_officer_hourly: parseFloat(apiData.hourly_rate) || 2500,
           transport_vehicle_20km: parseFloat(apiData.base_rate_20km) || 15000,
           transport_vehicle_per_km: parseFloat(apiData.rate_per_km) || 150,
+          fuel_per_liter: parseFloat(apiData.rate_per_liter || apiData.fuel_rate_per_liter) || 160,
           waste_disposal: {
             none: 0,
             small: parseFloat(apiData.waste_disposal_small) || 10000,
@@ -5783,6 +5884,20 @@ if (typeof MasterManagement === 'undefined') {
     setInputValue('rate_temp_half_day', settings.staff_rates?.temp_half_day || 5500);
     setInputValue('rate_temp_full_day', settings.staff_rates?.temp_full_day || 9500);
 
+    // 設定画面のスタッフ料金ラベル内 rate-display-* も更新
+    const fmt = (v) => Number(v).toLocaleString();
+    const updateLabel = (id, val) => {
+      if (val == null) return;
+      document.querySelectorAll(`[id="${id}"]`).forEach(el => { el.textContent = fmt(val); });
+    };
+    updateLabel('rate-display-supervisor', settings.staff_rates?.supervisor);
+    updateLabel('rate-display-leader', settings.staff_rates?.leader);
+    updateLabel('rate-display-m2-half', settings.staff_rates?.m2_half_day);
+    updateLabel('rate-display-m2-full', settings.staff_rates?.m2_full_day);
+    updateLabel('rate-display-temp-half', settings.staff_rates?.temp_half_day);
+    updateLabel('rate-display-temp-full', settings.staff_rates?.temp_full_day);
+    console.log('✅ 設定画面のスタッフ料金ラベルを更新しました');
+
     // エリア設定一覧を表示
     MasterManagement.displayAreaList();
   },
@@ -6010,6 +6125,24 @@ if (typeof MasterManagement === 'undefined') {
     // システム設定
     setInputValue('system_tax_rate', systemSettings.tax_rate || 0.10);
     setInputValue('system_estimate_prefix', systemSettings.estimate_prefix || 'EST');
+
+    // 設定画面のラベル内 rate-display-* も更新（マスター変更の反映）
+    const fmt = (v) => Number(v).toLocaleString();
+    const updateLabel = (id, val) => {
+      if (val == null) return;
+      document.querySelectorAll(`[id="${id}"]`).forEach(el => { el.textContent = fmt(val); });
+    };
+    updateLabel('rate-display-parking-hourly', serviceRates.parking_officer_hourly);
+    updateLabel('rate-display-transport-20km', serviceRates.transport_20km);
+    updateLabel('rate-display-transport-km', serviceRates.transport_per_km);
+    updateLabel('rate-display-fuel', serviceRates.fuel_per_liter);
+    updateLabel('rate-display-waste-small', serviceRates.waste_small);
+    updateLabel('rate-display-waste-medium', serviceRates.waste_medium);
+    updateLabel('rate-display-waste-large', serviceRates.waste_large);
+    updateLabel('rate-display-protection-base', serviceRates.protection_base);
+    updateLabel('rate-display-protection-floor', serviceRates.protection_floor);
+    updateLabel('rate-display-construction-m2', serviceRates.construction_m2_staff_rate);
+    console.log('✅ 設定画面のラベル表示を更新しました');
   },
 
   // デフォルトサービス価格設定用のヘルパー関数
