@@ -4465,8 +4465,55 @@ const Step6Implementation = {
 
     let html = '';
     
-    if (vehicle.uses_multiple_vehicles) {
-      // 複数車両の場合
+    if (vehicle.service_type) {
+      // 新体系：専属便/混載便
+      if (vehicle.service_type === 'dedicated') {
+        const currentPrice = Step6Implementation.editingPrices.vehicle.unit_price !== undefined ?
+                             Step6Implementation.editingPrices.vehicle.unit_price : (vehicle.unit_price || 0);
+        html += `
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-sm text-gray-700">専属便 単価 (${vehicle.vehicle_count || 1}台・${vehicle.area}ランク)</label>
+            <div class="flex items-center">
+              <span class="mr-2">¥</span>
+              <input type="number" id="edit_dedicated_price" 
+                     class="form-input w-32 text-right" 
+                     value="${currentPrice}" min="0" step="1000"
+                     onchange="Step6Implementation.onVehiclePriceChange('unit_price', this.value)">
+            </div>
+          </div>
+        `;
+      } else if (vehicle.service_type === 'konsai') {
+        const currentPrice = Step6Implementation.editingPrices.vehicle.unit_price !== undefined ?
+                             Step6Implementation.editingPrices.vehicle.unit_price : (vehicle.unit_price || 0);
+        html += `
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-sm text-gray-700">混載便 基本料金 (${vehicle.area}ランク)</label>
+            <div class="flex items-center">
+              <span class="mr-2">¥</span>
+              <input type="number" id="edit_konsai_price" 
+                     class="form-input w-32 text-right" 
+                     value="${currentPrice}" min="0" step="1000"
+                     onchange="Step6Implementation.onVehiclePriceChange('unit_price', this.value)">
+            </div>
+          </div>
+        `;
+        const currentOvertimeFee = Step6Implementation.editingPrices.vehicle.overtime_fee !== undefined ?
+                                   Step6Implementation.editingPrices.vehicle.overtime_fee : (vehicle.overtime_fee || 7000);
+        html += `
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-sm text-gray-700">超過料金 (/h)</label>
+            <div class="flex items-center">
+              <span class="mr-2">¥</span>
+              <input type="number" id="edit_konsai_overtime" 
+                     class="form-input w-32 text-right" 
+                     value="${currentOvertimeFee}" min="0" step="500"
+                     onchange="Step6Implementation.onVehiclePriceChange('overtime_fee', this.value)">
+            </div>
+          </div>
+        `;
+      }
+    } else if (vehicle.uses_multiple_vehicles) {
+      // 旧体系：複数車両の場合
       if (vehicle.vehicle_2t_count > 0) {
         const currentPrice = Step6Implementation.editingPrices.vehicle.vehicle_2t_unit_price || 
                              vehicle.vehicle_2t_unit_price || 0;
@@ -4519,7 +4566,7 @@ const Step6Implementation = {
         `;
       }
     } else {
-      // 単一車両の場合
+      // 従来形式：単一車両の場合
       const currentPrice = Step6Implementation.editingPrices.vehicle.cost || vehicle.cost || 0;
       html += `
         <div class="flex items-center justify-between">
@@ -4552,7 +4599,25 @@ const Step6Implementation = {
     console.log('✅ 車両単価適用:', editedPrices);
     
     // 編集した単価を適用
-    if (vehicle.uses_multiple_vehicles) {
+    if (vehicle.service_type) {
+      // 新体系：専属便/混載便
+      if (editedPrices.unit_price !== undefined) {
+        vehicle.unit_price = editedPrices.unit_price;
+      }
+      if (editedPrices.overtime_fee !== undefined) {
+        vehicle.overtime_fee = editedPrices.overtime_fee;
+      }
+      
+      // 車両費用合計を再計算
+      if (vehicle.service_type === 'dedicated') {
+        const count = vehicle.vehicle_count || 1;
+        const discount = vehicle.oneman_discount ? 15000 : 0;
+        vehicle.cost = (vehicle.unit_price - discount) * count;
+      } else if (vehicle.service_type === 'konsai') {
+        const discount = vehicle.oneman_discount ? 15000 : 0;
+        vehicle.cost = vehicle.unit_price - discount;
+      }
+    } else if (vehicle.uses_multiple_vehicles) {
       if (editedPrices.vehicle_2t_unit_price !== undefined) {
         vehicle.vehicle_2t_unit_price = editedPrices.vehicle_2t_unit_price;
       }
@@ -4606,7 +4671,35 @@ const Step6Implementation = {
     const vehicle = Step6Implementation.estimateData.vehicle;
     let html = '';
     
-    if (vehicle.uses_multiple_vehicles) {
+    if (vehicle.service_type) {
+      // 新体系：専属便/混載便
+      const details = [];
+      const modifiedTag = vehicle.price_modified ? '<span class="text-xs text-blue-600 ml-1">(修正済)</span>' : '';
+      
+      if (vehicle.service_type === 'dedicated') {
+        const unitPrice = vehicle.unit_price || 0;
+        const count = vehicle.vehicle_count || 1;
+        const discount = vehicle.oneman_discount ? 15000 : 0;
+        
+        details.push(`<div class="flex justify-between px-4 py-2"><span>専属便 ${count}台（${vehicle.area}ランク）@ ¥${unitPrice.toLocaleString()} ${modifiedTag}</span><span>${Utils.formatCurrency(unitPrice * count)}</span></div>`);
+        if (vehicle.oneman_discount) {
+          details.push(`<div class="flex justify-between px-4 py-2 text-green-600"><span>ワンマン割引 × ${count}台</span><span>-${Utils.formatCurrency(discount * count)}</span></div>`);
+        }
+      } else if (vehicle.service_type === 'konsai') {
+        const basePrice = vehicle.unit_price || 0;
+        const discount = vehicle.oneman_discount ? 15000 : 0;
+        
+        details.push(`<div class="flex justify-between px-4 py-2"><span>混載便 1台（${vehicle.area}ランク）基本料金 ${modifiedTag}</span><span>${Utils.formatCurrency(basePrice)}</span></div>`);
+        details.push(`<div class="flex justify-between px-4 py-2 text-gray-500"><span>超過料金（¥${(vehicle.overtime_fee || 7000).toLocaleString()}/h）</span><span>自動付加</span></div>`);
+        if (vehicle.oneman_discount) {
+          details.push(`<div class="flex justify-between px-4 py-2 text-green-600"><span>ワンマン割引</span><span>-${Utils.formatCurrency(discount)}</span></div>`);
+        }
+      }
+      
+      details.push(`<div class="flex justify-between border-t pt-2 mt-2 font-bold"><span>車両費用合計</span><span>${Utils.formatCurrency(vehicle.cost)}</span></div>`);
+      html = Step6Implementation.applyZebraStripes(details).join('');
+      
+    } else if (vehicle.uses_multiple_vehicles) {
       const details = [];
       let totalVehicleCost = 0;
       
