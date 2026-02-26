@@ -1464,12 +1464,25 @@ window.handleCustomerChange = EstimateFlowImplementation.handleCustomerChange;
 window.handleProjectChange = EstimateFlowImplementation.handleProjectChange;
 window.proceedToStep2 = EstimateFlowImplementation.proceedToStep2;
 
-// STEP3: 車両選択の実装
+// STEP2用関数
+window.formatPostalCodeInput = Step2Implementation.formatPostalCodeInput;
+window.searchAddressByPostalCode = Step2Implementation.searchAddressByPostalCode;
+window.autoDetectArea = Step2Implementation.autoDetectArea;
+window.updateAreaCostDisplay = Step2Implementation.updateAreaCostDisplay;
+window.goBackToStep1 = Step2Implementation.goBackToStep1;
+window.proceedToStep3 = Step2Implementation.proceedToStep3;
+
+// STEP3: 車両・便種選択の実装（専属便/混載便 新体系）
 const Step3Implementation = {
   currentVehicleInfo: null,
+  currentArea: null,
+  selectedServiceType: null, // 'dedicated' or 'konsai'
+  dedicatedPricing: null,    // distance_area_pricing data
+  konsaiPricing: null,       // konsai_pricing data
+  deliverySchedule: null,    // konsai_delivery_schedule data
 
   // ページ初期化
-  initialize: () => {
+  initialize: async () => {
     const flowData = JSON.parse(sessionStorage.getItem('estimateFlow') || '{}');
     console.log('STEP3 初期化 - フローデータ:', flowData);
     
@@ -1490,471 +1503,311 @@ const Step3Implementation = {
     // 選択済み情報を表示
     document.getElementById('selectedCustomerName').textContent = flowData.customer.name;
     document.getElementById('selectedProjectName').textContent = flowData.project.name;
-    document.getElementById('selectedArea').textContent = `${flowData.delivery.area}エリア（${flowData.delivery.area_name}）`;
+    document.getElementById('selectedArea').textContent = `${flowData.delivery.area}エリア（${flowData.delivery.area_name || ''})`;
     
     // エリア情報を保存
     Step3Implementation.currentArea = flowData.delivery.area;
-    console.log('STEP3 初期化完了 - エリア設定:', {
-      area: Step3Implementation.currentArea,
-      delivery: flowData.delivery
-    });
+    Step3Implementation.flowData = flowData;
+    
+    // 料金データを事前取得
+    await Step3Implementation.fetchPricingData();
+    
+    // カード上にプレビュー料金を表示
+    Step3Implementation.showPricePreview();
+    
+    console.log('STEP3 初期化完了 - エリア:', Step3Implementation.currentArea);
   },
 
-  // 新しい個別車両台数変更処理
-  handleIndividualVehicleCountChange: () => {
-    const vehicle2tCount = parseInt(document.getElementById('vehicle2tCount')?.value) || 0;
-    const vehicle4tCount = parseInt(document.getElementById('vehicle4tCount')?.value) || 0;
-    const vehicleDedicatedCount = parseInt(document.getElementById('vehicleDedicatedCount')?.value) || 0;
-    const vehicleCharterCount = parseInt(document.getElementById('vehicleCharterCount')?.value) || 0;
-    
-    console.log('🚗 車両台数変更:', { vehicle2tCount, vehicle4tCount, vehicleDedicatedCount, vehicleCharterCount });
-    
-    // 合計車両数表示を更新
-    const totalCount = vehicle2tCount + vehicle4tCount + vehicleDedicatedCount + vehicleCharterCount;
-    const totalCountElement = document.getElementById('totalVehicleCount');
-    if (totalCountElement) {
-      totalCountElement.textContent = `${totalCount}台`;
-    }
-
-    // 車両が選択されている場合は即座にボタンを有効化（緊急修正）
-    if (totalCount > 0) {
-      const nextBtn = document.getElementById('nextStepBtn');
-      if (nextBtn) {
-        console.log('🔧 緊急修正: 車両選択済み - ボタンを強制有効化');
-        nextBtn.disabled = false;
-        nextBtn.style.opacity = '1';
-        nextBtn.style.cursor = 'pointer';
-        
-        // 車両情報を強制的に保存
-        const operationSelect = document.getElementById('operationType');
-        let operationValue = operationSelect ? operationSelect.value : '';
-        
-        // 稼働形態が未選択の場合はデフォルト値を設定
-        if (!operationValue || operationValue === '') {
-          operationValue = '終日'; // デフォルト値
-          if (operationSelect) {
-            operationSelect.value = operationValue;
-          }
+  // 料金データ事前取得
+  fetchPricingData: async () => {
+    const area = Step3Implementation.currentArea;
+    try {
+      // 専属便料金（distance_area_pricing）
+      const dedResp = await fetch(`/api/distance-area-pricing?area_rank=${area}`);
+      const dedData = await dedResp.json();
+      if (dedData.success && dedData.pricing) {
+        Step3Implementation.dedicatedPricing = dedData.pricing;
+      }
+      
+      // 混載便料金（konsai_pricing by area）
+      const konResp = await fetch(`/api/konsai-pricing/by-area?area_rank=${area}`);
+      const konData = await konResp.json();
+      if (konData.success) {
+        if (konData.out_of_area) {
+          Step3Implementation.konsaiPricing = null;
+        } else {
+          Step3Implementation.konsaiPricing = konData.pricing || null;
         }
-        
-        Step3Implementation.currentVehicleInfo = {
-          vehicle_2t_count: vehicle2tCount,
-          vehicle_4t_count: vehicle4tCount,
-          vehicle_dedicated_count: vehicleDedicatedCount,
-          vehicle_charter_count: vehicleCharterCount,
-          operation: operationValue,
-          area: Step3Implementation.currentArea || 'D',
-          cost: 0,
-          external_contractor_cost: 0, // 外注費用フィールド削除により0固定
-          uses_multiple_vehicles: true,
-          // 既存の単価情報を保持
-          vehicle_dedicated_unit_price: Step3Implementation.currentVehicleInfo?.vehicle_dedicated_unit_price || 0,
-          vehicle_charter_unit_price: Step3Implementation.currentVehicleInfo?.vehicle_charter_unit_price || 0
-        };
-        
-        console.log('🔧 緊急修正: 車両情報強制保存:', Step3Implementation.currentVehicleInfo);
       }
+      
+      // 混載便配達日
+      if (Step3Implementation.konsaiPricing) {
+        const prefecture = Step3Implementation.flowData?.delivery?.prefecture || '';
+        const schedResp = await fetch(`/api/konsai-delivery-schedule?rank=${area}&prefecture=${encodeURIComponent(prefecture)}`);
+        const schedData = await schedResp.json();
+        if (schedData.success) {
+          Step3Implementation.deliverySchedule = schedData.schedule || [];
+        }
+      }
+      
+      console.log('STEP3 料金データ取得完了:', {
+        dedicated: Step3Implementation.dedicatedPricing,
+        konsai: Step3Implementation.konsaiPricing,
+        schedule: Step3Implementation.deliverySchedule
+      });
+    } catch (error) {
+      console.error('STEP3 料金データ取得エラー:', error);
     }
-
-    // 個別車両の料金表示を更新
-    Step3Implementation.updateIndividualVehiclePricing(vehicle2tCount, vehicle4tCount);
-
-    // 次へボタンの有効化状態を更新
-    Step3Implementation.updateNextButtonState();
-
-    // 従来の処理も実行
-    Step3Implementation.updatePricing();
   },
 
-  // 車両台数変更時の処理（複数車両対応）
-  handleVehicleCountChange: () => {
-    // 新しいHTML要素IDに対応
-    const vehicle2tCount = parseInt(document.getElementById('vehicle2tCount')?.value || document.getElementById('vehicle_2t_count')?.value) || 0;
-    const vehicle4tCount = parseInt(document.getElementById('vehicle4tCount')?.value || document.getElementById('vehicle_4t_count')?.value) || 0;
-    const vehicleOptions = document.querySelectorAll('.vehicle-option');
+  // カード上のプレビュー料金表示
+  showPricePreview: () => {
+    const dedPreview = document.getElementById('dedicatedPricePreview');
+    const konPreview = document.getElementById('konsaiPricePreview');
     
-    // 車両選択状態をビジュアルに反映
-    vehicleOptions.forEach((option, index) => {
-      const count = index === 0 ? vehicle2tCount : vehicle4tCount;
-      if (count > 0) {
-        option.classList.add('border-blue-500', 'bg-blue-50');
-        option.classList.remove('border-gray-200');
+    if (dedPreview && Step3Implementation.dedicatedPricing) {
+      const p = Step3Implementation.dedicatedPricing;
+      dedPreview.textContent = `${Step3Implementation.currentArea}ランク: ¥${(p.dedicated_price_1 || 0).toLocaleString()}/台`;
+    }
+    
+    if (konPreview) {
+      if (Step3Implementation.konsaiPricing) {
+        konPreview.textContent = `${Step3Implementation.currentArea}ランク: ¥${Step3Implementation.konsaiPricing.price.toLocaleString()}`;
       } else {
-        option.classList.remove('border-blue-500', 'bg-blue-50');
-        option.classList.add('border-gray-200');
-      }
-    });
-
-    Step3Implementation.updatePricing();
-  },
-
-  // 外部協力業者コスト変更時の処理
-  handleExternalContractorCostChange: () => {
-    Step3Implementation.updatePricing();
-  },
-
-  // 車種変更時の処理（後方互換性のため保持）
-  handleVehicleChange: () => {
-    const vehicleRadios = document.querySelectorAll('input[name="vehicle_type"]');
-    const vehicleOptions = document.querySelectorAll('.vehicle-option');
-    
-    // ラジオボタンの選択状態をビジュアルに反映
-    vehicleRadios.forEach((radio, index) => {
-      if (radio.checked) {
-        vehicleOptions[index].classList.add('border-blue-500', 'bg-blue-50');
-        vehicleOptions[index].classList.remove('border-gray-200');
-      } else {
-        vehicleOptions[index].classList.remove('border-blue-500', 'bg-blue-50');
-        vehicleOptions[index].classList.add('border-gray-200');
-      }
-    });
-
-    Step3Implementation.updatePricing();
-  },
-
-  // 稼働形態変更時の処理
-  handleOperationChange: () => {
-    const operationSelect = document.getElementById('operationType');
-    const selectedOperation = operationSelect?.value;
-    
-    console.log('⚙️ 稼働形態変更:', selectedOperation || 'なし');
-    
-    // 稼働形態が選択された場合、ボタンを強制有効化（緊急修正）
-    if (selectedOperation && selectedOperation !== '') {
-      const vehicle2tCount = parseInt(document.getElementById('vehicle2tCount')?.value) || 0;
-      const vehicle4tCount = parseInt(document.getElementById('vehicle4tCount')?.value) || 0;
-      const totalCount = vehicle2tCount + vehicle4tCount;
-      
-      console.log('⚙️ 稼働形態選択チェック:', { selectedOperation, totalCount });
-      
-      if (totalCount > 0) {
-        const nextBtn = document.getElementById('nextStepBtn');
-        if (nextBtn) {
-          console.log('🔧 緊急修正: 稼働形態選択済み - ボタンを強制有効化');
-          nextBtn.disabled = false;
-          nextBtn.style.opacity = '1';
-          nextBtn.style.cursor = 'pointer';
-          
-          // 車両情報を更新
-          Step3Implementation.currentVehicleInfo = {
-            vehicle_2t_count: vehicle2tCount,
-            vehicle_4t_count: vehicle4tCount,
-            operation: selectedOperation,
-            area: Step3Implementation.currentArea || 'D',
-            cost: 0,
-            external_contractor_cost: 0, // 外注費用フィールド削除により0固定
-            uses_multiple_vehicles: true
-          };
-          
-          console.log('🔧 緊急修正: 稼働形態で車両情報更新:', Step3Implementation.currentVehicleInfo);
+        // エリア外の場合
+        const areaRanks = ['A','B','C','D','E','F'];
+        if (!areaRanks.includes(Step3Implementation.currentArea)) {
+          konPreview.innerHTML = '<span class="text-red-500"><i class="fas fa-exclamation-triangle mr-1"></i>エリア外</span>';
         }
       }
     }
-
-    // 次へボタンの状態を更新
-    Step3Implementation.updateNextButtonState();
-    
-    // 個別車両の料金表示を更新
-    const vehicle2tCount = parseInt(document.getElementById('vehicle2tCount')?.value) || 0;
-    const vehicle4tCount = parseInt(document.getElementById('vehicle4tCount')?.value) || 0;
-    if (vehicle2tCount > 0 || vehicle4tCount > 0) {
-      Step3Implementation.updateIndividualVehiclePricing(vehicle2tCount, vehicle4tCount);
-    }
-
-    Step3Implementation.updatePricing();
   },
 
-  // 料金の更新（複数車両対応）
-  updatePricing: async () => {
-    // 新しい複数車両形式をチェック（新旧両方のIDに対応）
-    const vehicle2tCount = parseInt(document.getElementById('vehicle2tCount')?.value || document.getElementById('vehicle_2t_count')?.value) || 0;
-    const vehicle4tCount = parseInt(document.getElementById('vehicle4tCount')?.value || document.getElementById('vehicle_4t_count')?.value) || 0;
-    const externalContractorCost = 0; // 外注費用フィールド削除により0固定
+  // 便種変更
+  handleServiceTypeChange: (type) => {
+    Step3Implementation.selectedServiceType = type;
     
-    // 稼働形態の選択（selectタグ対応）
-    const operationSelect = document.getElementById('operationType');
-    const selectedOperationValue = operationSelect?.value;
+    const dedCard = document.getElementById('serviceTypeDedicated');
+    const konCard = document.getElementById('serviceTypeKonsai');
+    const dedSection = document.getElementById('dedicatedSection');
+    const konSection = document.getElementById('konsaiSection');
+    const warning = document.getElementById('konsaiOutOfAreaWarning');
     
-    console.log('🔍 updatePricing: 稼働形態情報:', {
-      operationSelect: !!operationSelect,
-      selectedOperationValue: selectedOperationValue,
-      isEmpty: selectedOperationValue === '' || !selectedOperationValue
-    });
-    const pricingDiv = document.getElementById('pricingInfo') || document.getElementById('vehiclePricing');
-    const nextBtn = document.getElementById('nextStepBtn');
-
-    // 複数車両形式の場合（新旧両方のIDをチェック）
-    if (document.getElementById('vehicle2tCount') || document.getElementById('vehicle_2t_count')) {
-      if ((vehicle2tCount + vehicle4tCount) === 0 || !selectedOperationValue || selectedOperationValue === '') {
-        console.log('❌ updatePricing: 車両未選択または稼働形態未選択');
-        if (pricingDiv) pricingDiv.classList.add('hidden');
-        if (nextBtn) nextBtn.disabled = true;
+    // カードのスタイルリセット
+    dedCard.className = 'cursor-pointer p-5 border-2 rounded-xl transition-all duration-200 ' +
+      (type === 'dedicated' ? 'border-orange-500 bg-orange-50 ring-2 ring-orange-300' : 'border-gray-200 hover:border-orange-400 hover:bg-orange-50');
+    konCard.className = 'cursor-pointer p-5 border-2 rounded-xl transition-all duration-200 ' +
+      (type === 'konsai' ? 'border-green-500 bg-green-50 ring-2 ring-green-300' : 'border-gray-200 hover:border-green-400 hover:bg-green-50');
+    
+    // セクション表示切替
+    dedSection.classList.toggle('hidden', type !== 'dedicated');
+    konSection.classList.toggle('hidden', type !== 'konsai');
+    
+    // 混載便エリア外チェック
+    warning.classList.add('hidden');
+    if (type === 'konsai') {
+      const areaRanks = ['A','B','C','D','E','F'];
+      if (!areaRanks.includes(Step3Implementation.currentArea)) {
+        warning.classList.remove('hidden');
+        konSection.classList.add('hidden');
+        document.getElementById('pricingSummary')?.classList.add('hidden');
+        document.getElementById('nextStepBtn').disabled = true;
         return;
       }
-
-      console.log('✅ updatePricing: 複数車両料金計算開始');
-      // 複数車両の料金計算処理
-      await Step3Implementation.calculateMultipleVehiclePricing(vehicle2tCount, vehicle4tCount, selectedOperationValue, externalContractorCost);
-      return;
     }
-
-    // 従来のシングル車両形式（後方互換性）
-    const selectedVehicle = document.querySelector('input[name="vehicle_type"]:checked');
     
-    if (!selectedVehicle || !selectedOperationValue || selectedOperationValue === '') {
-      if (pricingDiv) pricingDiv.classList.add('hidden');
-      if (nextBtn) nextBtn.disabled = true;
+    // 料金を計算・表示
+    if (type === 'dedicated') {
+      Step3Implementation.updateDedicatedPricing();
+    } else {
+      Step3Implementation.updateKonsaiPricing();
+    }
+  },
+
+  // 専属便料金計算・表示
+  updateDedicatedPricing: () => {
+    const pricing = Step3Implementation.dedicatedPricing;
+    if (!pricing) {
+      console.error('専属便料金データが未取得');
       return;
     }
+    
+    const count = parseInt(document.getElementById('dedicatedVehicleCount')?.value) || 1;
+    const isOneman = document.getElementById('dedicatedOnemanDiscount')?.checked || false;
+    
+    const unitPrice = pricing.dedicated_price_1 || 0;
+    const discount = isOneman ? 15000 : 0;
+    const subtotal = (unitPrice - discount) * count;
+    
+    // ワンマン割引対象チェック
+    const onemanEligible = pricing.oneman_discount_eligible === 1 || pricing.oneman_discount_eligible === true;
+    const onemanCheckbox = document.getElementById('dedicatedOnemanDiscount');
+    const onemanNote = document.getElementById('dedicatedOnemanNote');
+    if (!onemanEligible) {
+      if (onemanCheckbox) { onemanCheckbox.checked = false; onemanCheckbox.disabled = true; }
+      if (onemanNote) onemanNote.textContent = 'このエリアはワンマン割引対象外です';
+    } else {
+      if (onemanCheckbox) onemanCheckbox.disabled = false;
+      if (onemanNote) onemanNote.textContent = 'ワンマン割引対象エリアです';
+    }
+    
+    // 表示更新
+    document.getElementById('dedicatedAreaRank').textContent = `${Step3Implementation.currentArea}ランク`;
+    document.getElementById('dedicatedUnitPrice').textContent = `¥${unitPrice.toLocaleString()}`;
+    document.getElementById('dedicatedCountDisplay').textContent = `${count}台`;
+    document.getElementById('dedicatedSubtotal').textContent = `¥${subtotal.toLocaleString()}`;
+    
+    const discountRow = document.getElementById('dedicatedDiscountRow');
+    if (discountRow) discountRow.classList.toggle('hidden', !isOneman);
+    
+    // 付帯費用表示
+    const ancillaryDetails = document.getElementById('dedicatedAncillaryDetails');
+    if (ancillaryDetails) {
+      const items = [];
+      if (pricing.road_permit_fee) items.push(`道路許可: ¥${pricing.road_permit_fee.toLocaleString()}`);
+      if (pricing.transport_vehicle_fee) items.push(`車両輸送: ¥${pricing.transport_vehicle_fee.toLocaleString()}`);
+      if (pricing.survey_twoman_fee) items.push(`下見(2名): ¥${pricing.survey_twoman_fee.toLocaleString()}`);
+      if (pricing.survey_oneman_fee) items.push(`下見(1名): ¥${pricing.survey_oneman_fee.toLocaleString()}`);
+      if (pricing.highway_included) items.push('高速代込み');
+      ancillaryDetails.innerHTML = items.map(i => `<p>${i}</p>`).join('');
+    }
+    
+    // サマリー更新
+    Step3Implementation.updateSummary('専属便', count, subtotal, isOneman);
+    
+    // 車両情報保存
+    Step3Implementation.currentVehicleInfo = {
+      service_type: 'dedicated',
+      service_type_label: '専属便',
+      area: Step3Implementation.currentArea,
+      unit_price: unitPrice,
+      oneman_discount: isOneman,
+      discount_amount: discount,
+      vehicle_count: count,
+      cost: subtotal,
+      overtime_fee: 0,
+      pricing_data: pricing
+    };
+    
+    document.getElementById('nextStepBtn').disabled = false;
+  },
 
-    // 従来の処理を維持
-    try {
-      const apiUrl = `/vehicle-pricing?vehicle_type=${encodeURIComponent(selectedVehicle.value)}&operation_type=${encodeURIComponent(selectedOperationValue)}&delivery_area=${Step3Implementation.currentArea}`;
-      const response = await API.get(apiUrl);
-      
-      if (response && response.success) {
-        const selectedVehicleText = document.getElementById('selectedVehicleText');
-        const selectedOperationText = document.getElementById('selectedOperationText');
-        const selectedAreaText = document.getElementById('selectedAreaText');
-        const vehiclePrice = document.getElementById('vehiclePrice');
-        
-        if (selectedVehicleText) selectedVehicleText.textContent = selectedVehicle.value;
-        if (selectedOperationText) selectedOperationText.textContent = selectedOperationValue;
-        if (selectedAreaText) selectedAreaText.textContent = `${Step3Implementation.currentArea}エリア`;
-        if (vehiclePrice) vehiclePrice.textContent = Utils.formatCurrency(response.price);
-        
-        if (pricingDiv) pricingDiv.classList.remove('hidden');
-        if (nextBtn) nextBtn.disabled = false;
-
-        Step3Implementation.currentVehicleInfo = {
-          type: selectedVehicle.value,
-          operation: selectedOperationValue,
-          area: Step3Implementation.currentArea,
-          cost: response.price
-        };
+  // 混載便料金計算・表示
+  updateKonsaiPricing: () => {
+    const pricing = Step3Implementation.konsaiPricing;
+    if (!pricing) {
+      console.error('混載便料金データが未取得またはエリア外');
+      return;
+    }
+    
+    const isOneman = document.getElementById('konsaiOnemanDiscount')?.checked || false;
+    
+    const basePrice = pricing.price || 0;
+    const discount = isOneman ? 15000 : 0;
+    const subtotal = basePrice - discount;
+    
+    // ワンマン割引対象チェック（oneman_discount_amount > 0 で判定）
+    const onemanEligible = (pricing.oneman_discount_amount || 0) > 0;
+    const onemanCheckbox = document.getElementById('konsaiOnemanDiscount');
+    const onemanNote = document.getElementById('konsaiOnemanNote');
+    if (!onemanEligible) {
+      if (onemanCheckbox) { onemanCheckbox.checked = false; onemanCheckbox.disabled = true; }
+      if (onemanNote) onemanNote.textContent = 'このエリアはワンマン割引対象外です';
+    } else {
+      if (onemanCheckbox) onemanCheckbox.disabled = false;
+      if (onemanNote) onemanNote.textContent = 'ワンマン割引対象エリアです';
+    }
+    
+    // 表示更新
+    document.getElementById('konsaiAreaRank').textContent = `${Step3Implementation.currentArea}ランク`;
+    document.getElementById('konsaiBasePrice').textContent = `¥${basePrice.toLocaleString()}`;
+    document.getElementById('konsaiSubtotal').textContent = `¥${subtotal.toLocaleString()}`;
+    
+    const discountRow = document.getElementById('konsaiDiscountRow');
+    if (discountRow) discountRow.classList.toggle('hidden', !isOneman);
+    
+    // 配達日表示
+    const deliveryDaysEl = document.getElementById('konsaiDeliveryDays');
+    if (deliveryDaysEl) {
+      const schedules = Step3Implementation.deliverySchedule || [];
+      if (schedules.length > 0) {
+        const dayTexts = schedules.map(s => `${s.region}: ${s.delivery_days}`);
+        deliveryDaysEl.innerHTML = dayTexts.map(t => `<span class="inline-block bg-yellow-100 rounded px-2 py-0.5 mr-1 mb-1 text-xs">${t}</span>`).join('');
       } else {
-        const errorMsg = response?.error || '不明なエラー';
-        Utils.showError('料金の取得に失敗しました: ' + errorMsg);
+        deliveryDaysEl.textContent = '配達日情報なし';
       }
-    } catch (error) {
-      Utils.showError('料金の取得中にエラーが発生しました: ' + error.message);
     }
+    
+    // 付帯費用表示
+    const ancillaryDetails = document.getElementById('konsaiAncillaryDetails');
+    if (ancillaryDetails) {
+      const items = [];
+      if (pricing.road_permit_fee) items.push(`道路許可: ¥${pricing.road_permit_fee.toLocaleString()}`);
+      if (pricing.transport_vehicle_fee) items.push(`車両輸送: ¥${pricing.transport_vehicle_fee.toLocaleString()}`);
+      if (pricing.survey_twoman_fee) items.push(`下見(2名): ¥${pricing.survey_twoman_fee.toLocaleString()}`);
+      if (pricing.survey_oneman_fee) items.push(`下見(1名): ¥${pricing.survey_oneman_fee.toLocaleString()}`);
+      if (pricing.highway_included) items.push('高速代込み');
+      items.push(`超過料金: ¥${(pricing.overtime_fee || 7000).toLocaleString()}/h`);
+      ancillaryDetails.innerHTML = items.map(i => `<p>${i}</p>`).join('');
+    }
+    
+    // サマリー更新
+    Step3Implementation.updateSummary('混載便', 1, subtotal, isOneman);
+    
+    // 車両情報保存
+    Step3Implementation.currentVehicleInfo = {
+      service_type: 'konsai',
+      service_type_label: '混載便',
+      area: Step3Implementation.currentArea,
+      unit_price: basePrice,
+      oneman_discount: isOneman,
+      discount_amount: discount,
+      vehicle_count: 1,
+      cost: subtotal,
+      overtime_fee: pricing.overtime_fee || 7000,
+      pricing_data: pricing,
+      delivery_schedule: Step3Implementation.deliverySchedule
+    };
+    
+    document.getElementById('nextStepBtn').disabled = false;
   },
 
-  // 個別車両料金表示の更新
-  updateIndividualVehiclePricing: async (vehicle2tCount, vehicle4tCount) => {
-    const operationSelect = document.getElementById('operationType');
-    const selectedOperationValue = operationSelect?.value;
+  // サマリー表示更新
+  updateSummary: (serviceLabel, count, total, hasDiscount) => {
+    const summary = document.getElementById('pricingSummary');
+    if (summary) summary.classList.remove('hidden');
     
-    if (!selectedOperationValue || selectedOperationValue === '' || !Step3Implementation.currentArea) {
-      console.log('❌ updateIndividualVehiclePricing: 稼働形態未選択またはエリア未設定');
-      return;
-    }
-
-    const operationType = selectedOperationValue;
-    console.log('✅ updateIndividualVehiclePricing: 料金計算開始', { operationType, area: Step3Implementation.currentArea });
-
-    try {
-      // 2トン車の料金取得と表示
-      if (vehicle2tCount > 0) {
-        const apiUrl2t = `/vehicle-pricing?vehicle_type=${encodeURIComponent('2t車')}&operation_type=${encodeURIComponent(operationType)}&delivery_area=${Step3Implementation.currentArea}`;
-        const response2t = await API.get(apiUrl2t);
-        
-        if (response2t && response2t.success) {
-          const price2t = response2t.price;
-          const total2t = price2t * vehicle2tCount;
-          
-          document.getElementById('price2t').textContent = Utils.formatCurrency(price2t);
-          document.getElementById('count2t').textContent = vehicle2tCount;
-          document.getElementById('total2t').textContent = Utils.formatCurrency(total2t);
-          document.getElementById('pricing2t').classList.remove('hidden');
-          document.getElementById('summary2t').textContent = Utils.formatCurrency(total2t);
-          document.getElementById('pricing2tSummary').classList.remove('hidden');
-        }
-      } else {
-        document.getElementById('pricing2t').classList.add('hidden');
-        document.getElementById('pricing2tSummary').classList.add('hidden');
-      }
-
-      // 4トン車の料金取得と表示
-      if (vehicle4tCount > 0) {
-        const apiUrl4t = `/vehicle-pricing?vehicle_type=${encodeURIComponent('4t車')}&operation_type=${encodeURIComponent(operationType)}&delivery_area=${Step3Implementation.currentArea}`;
-        const response4t = await API.get(apiUrl4t);
-        
-        if (response4t && response4t.success) {
-          const price4t = response4t.price;
-          const total4t = price4t * vehicle4tCount;
-          
-          document.getElementById('price4t').textContent = Utils.formatCurrency(price4t);
-          document.getElementById('count4t').textContent = vehicle4tCount;
-          document.getElementById('total4t').textContent = Utils.formatCurrency(total4t);
-          document.getElementById('pricing4t').classList.remove('hidden');
-          document.getElementById('summary4t').textContent = Utils.formatCurrency(total4t);
-          document.getElementById('pricing4tSummary').classList.remove('hidden');
-        }
-      } else {
-        document.getElementById('pricing4t').classList.add('hidden');
-        document.getElementById('pricing4tSummary').classList.add('hidden');
-      }
-
-      // 車両費用合計を計算して表示更新
-      const summary2tText = document.getElementById('summary2t')?.textContent?.replace(/[^\d]/g, '') || '0';
-      const summary4tText = document.getElementById('summary4t')?.textContent?.replace(/[^\d]/g, '') || '0';
-      const summary2t = parseFloat(summary2tText) || 0;
-      const summary4t = parseFloat(summary4tText) || 0;
-      const externalCost = 0; // 外注費用フィールド削除により0固定
-      const vehicleTotal = summary2t + summary4t + externalCost;
-      
-      document.getElementById('vehicleTotal').textContent = Utils.formatCurrency(vehicleTotal);
-
-      // 料金情報表示の制御
-      const pricingInfoDiv = document.getElementById('pricingInfo');
-      if (pricingInfoDiv) {
-        if (vehicle2tCount > 0 || vehicle4tCount > 0) {
-          pricingInfoDiv.classList.remove('hidden');
-        } else {
-          pricingInfoDiv.classList.add('hidden');
-        }
-      }
-
-    } catch (error) {
-      console.error('個別車両料金取得エラー:', error);
-    }
+    const stEl = document.getElementById('summaryServiceTypeValue');
+    if (stEl) stEl.textContent = serviceLabel;
+    
+    const vcEl = document.getElementById('summaryVehicleCountValue');
+    if (vcEl) vcEl.textContent = `${count}台`;
+    
+    const onemanRow = document.getElementById('summaryOnemanRow');
+    if (onemanRow) onemanRow.classList.toggle('hidden', !hasDiscount);
+    
+    const totalEl = document.getElementById('vehicleTotal');
+    if (totalEl) totalEl.textContent = `¥${total.toLocaleString()}`;
   },
 
-  // 稼働形態変更時の処理
-  handleOperationChange: () => {
-    console.log('🔧 稼働形態が変更されました');
-    Step3Implementation.handleVehicleCountChange();
-    Step3Implementation.updatePricing();
+  // 専属便台数調整
+  adjustDedicatedCount: (delta) => {
+    const input = document.getElementById('dedicatedVehicleCount');
+    if (!input) return;
+    let val = parseInt(input.value) || 1;
+    val = Math.max(1, Math.min(99, val + delta));
+    input.value = val;
+    Step3Implementation.updateDedicatedPricing();
   },
 
-  // 次へボタンの有効化状態を更新
-  updateNextButtonState: () => {
-    const vehicle2tCount = parseInt(document.getElementById('vehicle2tCount')?.value) || 0;
-    const vehicle4tCount = parseInt(document.getElementById('vehicle4tCount')?.value) || 0;
-    
-    // セレクトボックスとラジオボタン両方をチェック
-    const selectedOperationSelect = document.getElementById('operationType')?.value;
-    const selectedOperationRadio = document.querySelector('input[name="operation_type"]:checked');
-    const selectedOperation = selectedOperationSelect || selectedOperationRadio?.value;
-    
-    const nextBtn = document.getElementById('nextStepBtn');
-    
-    console.log('STEP3 ボタン状態確認:', {
-      vehicle2tCount,
-      vehicle4tCount,
-      hasOperationSelect: !!selectedOperationSelect,
-      hasOperationRadio: !!selectedOperationRadio,
-      selectedOperation,
-      nextBtnExists: !!nextBtn,
-      currentArea: Step3Implementation.currentArea
-    });
-    
-    if (nextBtn) {
-      const hasVehicles = (vehicle2tCount + vehicle4tCount) > 0;
-      const hasOperation = !!selectedOperation && selectedOperation !== '';
-      const shouldEnable = hasVehicles && hasOperation;
-      
-      nextBtn.disabled = !shouldEnable;
-      console.log('STEP3 次へボタン状態:', { hasVehicles, hasOperation, shouldEnable, disabled: nextBtn.disabled });
-      
-      // 次へボタンが有効になったら車両情報を保存
-      // ただし、costは calculateMultipleVehiclePricing で設定されるので、
-      // ここでは currentVehicleInfo が存在する場合は cost を保持する
-      if (shouldEnable) {
-        const externalCost = 0; // 外注費用フィールド削除により0固定
-        const existingCost = Step3Implementation.currentVehicleInfo?.cost || 0;
-        Step3Implementation.currentVehicleInfo = {
-          vehicle_2t_count: vehicle2tCount,
-          vehicle_4t_count: vehicle4tCount,
-          operation: selectedOperation,
-          area: Step3Implementation.currentArea,
-          cost: existingCost, // 既存のコストを保持（料金計算関数で更新される）
-          external_contractor_cost: externalCost,
-          uses_multiple_vehicles: true
-        };
-        console.log('STEP3 車両情報保存（cost保持）:', Step3Implementation.currentVehicleInfo);
-      }
-    }
+  // 専属便オプション変更（ワンマン・台数）
+  handleDedicatedOptionsChange: () => {
+    Step3Implementation.updateDedicatedPricing();
   },
 
-  // 複数車両の料金計算
-  calculateMultipleVehiclePricing: async (vehicle2tCount, vehicle4tCount, operationType, externalContractorCost) => {
-    const pricingDiv = document.getElementById('pricingInfo') || document.getElementById('vehiclePricing');
-    const nextBtn = document.getElementById('nextStepBtn');
-
-    if (!Step3Implementation.currentArea) {
-      Utils.showError('配送エリアが設定されていません。STEP2に戻って配送先を入力してください。');
-      return;
-    }
-
-    try {
-      let totalCost = 0;
-      let vehicleDetails = [];
-
-      // 2t車の料金計算
-      if (vehicle2tCount > 0) {
-        const apiUrl = `/vehicle-pricing?vehicle_type=${encodeURIComponent('2t車')}&operation_type=${encodeURIComponent(operationType)}&delivery_area=${Step3Implementation.currentArea}`;
-        const response = await API.get(apiUrl);
-        
-        if (response && response.success) {
-          const vehicle2tTotalCost = response.price * vehicle2tCount;
-          totalCost += vehicle2tTotalCost;
-          vehicleDetails.push(`2t車 ${vehicle2tCount}台: ${Utils.formatCurrency(vehicle2tTotalCost)}`);
-        }
-      }
-
-      // 4t車の料金計算
-      if (vehicle4tCount > 0) {
-        const apiUrl = `/vehicle-pricing?vehicle_type=${encodeURIComponent('4t車')}&operation_type=${encodeURIComponent(operationType)}&delivery_area=${Step3Implementation.currentArea}`;
-        const response = await API.get(apiUrl);
-        
-        if (response && response.success) {
-          const vehicle4tTotalCost = response.price * vehicle4tCount;
-          totalCost += vehicle4tTotalCost;
-          vehicleDetails.push(`4t車 ${vehicle4tCount}台: ${Utils.formatCurrency(vehicle4tTotalCost)}`);
-        }
-      }
-
-      // 外部協力業者コストを追加
-      if (externalContractorCost > 0) {
-        totalCost += externalContractorCost;
-        vehicleDetails.push(`外部協力業者: ${Utils.formatCurrency(externalContractorCost)}`);
-      }
-
-      // 表示を更新
-      const vehicleText = vehicleDetails.join(', ');
-      const selectedVehicleText = document.getElementById('selectedVehicleText');
-      const selectedOperationText = document.getElementById('selectedOperationText');
-      const selectedAreaText = document.getElementById('selectedAreaText');
-      const vehiclePrice = document.getElementById('vehiclePrice');
-      
-      if (selectedVehicleText) selectedVehicleText.textContent = vehicleText || '車両未選択';
-      if (selectedOperationText) selectedOperationText.textContent = operationType;
-      if (selectedAreaText) selectedAreaText.textContent = `${Step3Implementation.currentArea}エリア`;
-      if (vehiclePrice) vehiclePrice.textContent = Utils.formatCurrency(totalCost);
-      
-      if (pricingDiv) pricingDiv.classList.remove('hidden');
-      if (nextBtn) nextBtn.disabled = false;
-
-      // 複数車両情報を保存（料金情報を含めて更新）
-      Step3Implementation.currentVehicleInfo = {
-        vehicle_2t_count: vehicle2tCount,
-        vehicle_4t_count: vehicle4tCount,
-        operation: operationType,
-        area: Step3Implementation.currentArea,
-        cost: totalCost,
-        external_contractor_cost: externalContractorCost,
-        uses_multiple_vehicles: true
-      };
-      
-      console.log('STEP3 料金計算完了 - 車両情報更新:', Step3Implementation.currentVehicleInfo);
-
-    } catch (error) {
-      console.error('複数車両料金取得エラー:', error);
-      Utils.showError('料金の取得中にエラーが発生しました: ' + error.message);
-    }
+  // 混載便オプション変更（ワンマン）
+  handleKonsaiOptionsChange: () => {
+    Step3Implementation.updateKonsaiPricing();
   },
 
   // STEP2に戻る
@@ -1964,72 +1817,22 @@ const Step3Implementation = {
 
   // STEP4に進む
   proceedToStep4: () => {
-    console.log('🚀 STEP4への遷移開始');
-    console.log('🔍 車両情報チェック:', Step3Implementation.currentVehicleInfo);
-    console.log('🔍 現在のエリア:', Step3Implementation.currentArea);
+    console.log('STEP4への遷移開始');
     
-    // 車両情報の詳細チェック
-    const vehicle2tCount = parseInt(document.getElementById('vehicle2tCount')?.value) || 0;
-    const vehicle4tCount = parseInt(document.getElementById('vehicle4tCount')?.value) || 0;
-    const vehicleDedicatedCount = parseInt(document.getElementById('vehicleDedicatedCount')?.value) || 0;
-    const vehicleCharterCount = parseInt(document.getElementById('vehicleCharterCount')?.value) || 0;
-    const operationSelect = document.getElementById('operationType');
-    const selectedOperation = operationSelect?.value;
-    const externalCost = 0; // 外注費用フィールド削除により0固定
-    const totalAllVehicles = vehicle2tCount + vehicle4tCount + vehicleDedicatedCount + vehicleCharterCount;
-    
-    console.log('🔍 フォーム入力値:', {
-      vehicle2tCount,
-      vehicle4tCount,
-      vehicleDedicatedCount,
-      vehicleCharterCount,
-      selectedOperation,
-      externalCost,
-      totalVehicles: totalAllVehicles
-    });
-    
-    // 車両情報が未設定の場合は強制的に設定
     if (!Step3Implementation.currentVehicleInfo) {
-      if (totalAllVehicles === 0) {
-        console.error('❌ STEP4遷移エラー: 車両が選択されていません');
-        Utils.showError('車種と台数を選択してください');
-        return;
-      }
-      
-      if (!selectedOperation || selectedOperation === '') {
-        console.error('❌ STEP4遷移エラー: 稼働形態が選択されていません');
-        Utils.showError('稼働形態を選択してください');
-        return;
-      }
-      
-      console.log('🔧 緊急修正: 車両情報を強制設定');
-      const existingCost = Step3Implementation.currentVehicleInfo?.cost || 0;
-      Step3Implementation.currentVehicleInfo = {
-        vehicle_2t_count: vehicle2tCount,
-        vehicle_4t_count: vehicle4tCount,
-        vehicle_dedicated_count: vehicleDedicatedCount,
-        vehicle_charter_count: vehicleCharterCount,
-        operation: selectedOperation,
-        area: Step3Implementation.currentArea || 'D',
-        cost: existingCost, // 既存のコストを保持
-        external_contractor_cost: externalCost,
-        uses_multiple_vehicles: true
-      };
-      console.log('✅ 車両情報強制設定完了（cost保持）:', Step3Implementation.currentVehicleInfo);
+      Utils.showError('便種を選択してください');
+      return;
+    }
+    
+    if (!Step3Implementation.selectedServiceType) {
+      Utils.showError('専属便または混載便を選択してください');
+      return;
     }
 
     try {
-      // セッションストレージのデータを更新
       const flowData = JSON.parse(sessionStorage.getItem('estimateFlow') || '{}');
-      console.log('📄 STEP4遷移: 既存フローデータ:', flowData);
       
-      // 必要な情報の確認
       if (!flowData.customer || !flowData.project || !flowData.delivery) {
-        console.error('❌ 必要なデータが不足している:', {
-          customer: !!flowData.customer,
-          project: !!flowData.project,
-          delivery: !!flowData.delivery
-        });
         Utils.showError('前のステップの情報が不足しています。最初からやり直してください。');
         window.location.href = '/estimate/new';
         return;
@@ -2039,216 +1842,27 @@ const Step3Implementation = {
       flowData.vehicle = Step3Implementation.currentVehicleInfo;
       
       sessionStorage.setItem('estimateFlow', JSON.stringify(flowData));
-      console.log('✅ STEP4遷移: セッションデータ保存完了:', flowData);
+      console.log('STEP4遷移: セッションデータ保存完了:', flowData);
       
-      // 少し待ってから遷移（データ保存の確実化）
       setTimeout(() => {
-        console.log('🔄 STEP4ページに遷移中...');
         window.location.href = '/estimate/step4';
       }, 100);
       
     } catch (error) {
-      console.error('❌ STEP4遷移エラー:', error);
+      console.error('STEP4遷移エラー:', error);
       Utils.showError('データの保存に失敗しました: ' + error.message);
     }
   }
 };
 
-// STEP2用関数
-window.formatPostalCodeInput = Step2Implementation.formatPostalCodeInput;
-window.searchAddressByPostalCode = Step2Implementation.searchAddressByPostalCode;
-window.autoDetectArea = Step2Implementation.autoDetectArea;
-window.updateAreaCostDisplay = Step2Implementation.updateAreaCostDisplay;
-window.goBackToStep1 = Step2Implementation.goBackToStep1;
-window.proceedToStep3 = Step2Implementation.proceedToStep3;
-
-// 新しい複数車両対応の関数
-window.handleVehicle2tCountChange = () => {
-  Step3Implementation.handleIndividualVehicleCountChange();
-};
-
-window.handleVehicle4tCountChange = () => {
-  Step3Implementation.handleIndividualVehicleCountChange();
-};
-
-// 専属便・2tチャーター台数変更ハンドラー
-window.handleVehicleDedicatedCountChange = () => {
-  Step3Implementation.handleNewVehicleCountChange('dedicated', '専属便');
-};
-
-window.handleVehicleCharterCountChange = () => {
-  Step3Implementation.handleNewVehicleCountChange('charter', '2tチャーター');
-};
-
-// 新車種（専属便・2tチャーター）の台数変更処理
-if (typeof Step3Implementation !== 'undefined') {
-  Step3Implementation.handleNewVehicleCountChange = async (type, vehicleName) => {
-    const countInput = document.getElementById(type === 'dedicated' ? 'vehicleDedicatedCount' : 'vehicleCharterCount');
-    const count = parseInt(countInput?.value) || 0;
-    const area = Step3Implementation.currentArea;
-    
-    const pricingDiv = document.getElementById(type === 'dedicated' ? 'pricingDedicated' : 'pricingCharter');
-    const priceSpan = document.getElementById(type === 'dedicated' ? 'priceDedicated' : 'priceCharter');
-    const countSpan = document.getElementById(type === 'dedicated' ? 'countDedicated' : 'countCharter');
-    const totalSpan = document.getElementById(type === 'dedicated' ? 'totalDedicated' : 'totalCharter');
-    
-    if (count > 0 && area) {
-      try {
-        const apiUrl = `/api/vehicle-pricing?vehicle_type=${encodeURIComponent(vehicleName)}&operation_type=${encodeURIComponent('終日')}&delivery_area=${area}`;
-        const response = await fetch(apiUrl);
-        const data = await response.json();
-        
-        if (data.success) {
-          const unitPrice = data.price;
-          const total = unitPrice * count;
-          
-          if (priceSpan) priceSpan.textContent = `¥${unitPrice.toLocaleString()}`;
-          if (countSpan) countSpan.textContent = count;
-          if (totalSpan) totalSpan.textContent = `¥${total.toLocaleString()}`;
-          if (pricingDiv) pricingDiv.classList.remove('hidden');
-          
-          // 単価をcurrentVehicleInfoに保存（saveEstimate用）
-          if (!Step3Implementation.currentVehicleInfo) {
-            Step3Implementation.currentVehicleInfo = {};
-          }
-          if (type === 'dedicated') {
-            Step3Implementation.currentVehicleInfo.vehicle_dedicated_unit_price = unitPrice;
-          } else {
-            Step3Implementation.currentVehicleInfo.vehicle_charter_unit_price = unitPrice;
-          }
-          
-          // distance_area_pricingからも料金情報を取得して表示
-          try {
-            const distPriceResp = await fetch(`/api/distance-area-pricing?area_rank=${area}`);
-            const distPriceData = await distPriceResp.json();
-            if (distPriceData.success && distPriceData.pricing) {
-              const p = distPriceData.pricing;
-              const extraInfo = [];
-              if (p.transport_vehicle_fee) extraInfo.push(`輸送車両費: ¥${p.transport_vehicle_fee.toLocaleString()}`);
-              if (p.road_permit_fee) extraInfo.push(`道路許可: ¥${p.road_permit_fee.toLocaleString()}`);
-              if (p.oneman_discount_eligible) extraInfo.push(`ワンマン割引対象（-¥15,000）`);
-              if (extraInfo.length > 0 && pricingDiv) {
-                const infoEl = pricingDiv.querySelector('.extra-info') || document.createElement('div');
-                infoEl.className = 'extra-info text-xs text-gray-500 mt-1';
-                infoEl.textContent = extraInfo.join(' / ');
-                if (!pricingDiv.querySelector('.extra-info')) pricingDiv.appendChild(infoEl);
-              }
-            }
-          } catch (e) { /* non-critical */ }
-        }
-      } catch (error) {
-        console.error(`${vehicleName}料金取得エラー:`, error);
-      }
-    } else {
-      if (pricingDiv) pricingDiv.classList.add('hidden');
-    }
-    
-    // 合計車両数・次へボタンの状態更新
-    Step3Implementation.updateTotalVehicleCount();
-    Step3Implementation.updateNextButtonState();
-  };
-  
-  // 合計車両数を更新（新車種含む）
-  const originalUpdateTotal = Step3Implementation.updateTotalVehicleCount;
-  Step3Implementation.updateTotalVehicleCount = () => {
-    if (originalUpdateTotal) {
-      try { originalUpdateTotal.call(Step3Implementation); } catch(e) {}
-    }
-    const v2t = parseInt(document.getElementById('vehicle2tCount')?.value) || 0;
-    const v4t = parseInt(document.getElementById('vehicle4tCount')?.value) || 0;
-    const vDed = parseInt(document.getElementById('vehicleDedicatedCount')?.value) || 0;
-    const vCha = parseInt(document.getElementById('vehicleCharterCount')?.value) || 0;
-    const total = v2t + v4t + vDed + vCha;
-    const totalEl = document.getElementById('totalVehicleCount');
-    if (totalEl) totalEl.textContent = `${total}台`;
-  };
-}
-
-// 緊急修正: ボタン状態を強制的にチェックするグローバル関数
-window.forceCheckStep3Button = () => {
-  const vehicle2tCount = parseInt(document.getElementById('vehicle2tCount')?.value) || 0;
-  const vehicle4tCount = parseInt(document.getElementById('vehicle4tCount')?.value) || 0;
-  const vehicleDedicatedCount = parseInt(document.getElementById('vehicleDedicatedCount')?.value) || 0;
-  const vehicleCharterCount = parseInt(document.getElementById('vehicleCharterCount')?.value) || 0;
-  const selectedOperation = document.querySelector('input[name="operation_type"]:checked') || document.querySelector('#operationType');
-  const nextBtn = document.getElementById('nextStepBtn');
-  const totalAllVehicles = vehicle2tCount + vehicle4tCount + vehicleDedicatedCount + vehicleCharterCount;
-  
-  console.log('🔧 緊急チェック:', {
-    vehicle2tCount,
-    vehicle4tCount,
-    vehicleDedicatedCount,
-    vehicleCharterCount,
-    hasOperation: !!selectedOperation,
-    operationValue: selectedOperation?.value,
-    hasButton: !!nextBtn,
-    buttonDisabled: nextBtn ? nextBtn.disabled : 'なし'
-  });
-  
-  if (nextBtn && totalAllVehicles > 0) {
-    console.log('🔧 緊急修正: ボタンを強制有効化実行');
-    nextBtn.disabled = false;
-    nextBtn.style.opacity = '1';
-    nextBtn.style.cursor = 'pointer';
-    nextBtn.classList.remove('disabled:opacity-50', 'disabled:cursor-not-allowed');
-    
-    // 車両情報を保存
-    const operationValue = selectedOperation ? selectedOperation.value : '終日';
-    Step3Implementation.currentVehicleInfo = {
-      vehicle_2t_count: vehicle2tCount,
-      vehicle_4t_count: vehicle4tCount,
-      vehicle_dedicated_count: vehicleDedicatedCount,
-      vehicle_charter_count: vehicleCharterCount,
-      operation: operationValue,
-      area: Step3Implementation.currentArea || 'D',
-      cost: 0,
-      external_contractor_cost: 0,
-      uses_multiple_vehicles: true
-    };
-    
-    console.log('🔧 緊急修正: 車両情報保存完了:', Step3Implementation.currentVehicleInfo);
-  }
-};
-
-// さらに強力な強制実行関数
-window.forceGoToStep4 = () => {
-  console.log('🚨 強制STEP4遷移開始');
-  
-  // 車両情報を最低限で作成
-  Step3Implementation.currentVehicleInfo = {
-    vehicle_2t_count: 1,
-    vehicle_4t_count: 0,
-    operation: '終日',
-    area: 'A',
-    cost: 50000,
-    external_contractor_cost: 0,
-    uses_multiple_vehicles: true
-  };
-  
-  // セッションデータを直接作成
-  const flowData = {
-    step: 4,
-    customer: { id: 1, name: 'テスト顧客' },
-    project: { id: 1, name: 'テスト案件' },
-    delivery: { area: 'A', area_name: 'Aエリア', address: 'テスト住所' },
-    vehicle: Step3Implementation.currentVehicleInfo
-  };
-  
-  sessionStorage.setItem('estimateFlow', JSON.stringify(flowData));
-  console.log('🚨 強制セッションデータ保存:', flowData);
-  
-  // 強制遷移
-  window.location.href = '/estimate/step4';
-};
-
-// STEP3用関数をグローバル設定
-window.handleVehicleChange = Step3Implementation.handleVehicleChange;
-window.handleVehicleCountChange = Step3Implementation.handleVehicleCountChange;
-// handleExternalContractorCostChange関数は外注費用フィールド削除により不要
-window.handleOperationChange = Step3Implementation.handleOperationChange;
+// STEP3用グローバル関数
+window.handleServiceTypeChange = (type) => Step3Implementation.handleServiceTypeChange(type);
+window.handleDedicatedOptionsChange = () => Step3Implementation.handleDedicatedOptionsChange();
+window.handleKonsaiOptionsChange = () => Step3Implementation.handleKonsaiOptionsChange();
+window.adjustDedicatedCount = (delta) => Step3Implementation.adjustDedicatedCount(delta);
 window.goBackToStep2 = Step3Implementation.goBackToStep2;
 window.proceedToStep4 = () => {
-  console.log('🚀 proceedToStep4 グローバル関数が呼び出されました');
+  console.log('proceedToStep4 グローバル関数が呼び出されました');
   Step3Implementation.proceedToStep4();
 };
 
@@ -2311,7 +1925,13 @@ const Step4Implementation = {
       const vehicleElement = document.getElementById('selectedVehicle');
       if (vehicleElement && flowData.vehicle) {
         let vehicleText = '';
-        if (flowData.vehicle.uses_multiple_vehicles) {
+        if (flowData.vehicle.service_type) {
+          // 新体系（専属便/混載便）
+          vehicleText = `${flowData.vehicle.service_type_label} ${flowData.vehicle.vehicle_count}台`;
+          if (flowData.vehicle.oneman_discount) {
+            vehicleText += '（ワンマン）';
+          }
+        } else if (flowData.vehicle.uses_multiple_vehicles) {
           const vehicleDetails = [];
           if (flowData.vehicle.vehicle_2t_count > 0) {
             vehicleDetails.push(`2t車 ${flowData.vehicle.vehicle_2t_count}台`);
@@ -2319,9 +1939,9 @@ const Step4Implementation = {
           if (flowData.vehicle.vehicle_4t_count > 0) {
             vehicleDetails.push(`4t車 ${flowData.vehicle.vehicle_4t_count}台`);
           }
-          vehicleText = `${vehicleDetails.join('・')}（${flowData.vehicle.operation}）`;
+          vehicleText = `${vehicleDetails.join('・')}（${flowData.vehicle.operation || ''}）`;
         } else {
-          vehicleText = `${flowData.vehicle.type}（${flowData.vehicle.operation}）`;
+          vehicleText = `${flowData.vehicle.type || ''}（${flowData.vehicle.operation || ''}）`;
         }
         vehicleElement.textContent = vehicleText;
       }

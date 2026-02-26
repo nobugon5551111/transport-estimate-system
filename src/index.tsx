@@ -3414,6 +3414,163 @@ app.get('/api/distance-area-pricing', async (c) => {
   }
 })
 
+// ========================================
+// 混載便料金API
+// ========================================
+
+// 混載便料金取得（全ランク or 特定ランク）
+app.get('/api/konsai-pricing', async (c) => {
+  try {
+    const { env } = c
+    const rank = c.req.query('rank')
+    
+    if (rank) {
+      const pricing = await env.DB.prepare(`
+        SELECT * FROM konsai_pricing WHERE rank = ? LIMIT 1
+      `).bind(rank.toUpperCase()).first()
+      
+      if (!pricing) {
+        return c.json({ success: false, error: `混載便ランク${rank}の料金が見つかりません` }, 404)
+      }
+      
+      return c.json({ success: true, pricing })
+    }
+    
+    // 全ランク取得
+    const { results } = await env.DB.prepare(`
+      SELECT * FROM konsai_pricing ORDER BY rank ASC
+    `).all()
+    
+    return c.json({ success: true, pricing: results || [] })
+  } catch (error) {
+    console.error('混載便料金取得エラー:', error)
+    return c.json({ success: false, error: '混載便料金の取得に失敗しました' }, 500)
+  }
+})
+
+// G-MAPエリア(A〜I) → 混載便ランク(A〜F)マッピング + 料金取得
+app.get('/api/konsai-pricing/by-area', async (c) => {
+  try {
+    const { env } = c
+    const areaRank = c.req.query('area_rank')
+    
+    if (!areaRank) {
+      return c.json({ success: false, error: 'area_rankパラメータが必要です' }, 400)
+    }
+    
+    const upper = areaRank.toUpperCase()
+    
+    // G〜I は混載便エリア外
+    if (['G', 'H', 'I'].includes(upper)) {
+      return c.json({ 
+        success: true, 
+        out_of_area: true, 
+        message: '混載便エリア外です。専属便をご利用ください。',
+        original_rank: upper
+      })
+    }
+    
+    // A〜F はそのまま混載便ランクとして使用
+    const konsaiRank = upper
+    
+    const pricing = await env.DB.prepare(`
+      SELECT * FROM konsai_pricing WHERE rank = ? LIMIT 1
+    `).bind(konsaiRank).first()
+    
+    if (!pricing) {
+      return c.json({ success: false, error: `混載便ランク${konsaiRank}の料金が見つかりません` }, 404)
+    }
+    
+    return c.json({ 
+      success: true, 
+      out_of_area: false,
+      original_rank: upper,
+      konsai_rank: konsaiRank,
+      pricing
+    })
+  } catch (error) {
+    console.error('混載便エリアマッピングエラー:', error)
+    return c.json({ success: false, error: '混載便料金の取得に失敗しました' }, 500)
+  }
+})
+
+// 混載便配達日スケジュール取得（参考表示用）
+app.get('/api/konsai-delivery-schedule', async (c) => {
+  try {
+    const { env } = c
+    const prefecture = c.req.query('prefecture')
+    const rank = c.req.query('rank')
+    
+    let query = 'SELECT * FROM konsai_delivery_schedule'
+    const conditions: string[] = []
+    const params: string[] = []
+    
+    if (prefecture) {
+      conditions.push('prefecture = ?')
+      params.push(prefecture)
+    }
+    if (rank) {
+      conditions.push('rank = ?')
+      params.push(rank.toUpperCase())
+    }
+    
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ')
+    }
+    query += ' ORDER BY prefecture, rank'
+    
+    let stmt = env.DB.prepare(query)
+    if (params.length === 1) {
+      stmt = stmt.bind(params[0])
+    } else if (params.length === 2) {
+      stmt = stmt.bind(params[0], params[1])
+    }
+    
+    const { results } = await stmt.all()
+    
+    return c.json({ success: true, schedule: results || [] })
+  } catch (error) {
+    console.error('配達日スケジュール取得エラー:', error)
+    return c.json({ success: false, error: '配達日スケジュールの取得に失敗しました' }, 500)
+  }
+})
+
+// 混載便料金更新（マスター画面用）
+app.put('/api/konsai-pricing/:rank', async (c) => {
+  try {
+    const { env } = c
+    const rank = c.req.param('rank').toUpperCase()
+    const data = await c.req.json()
+    
+    const result = await env.DB.prepare(`
+      UPDATE konsai_pricing SET
+        price = ?,
+        overtime_fee = ?,
+        road_permit_fee = ?,
+        transport_vehicle_fee = ?,
+        survey_twoman_fee = ?,
+        survey_oneman_fee = ?,
+        oneman_discount_amount = ?,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE rank = ?
+    `).bind(
+      data.price,
+      data.overtime_fee || 7000,
+      data.road_permit_fee,
+      data.transport_vehicle_fee,
+      data.survey_twoman_fee,
+      data.survey_oneman_fee,
+      data.oneman_discount_amount || 15000,
+      rank
+    ).run()
+    
+    return c.json({ success: true, message: `混載便${rank}ランクの料金を更新しました` })
+  } catch (error) {
+    console.error('混載便料金更新エラー:', error)
+    return c.json({ success: false, error: '混載便料金の更新に失敗しました' }, 500)
+  }
+})
+
 // API: 本社座標取得
 app.get('/api/office-location', async (c) => {
   try {
@@ -5192,8 +5349,8 @@ app.get('/estimate/step3', (c) => {
       <main className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="bg-white shadow rounded-lg p-6">
           <div className="mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">車両選択</h2>
-            <p className="text-gray-600">車種と稼働形態を選択してください。配送エリアに基づいて料金が自動計算されます。</p>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">車両・便種選択</h2>
+            <p className="text-gray-600">便種（専属便・混載便）を選択してください。配送エリアに基づいて料金が自動計算されます。</p>
           </div>
 
           {/* 選択済み情報表示 */}
@@ -5215,155 +5372,245 @@ app.get('/estimate/step3', (c) => {
             </div>
           </div>
 
-          {/* 稼働形態選択 */}
+          {/* 便種選択（専属便 or 混載便） */}
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              稼働形態 <span className="text-red-500">*</span>
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              便種を選択 <span className="text-red-500">*</span>
             </label>
-            <select 
-              id="operationType" 
-              onChange="handleOperationChange()"
-              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">稼働形態を選択してください</option>
-              <option value="共配">共配</option>
-              <option value="半日">半日</option>
-              <option value="終日">終日</option>
-            </select>
-          </div>
-
-          {/* 車両台数選択（複数車種対応） */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-4">
-              車両台数選択 <span className="text-red-500">*</span>
-            </label>
-            
-            {/* 2トン車 */}
-            <div className="mb-4 p-4 border border-gray-200 rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-lg font-medium text-gray-900">2トン車</h4>
-                <div className="flex items-center space-x-3">
-                  <label className="text-sm font-medium text-gray-600">台数:</label>
-                  <input 
-                    type="number" 
-                    id="vehicle2tCount" 
-                    min="0" 
-                    max="99"
-                    value="0"
-                    onChange="handleVehicle2tCountChange()"
-                    className="w-20 px-2 py-1 border border-gray-300 rounded-md text-center focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* 専属便カード */}
+              <div 
+                id="serviceTypeDedicated" 
+                onclick="handleServiceTypeChange('dedicated')"
+                className="cursor-pointer p-5 border-2 border-gray-200 rounded-xl hover:border-orange-400 hover:bg-orange-50 transition-all duration-200"
+              >
+                <div className="flex items-center mb-3">
+                  <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center mr-3">
+                    <i className="fas fa-truck-moving text-orange-600 text-lg"></i>
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-bold text-gray-900">専属便</h4>
+                    <span className="text-xs text-gray-500">エリア A〜I対応</span>
+                  </div>
                 </div>
+                <p className="text-sm text-gray-600 mb-2">お客様専用のトラックで配送します。複数台追加可能。</p>
+                <div id="dedicatedPricePreview" className="text-sm font-semibold text-orange-600"></div>
               </div>
-              <div id="pricing2t" className="text-sm text-gray-600 hidden">
-                単価: <span id="price2t" className="font-semibold">-</span> × <span id="count2t">0</span>台 = <span id="total2t" className="font-bold text-blue-600">¥0</span>
-              </div>
-            </div>
 
-            {/* 4トン車 */}
-            <div className="mb-4 p-4 border border-gray-200 rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-lg font-medium text-gray-900">4トン車</h4>
-                <div className="flex items-center space-x-3">
-                  <label className="text-sm font-medium text-gray-600">台数:</label>
-                  <input 
-                    type="number" 
-                    id="vehicle4tCount" 
-                    min="0" 
-                    max="99"
-                    value="0"
-                    onChange="handleVehicle4tCountChange()"
-                    className="w-20 px-2 py-1 border border-gray-300 rounded-md text-center focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  />
+              {/* 混載便カード */}
+              <div 
+                id="serviceTypeKonsai" 
+                onclick="handleServiceTypeChange('konsai')"
+                className="cursor-pointer p-5 border-2 border-gray-200 rounded-xl hover:border-green-400 hover:bg-green-50 transition-all duration-200"
+              >
+                <div className="flex items-center mb-3">
+                  <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-3">
+                    <i className="fas fa-boxes-stacked text-green-600 text-lg"></i>
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-bold text-gray-900">混載便</h4>
+                    <span className="text-xs text-gray-500">エリア A〜F対応</span>
+                  </div>
                 </div>
-              </div>
-              <div id="pricing4t" className="text-sm text-gray-600 hidden">
-                単価: <span id="price4t" className="font-semibold">-</span> × <span id="count4t">0</span>台 = <span id="total4t" className="font-bold text-blue-600">¥0</span>
-              </div>
-            </div>
-
-            {/* 専属便（料金改定対応） */}
-            <div className="mb-4 p-4 border border-orange-200 rounded-lg bg-orange-50">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-lg font-medium text-orange-900">
-                  <i className="fas fa-truck-moving mr-2"></i>専属便
-                  <span className="text-xs text-orange-600 ml-2">（2026年3月改定料金）</span>
-                </h4>
-                <div className="flex items-center space-x-3">
-                  <label className="text-sm font-medium text-gray-600">台数:</label>
-                  <input 
-                    type="number" 
-                    id="vehicleDedicatedCount" 
-                    min="0" 
-                    max="99"
-                    value="0"
-                    onChange="handleVehicleDedicatedCountChange()"
-                    className="w-20 px-2 py-1 border border-orange-300 rounded-md text-center focus:outline-none focus:ring-orange-500 focus:border-orange-500"
-                  />
-                </div>
-              </div>
-              <div id="pricingDedicated" className="text-sm text-gray-600 hidden">
-                単価: <span id="priceDedicated" className="font-semibold">-</span> × <span id="countDedicated">0</span>台 = <span id="totalDedicated" className="font-bold text-orange-600">¥0</span>
-              </div>
-            </div>
-
-            {/* 2tチャーター（料金改定対応） */}
-            <div className="mb-4 p-4 border border-purple-200 rounded-lg bg-purple-50">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-lg font-medium text-purple-900">
-                  <i className="fas fa-truck mr-2"></i>2tチャーター
-                  <span className="text-xs text-purple-600 ml-2">（2026年3月改定料金）</span>
-                </h4>
-                <div className="flex items-center space-x-3">
-                  <label className="text-sm font-medium text-gray-600">台数:</label>
-                  <input 
-                    type="number" 
-                    id="vehicleCharterCount" 
-                    min="0" 
-                    max="99"
-                    value="0"
-                    onChange="handleVehicleCharterCountChange()"
-                    className="w-20 px-2 py-1 border border-purple-300 rounded-md text-center focus:outline-none focus:ring-purple-500 focus:border-purple-500"
-                  />
-                </div>
-              </div>
-              <div id="pricingCharter" className="text-sm text-gray-600 hidden">
-                単価: <span id="priceCharter" className="font-semibold">-</span> × <span id="countCharter">0</span>台 = <span id="totalCharter" className="font-bold text-purple-600">¥0</span>
-              </div>
-            </div>
-
-            {/* 合計車両数表示 */}
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-gray-700">合計車両数:</span>
-                <span id="totalVehicleCount" className="text-lg font-bold text-blue-600">0台</span>
+                <p className="text-sm text-gray-600 mb-2">他のお客様と共同配送。1台固定。超過料金¥7,000/h自動付加。</p>
+                <div id="konsaiPricePreview" className="text-sm font-semibold text-green-600"></div>
               </div>
             </div>
           </div>
 
-          {/* 料金表示 */}
-          <div id="pricingInfo" className="mb-8 p-4 bg-green-50 rounded-lg hidden">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">車両料金合計</h3>
+          {/* 混載便エリア外警告 */}
+          <div id="konsaiOutOfAreaWarning" className="mb-6 p-4 bg-red-50 border border-red-300 rounded-lg hidden">
+            <div className="flex items-center">
+              <i className="fas fa-exclamation-triangle text-red-500 text-xl mr-3"></i>
+              <div>
+                <p className="text-red-700 font-bold">混載便エリア外です</p>
+                <p className="text-red-600 text-sm">このエリアは混載便の対応範囲外（A〜Fランクまで）です。専属便をご利用ください。</p>
+              </div>
+            </div>
+          </div>
+
+          {/* ===== 専属便 詳細セクション ===== */}
+          <div id="dedicatedSection" className="mb-6 hidden">
+            <div className="p-5 border-2 border-orange-300 rounded-xl bg-orange-50">
+              <h3 className="text-lg font-bold text-orange-900 mb-4">
+                <i className="fas fa-truck-moving mr-2"></i>専属便 設定
+              </h3>
+
+              {/* ワンマン割引 */}
+              <div className="mb-4">
+                <label className="flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    id="dedicatedOnemanDiscount" 
+                    onChange="handleDedicatedOptionsChange()"
+                    className="w-5 h-5 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+                  />
+                  <span className="ml-3 text-sm font-medium text-gray-700">
+                    ワンマン割引を適用（-¥15,000）
+                  </span>
+                </label>
+                <p id="dedicatedOnemanNote" className="text-xs text-gray-500 mt-1 ml-8">ワンマン割引対象エリアの場合に適用可能です</p>
+              </div>
+
+              {/* 台数選択 */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">台数</label>
+                <div className="flex items-center space-x-3">
+                  <button 
+                    onclick="adjustDedicatedCount(-1)"
+                    className="w-10 h-10 bg-orange-200 hover:bg-orange-300 text-orange-800 rounded-full flex items-center justify-center font-bold text-xl transition"
+                  >-</button>
+                  <input 
+                    type="number" 
+                    id="dedicatedVehicleCount" 
+                    min="1" 
+                    max="99"
+                    value="1"
+                    onChange="handleDedicatedOptionsChange()"
+                    className="w-20 px-2 py-2 border border-orange-300 rounded-md text-center text-lg font-bold focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                  />
+                  <button 
+                    onclick="adjustDedicatedCount(1)"
+                    className="w-10 h-10 bg-orange-400 hover:bg-orange-500 text-white rounded-full flex items-center justify-center font-bold text-xl transition"
+                  >+</button>
+                  <span className="text-sm text-gray-500">台</span>
+                </div>
+              </div>
+
+              {/* 専属便 料金詳細 */}
+              <div id="dedicatedPricingDetail" className="mt-4 p-4 bg-white rounded-lg border border-orange-200">
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">エリアランク</span>
+                    <span id="dedicatedAreaRank" className="font-semibold">-</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">専属便 単価</span>
+                    <span id="dedicatedUnitPrice" className="font-semibold">-</span>
+                  </div>
+                  <div id="dedicatedDiscountRow" className="flex justify-between text-green-600 hidden">
+                    <span>ワンマン割引</span>
+                    <span>-¥15,000</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">台数</span>
+                    <span id="dedicatedCountDisplay" className="font-semibold">1台</span>
+                  </div>
+                  <div className="border-t border-orange-200 pt-2 mt-2 flex justify-between">
+                    <span className="font-bold text-gray-900">車両費用 小計</span>
+                    <span id="dedicatedSubtotal" className="text-xl font-bold text-orange-600">¥0</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 付帯費用参考情報 */}
+              <div id="dedicatedAncillaryInfo" className="mt-3 p-3 bg-gray-50 rounded-lg text-xs text-gray-500">
+                <p className="font-medium text-gray-600 mb-1">参考: 付帯費用（エリア別）</p>
+                <div id="dedicatedAncillaryDetails" className="space-y-1"></div>
+              </div>
+            </div>
+          </div>
+
+          {/* ===== 混載便 詳細セクション ===== */}
+          <div id="konsaiSection" className="mb-6 hidden">
+            <div className="p-5 border-2 border-green-300 rounded-xl bg-green-50">
+              <h3 className="text-lg font-bold text-green-900 mb-4">
+                <i className="fas fa-boxes-stacked mr-2"></i>混載便 設定
+              </h3>
+
+              {/* ワンマン割引 */}
+              <div className="mb-4">
+                <label className="flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    id="konsaiOnemanDiscount" 
+                    onChange="handleKonsaiOptionsChange()"
+                    className="w-5 h-5 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                  />
+                  <span className="ml-3 text-sm font-medium text-gray-700">
+                    ワンマン割引を適用（-¥15,000）
+                  </span>
+                </label>
+                <p id="konsaiOnemanNote" className="text-xs text-gray-500 mt-1 ml-8">ワンマン割引対象エリアの場合に適用可能です</p>
+              </div>
+
+              {/* 台数（固定1台表示） */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">台数</label>
+                <div className="flex items-center space-x-2">
+                  <span className="text-lg font-bold text-gray-900">1台</span>
+                  <span className="text-xs text-gray-400">（混載便は1台固定です）</span>
+                </div>
+              </div>
+
+              {/* 混載便 料金詳細 */}
+              <div id="konsaiPricingDetail" className="mt-4 p-4 bg-white rounded-lg border border-green-200">
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">エリアランク</span>
+                    <span id="konsaiAreaRank" className="font-semibold">-</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">混載便 基本料金</span>
+                    <span id="konsaiBasePrice" className="font-semibold">-</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">超過料金（¥7,000/h）</span>
+                    <span className="font-semibold text-gray-500">自動付加</span>
+                  </div>
+                  <div id="konsaiDiscountRow" className="flex justify-between text-green-600 hidden">
+                    <span>ワンマン割引</span>
+                    <span>-¥15,000</span>
+                  </div>
+                  <div className="border-t border-green-200 pt-2 mt-2 flex justify-between">
+                    <span className="font-bold text-gray-900">車両費用 小計</span>
+                    <span id="konsaiSubtotal" className="text-xl font-bold text-green-600">¥0</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 配達日参考情報 */}
+              <div id="konsaiDeliveryInfo" className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-start">
+                  <i className="fas fa-calendar-alt text-yellow-600 mt-0.5 mr-2"></i>
+                  <div>
+                    <p className="font-medium text-yellow-800 text-sm mb-1">配達日（参考）</p>
+                    <p id="konsaiDeliveryDays" className="text-sm text-yellow-700">-</p>
+                    <p className="text-xs text-yellow-500 mt-1">※ 最終的な配達日は担当者が決定します</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 付帯費用参考情報 */}
+              <div id="konsaiAncillaryInfo" className="mt-3 p-3 bg-gray-50 rounded-lg text-xs text-gray-500">
+                <p className="font-medium text-gray-600 mb-1">参考: 付帯費用（エリア別）</p>
+                <div id="konsaiAncillaryDetails" className="space-y-1"></div>
+              </div>
+            </div>
+          </div>
+
+          {/* 料金サマリー */}
+          <div id="pricingSummary" className="mb-8 p-4 bg-green-50 rounded-lg hidden">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">車両料金サマリー</h3>
             <div className="space-y-3">
-              {/* 2トン車料金 */}
-              <div id="pricing2tSummary" className="flex justify-between items-center py-2 border-b border-green-200 hidden">
-                <span className="text-sm font-medium text-gray-700">2トン車</span>
-                <span id="summary2t" className="text-lg font-semibold text-gray-900">¥0</span>
+              <div id="summaryServiceType" className="flex justify-between items-center py-2 border-b border-green-200">
+                <span className="text-sm font-medium text-gray-700">便種</span>
+                <span id="summaryServiceTypeValue" className="text-lg font-semibold text-gray-900">-</span>
               </div>
-              {/* 4トン車料金 */}
-              <div id="pricing4tSummary" className="flex justify-between items-center py-2 border-b border-green-200 hidden">
-                <span className="text-sm font-medium text-gray-700">4トン車</span>
-                <span id="summary4t" className="text-lg font-semibold text-gray-900">¥0</span>
+              <div id="summaryVehicleCount" className="flex justify-between items-center py-2 border-b border-green-200">
+                <span className="text-sm font-medium text-gray-700">台数</span>
+                <span id="summaryVehicleCountValue" className="text-lg font-semibold text-gray-900">-</span>
               </div>
-              {/* 車両料金合計 */}
+              <div id="summaryOnemanRow" className="flex justify-between items-center py-2 border-b border-green-200 hidden">
+                <span className="text-sm font-medium text-green-700">ワンマン割引</span>
+                <span className="text-lg font-semibold text-green-600">-¥15,000</span>
+              </div>
               <div className="flex justify-between items-center pt-2">
                 <span className="text-lg font-bold text-gray-900">車両費用合計</span>
                 <span id="vehicleTotal" className="text-2xl font-bold text-green-600">¥0</span>
               </div>
             </div>
           </div>
-
-
 
           {/* ナビゲーションボタン */}
           <div className="flex justify-between">
