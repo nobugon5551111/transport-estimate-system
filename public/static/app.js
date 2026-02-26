@@ -5780,6 +5780,10 @@ if (typeof MasterManagement === 'undefined') {
       // 車両料金データをUIに反映
       if (settings.vehicle_rates) {
         Object.entries(settings.vehicle_rates).forEach(([key, value]) => {
+          // 旧2t/4t車両マスターキーはスキップ（専属便・混載便に移行済み）
+          if (key.startsWith('vehicle_2t_') || key.startsWith('vehicle_4t_')) {
+            return;
+          }
           const element = document.getElementById(key);
           if (element) {
             const oldValue = element.value;
@@ -6499,16 +6503,9 @@ if (typeof MasterManagement === 'undefined') {
   displayProjectsContent: () => {
     console.log('🔄 MasterManagement 案件マスターコンテンツを表示');
     
-    // 新しい ProjectManagement システムを使用
-    if (typeof ProjectManagement !== 'undefined' && ProjectManagement.displayProjectsContent) {
-      console.log('✅ ProjectManagement.displayProjectsContent を呼び出し');
-      ProjectManagement.displayProjectsContent();
-    } else {
-      console.warn('⚠️ ProjectManagement が見つかりません、レガシー実装を使用');
-      // フォールバック: 古い実装
-      MasterManagement.loadProjectsList();
-      MasterManagement.loadCustomersForSelect();
-    }
+    // マスター管理画面のHTMLテンプレートを使用（ProjectManagementによるinnerHTML上書きを防止）
+    MasterManagement.loadProjectsList();
+    MasterManagement.loadCustomersForSelect();
   },
 
   // 顧客一覧読み込み
@@ -6914,17 +6911,27 @@ if (typeof MasterManagement === 'undefined') {
     Modal.open('masterCustomerModal');
   },
 
-  // 古い案件新規追加モーダル - ProjectManagementに移行済み
+  // 案件新規追加モーダル
   openAddProjectModal: async () => {
-    console.log('⚠️ 古いMasterManagement.openAddProjectModal - ProjectManagementを使用してください');
+    console.log('🔧 MasterManagement.openAddProjectModal called');
     
-    // ProjectManagementの関数を呼び出し
-    if (typeof ProjectManagement !== 'undefined' && ProjectManagement.openAddProjectModal) {
-      console.log('✅ ProjectManagement.openAddProjectModalにリダイレクト');
-      return ProjectManagement.openAddProjectModal();
-    } else {
-      console.error('❌ ProjectManagementが見つかりません');
+    // フォームリセット
+    const form = document.getElementById('masterProjectForm');
+    if (form) {
+      form.reset();
+      form._editProjectId = null;
     }
+    
+    // モーダルタイトル設定
+    const title = document.getElementById('masterProjectModalTitle');
+    if (title) {
+      title.textContent = '新規案件追加';
+    }
+    
+    // 顧客セレクトボックスを最新データで更新
+    await MasterManagement.loadCustomersForSelect();
+    
+    Modal.open('masterProjectModal');
   },
   
   // 古い実装の残り部分を削除したプレースホルダー
@@ -7014,9 +7021,10 @@ if (typeof MasterManagement === 'undefined') {
       console.log('⚠️ masterProjectModal already exists, setting up event handlers');
       const form = document.getElementById('masterProjectForm');
       if (form) {
-        // ProjectManagement システムを使用するため、重複ハンドラーを削除
+        // 既存のハンドラーを削除して再登録
         form.removeEventListener('submit', MasterManagement.handleProjectFormSubmitDirect);
-        console.log('✅ Removed duplicate form handler, using ProjectManagement system');
+        form.addEventListener('submit', MasterManagement.handleProjectFormSubmitDirect);
+        console.log('✅ MasterManagement form submit handler attached');
         return;
       }
       return;
@@ -7205,20 +7213,70 @@ if (typeof MasterManagement === 'undefined') {
     }
   },
 
-  // 古い案件フォーム送信処理 - 完全無効化
+  // 案件フォーム送信処理（マスター管理画面用）
   handleProjectFormSubmitDirect: async (event) => {
-    console.log('🚫 BLOCKED: 古いhandleProjectFormSubmitDirectをブロックしました');
     event.preventDefault();
     event.stopImmediatePropagation();
+    console.log('🔄 MasterManagement.handleProjectFormSubmitDirect called');
     
-    // グローバルロックも確認
-    if (window._globalSubmitLock) {
-      console.log('🚫 GLOBAL: Already locked, preventing execution');
+    // 重複送信防止
+    if (MasterManagement._projectSubmitting) {
+      console.log('⚠️ 案件フォーム送信処理中');
       return false;
     }
+    MasterManagement._projectSubmitting = true;
     
-    // 古い関数は完全にブロック
-    alert('古いシステムが実行されました。ページを再読み込みしてください。');
+    try {
+      const form = document.getElementById('masterProjectForm');
+      const formData = {
+        customer_id: document.getElementById('masterProjectCustomerId')?.value || '',
+        name: document.getElementById('masterProjectName')?.value?.trim() || '',
+        description: document.getElementById('masterProjectDescription')?.value?.trim() || '',
+        status: document.getElementById('masterProjectStatus')?.value || 'initial',
+        priority: document.getElementById('masterProjectPriority')?.value || 'medium',
+        notes: document.getElementById('masterProjectNotes')?.value?.trim() || ''
+      };
+      
+      console.log('📊 送信データ:', formData);
+      
+      if (!formData.name || !formData.customer_id) {
+        Utils.showError('案件名と顧客は必須項目です');
+        return false;
+      }
+      
+      // 送信ボタンを無効化
+      const submitBtn = form?.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>保存中...';
+      }
+      
+      let response;
+      const editProjectId = form?._editProjectId;
+      if (editProjectId) {
+        response = await API.put(`/projects/${editProjectId}`, formData);
+      } else {
+        response = await API.post('/projects', formData);
+      }
+      
+      if (response.success) {
+        Utils.showSuccess(editProjectId ? '案件が更新されました' : '案件が作成されました');
+        Modal.close('masterProjectModal');
+        await MasterManagement.loadProjectsList();
+      } else {
+        Utils.showError(response.error || '保存に失敗しました');
+      }
+    } catch (error) {
+      console.error('❌ 案件保存エラー:', error);
+      Utils.showError('保存中にエラーが発生しました: ' + error.message);
+    } finally {
+      const submitBtn = document.querySelector('#masterProjectForm button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-save mr-2"></i>保存';
+      }
+      MasterManagement._projectSubmitting = false;
+    }
     return false;
   },
 
@@ -7253,12 +7311,13 @@ if (typeof MasterManagement === 'undefined') {
       
       // 編集モードを設定
       MasterManagement.currentEditProjectId = projectId;
+      const form = document.getElementById('masterProjectForm');
+      if (form) form._editProjectId = projectId;
       
       // 顧客プルダウンを読み込み
       await MasterManagement.loadCustomersForSelect();
       
       // フォームに既存データを設定
-      const form = document.getElementById('masterProjectForm');
       if (form) {
         const nameField = form.querySelector('input[name="name"]');
         const customerIdField = form.querySelector('select[name="customer_id"]');
@@ -11702,8 +11761,13 @@ const resetData = async () => {
 
 // フォーム送信処理
 document.addEventListener('DOMContentLoaded', () => {
-  // マスター管理案件フォームは ProjectManagement.handleProjectFormSubmit で処理されるため、
-  // ここでのイベントリスナー登録は不要（HTMLのonsubmit属性で直接呼び出し）
+  // マスター管理画面の案件フォームにsubmitハンドラを登録
+  const masterProjectForm = document.getElementById('masterProjectForm');
+  if (masterProjectForm) {
+    masterProjectForm.removeEventListener('submit', MasterManagement.handleProjectFormSubmitDirect);
+    masterProjectForm.addEventListener('submit', MasterManagement.handleProjectFormSubmitDirect);
+    console.log('✅ masterProjectForm submit handler attached on DOMContentLoaded');
+  }
 
   // マスター管理ページの初期化
   if (document.getElementById('masterCustomersTable') || document.getElementById('masterProjectsTable')) {
