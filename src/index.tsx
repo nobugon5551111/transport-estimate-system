@@ -5503,10 +5503,52 @@ app.get('/estimate/step3', (c) => {
                 </div>
               </div>
 
-              {/* 付帯費用参考情報 */}
-              <div id="dedicatedAncillaryInfo" className="mt-3 p-3 bg-gray-50 rounded-lg text-xs text-gray-500">
-                <p className="font-medium text-gray-600 mb-1">参考: 付帯費用（エリア別）</p>
-                <div id="dedicatedAncillaryDetails" className="space-y-1"></div>
+              {/* 付帯費用（選択式） */}
+              <div id="dedicatedAncillarySection" className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                <p className="font-semibold text-orange-800 mb-3">
+                  <i className="fas fa-plus-circle mr-1"></i>付帯費用（エリア別）
+                </p>
+                <div className="space-y-2">
+                  <label className="flex items-center justify-between cursor-pointer hover:bg-orange-100 p-2 rounded transition">
+                    <div className="flex items-center">
+                      <input type="checkbox" id="dedicatedAncillary_road_permit" onChange="handleDedicatedOptionsChange()" className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500" />
+                      <span className="ml-2 text-sm text-gray-700">道路許可</span>
+                    </div>
+                    <span id="dedicatedAncillary_road_permit_price" className="text-sm font-semibold text-gray-900">-</span>
+                  </label>
+                  <label className="flex items-center justify-between cursor-pointer hover:bg-orange-100 p-2 rounded transition">
+                    <div className="flex items-center">
+                      <input type="checkbox" id="dedicatedAncillary_transport_vehicle" onChange="handleDedicatedOptionsChange()" className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500" />
+                      <span className="ml-2 text-sm text-gray-700">車両輸送</span>
+                    </div>
+                    <span id="dedicatedAncillary_transport_vehicle_price" className="text-sm font-semibold text-gray-900">-</span>
+                  </label>
+                  <label className="flex items-center justify-between cursor-pointer hover:bg-orange-100 p-2 rounded transition">
+                    <div className="flex items-center">
+                      <input type="checkbox" id="dedicatedAncillary_survey_twoman" onChange="handleDedicatedOptionsChange()" className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500" />
+                      <span className="ml-2 text-sm text-gray-700">下見（2名）</span>
+                    </div>
+                    <span id="dedicatedAncillary_survey_twoman_price" className="text-sm font-semibold text-gray-900">-</span>
+                  </label>
+                  <label className="flex items-center justify-between cursor-pointer hover:bg-orange-100 p-2 rounded transition">
+                    <div className="flex items-center">
+                      <input type="checkbox" id="dedicatedAncillary_survey_oneman" onChange="handleDedicatedOptionsChange()" className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500" />
+                      <span className="ml-2 text-sm text-gray-700">下見（1名）</span>
+                    </div>
+                    <span id="dedicatedAncillary_survey_oneman_price" className="text-sm font-semibold text-gray-900">-</span>
+                  </label>
+                  <div className="flex items-center justify-between p-2">
+                    <div className="flex items-center">
+                      <i id="dedicatedAncillary_highway_icon" className="fas fa-check-circle text-gray-300 w-4 h-4 mr-2"></i>
+                      <span className="text-sm text-gray-700">高速代</span>
+                    </div>
+                    <span id="dedicatedAncillary_highway_label" className="text-sm font-semibold text-gray-400">-</span>
+                  </div>
+                  <div className="border-t border-orange-200 pt-2 mt-2 flex justify-between">
+                    <span className="font-bold text-gray-800 text-sm">付帯費用 小計</span>
+                    <span id="dedicatedAncillarySubtotal" className="text-lg font-bold text-orange-600">¥0</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -5581,10 +5623,52 @@ app.get('/estimate/step3', (c) => {
                 </div>
               </div>
 
-              {/* 付帯費用参考情報 */}
-              <div id="konsaiAncillaryInfo" className="mt-3 p-3 bg-gray-50 rounded-lg text-xs text-gray-500">
-                <p className="font-medium text-gray-600 mb-1">参考: 付帯費用（エリア別）</p>
-                <div id="konsaiAncillaryDetails" className="space-y-1"></div>
+              {/* 付帯費用（選択式） */}
+              <div id="konsaiAncillarySection" className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p className="font-semibold text-green-800 mb-3">
+                  <i className="fas fa-plus-circle mr-1"></i>付帯費用（エリア別）
+                </p>
+                <div className="space-y-2">
+                  <label className="flex items-center justify-between cursor-pointer hover:bg-green-100 p-2 rounded transition">
+                    <div className="flex items-center">
+                      <input type="checkbox" id="konsaiAncillary_road_permit" onChange="handleKonsaiOptionsChange()" className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500" />
+                      <span className="ml-2 text-sm text-gray-700">道路許可</span>
+                    </div>
+                    <span id="konsaiAncillary_road_permit_price" className="text-sm font-semibold text-gray-900">-</span>
+                  </label>
+                  <label className="flex items-center justify-between cursor-pointer hover:bg-green-100 p-2 rounded transition">
+                    <div className="flex items-center">
+                      <input type="checkbox" id="konsaiAncillary_transport_vehicle" onChange="handleKonsaiOptionsChange()" className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500" />
+                      <span className="ml-2 text-sm text-gray-700">車両輸送</span>
+                    </div>
+                    <span id="konsaiAncillary_transport_vehicle_price" className="text-sm font-semibold text-gray-900">-</span>
+                  </label>
+                  <label className="flex items-center justify-between cursor-pointer hover:bg-green-100 p-2 rounded transition">
+                    <div className="flex items-center">
+                      <input type="checkbox" id="konsaiAncillary_survey_twoman" onChange="handleKonsaiOptionsChange()" className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500" />
+                      <span className="ml-2 text-sm text-gray-700">下見（2名）</span>
+                    </div>
+                    <span id="konsaiAncillary_survey_twoman_price" className="text-sm font-semibold text-gray-900">-</span>
+                  </label>
+                  <label className="flex items-center justify-between cursor-pointer hover:bg-green-100 p-2 rounded transition">
+                    <div className="flex items-center">
+                      <input type="checkbox" id="konsaiAncillary_survey_oneman" onChange="handleKonsaiOptionsChange()" className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500" />
+                      <span className="ml-2 text-sm text-gray-700">下見（1名）</span>
+                    </div>
+                    <span id="konsaiAncillary_survey_oneman_price" className="text-sm font-semibold text-gray-900">-</span>
+                  </label>
+                  <div className="flex items-center justify-between p-2">
+                    <div className="flex items-center">
+                      <i id="konsaiAncillary_highway_icon" className="fas fa-check-circle text-gray-300 w-4 h-4 mr-2"></i>
+                      <span className="text-sm text-gray-700">高速代</span>
+                    </div>
+                    <span id="konsaiAncillary_highway_label" className="text-sm font-semibold text-gray-400">-</span>
+                  </div>
+                  <div className="border-t border-green-200 pt-2 mt-2 flex justify-between">
+                    <span className="font-bold text-gray-800 text-sm">付帯費用 小計</span>
+                    <span id="konsaiAncillarySubtotal" className="text-lg font-bold text-green-600">¥0</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -5604,6 +5688,10 @@ app.get('/estimate/step3', (c) => {
               <div id="summaryOnemanRow" className="flex justify-between items-center py-2 border-b border-green-200 hidden">
                 <span className="text-sm font-medium text-green-700">ワンマン割引</span>
                 <span className="text-lg font-semibold text-green-600">-¥15,000</span>
+              </div>
+              <div id="summaryAncillaryRow" className="flex justify-between items-center py-2 border-b border-green-200 hidden">
+                <span className="text-sm font-medium text-gray-700">付帯費用</span>
+                <span id="summaryAncillaryValue" className="text-lg font-semibold text-gray-900">¥0</span>
               </div>
               <div className="flex justify-between items-center pt-2">
                 <span className="text-lg font-bold text-gray-900">車両費用合計</span>

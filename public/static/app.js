@@ -1581,6 +1581,67 @@ const Step3Implementation = {
         }
       }
     }
+    
+    // 付帯費用の価格をUIに表示
+    Step3Implementation.initAncillaryUI('dedicated', Step3Implementation.dedicatedPricing);
+    Step3Implementation.initAncillaryUI('konsai', Step3Implementation.konsaiPricing);
+  },
+
+  // 付帯費用UIの価格表示を初期化
+  initAncillaryUI: (prefix, pricing) => {
+    if (!pricing) return;
+    
+    const setPrice = (id, value) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value > 0 ? `¥${value.toLocaleString()}` : '-';
+    };
+    
+    setPrice(`${prefix}Ancillary_road_permit_price`, pricing.road_permit_fee || 0);
+    setPrice(`${prefix}Ancillary_transport_vehicle_price`, pricing.transport_vehicle_fee || 0);
+    setPrice(`${prefix}Ancillary_survey_twoman_price`, pricing.survey_twoman_fee || 0);
+    setPrice(`${prefix}Ancillary_survey_oneman_price`, pricing.survey_oneman_fee || 0);
+    
+    // 高速代込みアイコン
+    const hwIcon = document.getElementById(`${prefix}Ancillary_highway_icon`);
+    const hwLabel = document.getElementById(`${prefix}Ancillary_highway_label`);
+    if (hwIcon && hwLabel) {
+      if (pricing.highway_included) {
+        hwIcon.className = 'fas fa-check-circle text-green-500 w-4 h-4 mr-2';
+        hwLabel.textContent = '込み';
+        hwLabel.className = 'text-sm font-semibold text-green-600';
+      } else {
+        hwIcon.className = 'fas fa-times-circle text-gray-300 w-4 h-4 mr-2';
+        hwLabel.textContent = '別途';
+        hwLabel.className = 'text-sm font-semibold text-gray-400';
+      }
+    }
+  },
+
+  // 付帯費用の選択状態を取得して合計を計算
+  getAncillaryCost: (prefix, pricing) => {
+    if (!pricing) return { total: 0, items: [] };
+    
+    const items = [];
+    let total = 0;
+    
+    const check = (id, label, fee) => {
+      const el = document.getElementById(id);
+      if (el && el.checked && fee > 0) {
+        items.push({ label, fee });
+        total += fee;
+      }
+    };
+    
+    check(`${prefix}Ancillary_road_permit`, '道路許可', pricing.road_permit_fee || 0);
+    check(`${prefix}Ancillary_transport_vehicle`, '車両輸送', pricing.transport_vehicle_fee || 0);
+    check(`${prefix}Ancillary_survey_twoman`, '下見（2名）', pricing.survey_twoman_fee || 0);
+    check(`${prefix}Ancillary_survey_oneman`, '下見（1名）', pricing.survey_oneman_fee || 0);
+    
+    // 付帯費用小計を表示
+    const subtotalEl = document.getElementById(`${prefix}AncillarySubtotal`);
+    if (subtotalEl) subtotalEl.textContent = `¥${total.toLocaleString()}`;
+    
+    return { total, items };
   },
 
   // 便種変更
@@ -1637,7 +1698,7 @@ const Step3Implementation = {
     
     const unitPrice = pricing.dedicated_price_1 || 0;
     const discount = isOneman ? 15000 : 0;
-    const subtotal = (unitPrice - discount) * count;
+    const vehicleSubtotal = (unitPrice - discount) * count;
     
     // ワンマン割引対象チェック
     const onemanEligible = pricing.oneman_discount_eligible === 1 || pricing.oneman_discount_eligible === true;
@@ -1655,27 +1716,19 @@ const Step3Implementation = {
     document.getElementById('dedicatedAreaRank').textContent = `${Step3Implementation.currentArea}ランク`;
     document.getElementById('dedicatedUnitPrice').textContent = `¥${unitPrice.toLocaleString()}`;
     document.getElementById('dedicatedCountDisplay').textContent = `${count}台`;
-    document.getElementById('dedicatedSubtotal').textContent = `¥${subtotal.toLocaleString()}`;
+    document.getElementById('dedicatedSubtotal').textContent = `¥${vehicleSubtotal.toLocaleString()}`;
     
     const discountRow = document.getElementById('dedicatedDiscountRow');
     if (discountRow) discountRow.classList.toggle('hidden', !isOneman);
     
-    // 付帯費用表示
-    const ancillaryDetails = document.getElementById('dedicatedAncillaryDetails');
-    if (ancillaryDetails) {
-      const items = [];
-      if (pricing.road_permit_fee) items.push(`道路許可: ¥${pricing.road_permit_fee.toLocaleString()}`);
-      if (pricing.transport_vehicle_fee) items.push(`車両輸送: ¥${pricing.transport_vehicle_fee.toLocaleString()}`);
-      if (pricing.survey_twoman_fee) items.push(`下見(2名): ¥${pricing.survey_twoman_fee.toLocaleString()}`);
-      if (pricing.survey_oneman_fee) items.push(`下見(1名): ¥${pricing.survey_oneman_fee.toLocaleString()}`);
-      if (pricing.highway_included) items.push('高速代込み');
-      ancillaryDetails.innerHTML = items.map(i => `<p>${i}</p>`).join('');
-    }
+    // 付帯費用チェックボックスから合計を計算
+    const ancillary = Step3Implementation.getAncillaryCost('dedicated', pricing);
+    const totalCost = vehicleSubtotal + ancillary.total;
     
     // サマリー更新
-    Step3Implementation.updateSummary('専属便', count, subtotal, isOneman);
+    Step3Implementation.updateSummary('専属便', count, totalCost, isOneman, ancillary.total);
     
-    // 車両情報保存
+    // 車両情報保存（付帯費用を含む）
     Step3Implementation.currentVehicleInfo = {
       service_type: 'dedicated',
       service_type_label: '専属便',
@@ -1684,7 +1737,10 @@ const Step3Implementation = {
       oneman_discount: isOneman,
       discount_amount: discount,
       vehicle_count: count,
-      cost: subtotal,
+      cost: totalCost,
+      vehicle_subtotal: vehicleSubtotal,
+      ancillary_cost: ancillary.total,
+      ancillary_items: ancillary.items,
       overtime_fee: 0,
       pricing_data: pricing
     };
@@ -1704,7 +1760,7 @@ const Step3Implementation = {
     
     const basePrice = pricing.price || 0;
     const discount = isOneman ? 15000 : 0;
-    const subtotal = basePrice - discount;
+    const vehicleSubtotal = basePrice - discount;
     
     // ワンマン割引対象チェック（oneman_discount_amount > 0 で判定）
     const onemanEligible = (pricing.oneman_discount_amount || 0) > 0;
@@ -1721,7 +1777,7 @@ const Step3Implementation = {
     // 表示更新
     document.getElementById('konsaiAreaRank').textContent = `${Step3Implementation.currentArea}ランク`;
     document.getElementById('konsaiBasePrice').textContent = `¥${basePrice.toLocaleString()}`;
-    document.getElementById('konsaiSubtotal').textContent = `¥${subtotal.toLocaleString()}`;
+    document.getElementById('konsaiSubtotal').textContent = `¥${vehicleSubtotal.toLocaleString()}`;
     
     const discountRow = document.getElementById('konsaiDiscountRow');
     if (discountRow) discountRow.classList.toggle('hidden', !isOneman);
@@ -1738,23 +1794,14 @@ const Step3Implementation = {
       }
     }
     
-    // 付帯費用表示
-    const ancillaryDetails = document.getElementById('konsaiAncillaryDetails');
-    if (ancillaryDetails) {
-      const items = [];
-      if (pricing.road_permit_fee) items.push(`道路許可: ¥${pricing.road_permit_fee.toLocaleString()}`);
-      if (pricing.transport_vehicle_fee) items.push(`車両輸送: ¥${pricing.transport_vehicle_fee.toLocaleString()}`);
-      if (pricing.survey_twoman_fee) items.push(`下見(2名): ¥${pricing.survey_twoman_fee.toLocaleString()}`);
-      if (pricing.survey_oneman_fee) items.push(`下見(1名): ¥${pricing.survey_oneman_fee.toLocaleString()}`);
-      if (pricing.highway_included) items.push('高速代込み');
-      items.push(`超過料金: ¥${(pricing.overtime_fee || 7000).toLocaleString()}/h`);
-      ancillaryDetails.innerHTML = items.map(i => `<p>${i}</p>`).join('');
-    }
+    // 付帯費用チェックボックスから合計を計算
+    const ancillary = Step3Implementation.getAncillaryCost('konsai', pricing);
+    const totalCost = vehicleSubtotal + ancillary.total;
     
     // サマリー更新
-    Step3Implementation.updateSummary('混載便', 1, subtotal, isOneman);
+    Step3Implementation.updateSummary('混載便', 1, totalCost, isOneman, ancillary.total);
     
-    // 車両情報保存
+    // 車両情報保存（付帯費用を含む）
     Step3Implementation.currentVehicleInfo = {
       service_type: 'konsai',
       service_type_label: '混載便',
@@ -1763,7 +1810,10 @@ const Step3Implementation = {
       oneman_discount: isOneman,
       discount_amount: discount,
       vehicle_count: 1,
-      cost: subtotal,
+      cost: totalCost,
+      vehicle_subtotal: vehicleSubtotal,
+      ancillary_cost: ancillary.total,
+      ancillary_items: ancillary.items,
       overtime_fee: pricing.overtime_fee || 7000,
       pricing_data: pricing,
       delivery_schedule: Step3Implementation.deliverySchedule
@@ -1773,7 +1823,7 @@ const Step3Implementation = {
   },
 
   // サマリー表示更新
-  updateSummary: (serviceLabel, count, total, hasDiscount) => {
+  updateSummary: (serviceLabel, count, total, hasDiscount, ancillaryCost) => {
     const summary = document.getElementById('pricingSummary');
     if (summary) summary.classList.remove('hidden');
     
@@ -1785,6 +1835,18 @@ const Step3Implementation = {
     
     const onemanRow = document.getElementById('summaryOnemanRow');
     if (onemanRow) onemanRow.classList.toggle('hidden', !hasDiscount);
+    
+    // 付帯費用行
+    const ancillaryRow = document.getElementById('summaryAncillaryRow');
+    const ancillaryValue = document.getElementById('summaryAncillaryValue');
+    if (ancillaryRow && ancillaryValue) {
+      if (ancillaryCost > 0) {
+        ancillaryRow.classList.remove('hidden');
+        ancillaryValue.textContent = `¥${ancillaryCost.toLocaleString()}`;
+      } else {
+        ancillaryRow.classList.add('hidden');
+      }
+    }
     
     const totalEl = document.getElementById('vehicleTotal');
     if (totalEl) totalEl.textContent = `¥${total.toLocaleString()}`;
@@ -3095,7 +3157,15 @@ const Step6Implementation = {
         }
       }
       
-      details.push(`<div class="flex justify-between border-t pt-2 mt-2 font-bold"><span>車両費用合計</span><span>${Utils.formatCurrency(totalVehicleCost)}</span></div>`);
+      // 付帯費用の明細を表示
+      if (vehicle.ancillary_items && vehicle.ancillary_items.length > 0) {
+        details.push(`<div class="px-4 py-1 mt-1 text-xs font-semibold text-gray-500 uppercase tracking-wider">付帯費用</div>`);
+        vehicle.ancillary_items.forEach(item => {
+          details.push(`<div class="flex justify-between px-4 py-1 text-sm text-blue-700"><span>${item.label}</span><span>${Utils.formatCurrency(item.fee)}</span></div>`);
+        });
+      }
+      
+      details.push(`<div class="flex justify-between border-t pt-2 mt-2 font-bold"><span>車両費用合計（付帯費用込み）</span><span>${Utils.formatCurrency(totalVehicleCost)}</span></div>`);
       
       html = details.join('');
       
@@ -3722,6 +3792,18 @@ const Step6Implementation = {
             amount: -15000
           });
         }
+      }
+      // 付帯費用をlineItemsに追加
+      if (vehicle.ancillary_items && vehicle.ancillary_items.length > 0) {
+        vehicle.ancillary_items.forEach(item => {
+          lineItems.vehicle.items.push({
+            description: `付帯: ${item.label}`,
+            detail: '',
+            quantity: 1,
+            unit_price: item.fee,
+            amount: item.fee
+          });
+        });
       }
     } else if (vehicle.uses_multiple_vehicles) {
       // 複数車両の場合
@@ -4696,7 +4778,15 @@ const Step6Implementation = {
         }
       }
       
-      details.push(`<div class="flex justify-between border-t pt-2 mt-2 font-bold"><span>車両費用合計</span><span>${Utils.formatCurrency(vehicle.cost)}</span></div>`);
+      // 付帯費用の明細を表示
+      if (vehicle.ancillary_items && vehicle.ancillary_items.length > 0) {
+        details.push(`<div class="px-4 py-1 mt-1 text-xs font-semibold text-gray-500 uppercase tracking-wider">付帯費用</div>`);
+        vehicle.ancillary_items.forEach(item => {
+          details.push(`<div class="flex justify-between px-4 py-1 text-sm text-blue-700"><span>${item.label}</span><span>${Utils.formatCurrency(item.fee)}</span></div>`);
+        });
+      }
+      
+      details.push(`<div class="flex justify-between border-t pt-2 mt-2 font-bold"><span>車両費用合計（付帯費用込み）</span><span>${Utils.formatCurrency(vehicle.cost)}</span></div>`);
       html = Step6Implementation.applyZebraStripes(details).join('');
       
     } else if (vehicle.uses_multiple_vehicles) {
