@@ -5764,7 +5764,7 @@ if (typeof MasterManagement === 'undefined') {
     
     // データが既に入力されている場合は上書きしない（ユーザー入力保護）
     // 初回ロード時のみAPIデータを反映、それ以降はユーザーデータを保護
-    const testElement = document.getElementById('vehicle_2t_full_day_A');
+    const testElement = document.getElementById('rate_supervisor');
     const hasExistingData = testElement && testElement.value && testElement.value !== '0' && testElement.value !== '';
     
     if (hasExistingData && MasterManagement._dataPopulated) {
@@ -5949,112 +5949,107 @@ if (typeof MasterManagement === 'undefined') {
   },
 
   // 車両設定表示
-  displayVehicleSettings: () => {
-    if (!MasterManagement.masterSettings) {
-      // デフォルト値を設定（masterSettingsがない場合）
-      console.log('⚠️ masterSettings not found, setting defaults');
-      MasterManagement.setDefaultVehiclePrices();
-      return;
-    } else {
-
+  displayVehicleSettings: async () => {
+    console.log('🚛 車両設定表示（専属便・混載便）');
+    
+    // 専属便料金を取得・表示
+    try {
+      const dedicatedRes = await API.get('/dedicated-pricing');
+      if (dedicatedRes.success && dedicatedRes.data) {
+        const tableBody = document.getElementById('dedicatedPricingTable');
+        if (tableBody) {
+          const areaLabels = {
+            'A': 'A（大阪市内・京都市内・神戸市内）',
+            'B': 'B（関西近郊主要都市）',
+            'C': 'C（近畿圏）',
+            'D': 'D（中距離）',
+            'E': 'E（長距離）',
+            'F': 'F（遠距離）',
+            'G': 'G（超遠距離）',
+            'H': 'H（特別遠距離）',
+            'I': 'I（最遠距離）'
+          };
+          tableBody.innerHTML = dedicatedRes.data.map(row => `
+            <tr class="hover:bg-orange-100">
+              <td class="border border-orange-300 px-3 py-2 text-sm font-medium">${areaLabels[row.area] || row.area}</td>
+              <td class="border border-orange-300 px-3 py-2">
+                <div class="flex items-center justify-end gap-1">
+                  <span class="text-sm text-orange-700">¥</span>
+                  <input type="number" id="dedicated_price_${row.area}" class="form-input text-sm text-right w-28" min="0" step="1000" value="${row.price}" />
+                </div>
+              </td>
+            </tr>
+          `).join('');
+        }
+      } else {
+        console.warn('⚠️ 専属便料金取得失敗');
+      }
+    } catch (error) {
+      console.error('❌ 専属便料金取得エラー:', error);
     }
-
-    const settings = MasterManagement.masterSettings;
     
-    // 実際のHTMLフィールドIDに合わせて設定
-    // 2t車の設定（各エリア・各種別）
-    const areas = ['A', 'B', 'C', 'D'];
-    const types = ['shared', 'half_day', 'full_day'];
-    
-    // 2t車のデフォルト価格設定
-    const default2tPrices = {
-      'A': { 'shared': 15000, 'half_day': 20000, 'full_day': 30000 },
-      'B': { 'shared': 18000, 'half_day': 24000, 'full_day': 36000 },
-      'C': { 'shared': 22500, 'half_day': 30000, 'full_day': 45000 },
-      'D': { 'shared': 30000, 'half_day': 40000, 'full_day': 60000 }
-    };
-
-    areas.forEach(area => {
-      types.forEach(type => {
-        const elementId = `vehicle_2t_${type}_${area}`;
-        const element = document.getElementById(elementId);
-        if (element) {
-          const vehicleValue = settings.vehicle_rates?.[`vehicle_2t_${type}_${area}`];
-          if (vehicleValue !== undefined && vehicleValue !== null) {
-            element.value = vehicleValue;
-          } else {
-            element.value = default2tPrices[area][type];
-          }
+    // 混載便料金を取得・表示
+    try {
+      const konsaiRes = await API.get('/konsai-pricing');
+      if (konsaiRes.success && (konsaiRes.data || konsaiRes.pricing)) {
+        const konsaiData = konsaiRes.data || konsaiRes.pricing;
+        const tableBody = document.getElementById('konsaiPricingTable');
+        if (tableBody) {
+          tableBody.innerHTML = konsaiData.map(row => `
+            <tr class="hover:bg-green-100">
+              <td class="border border-green-300 px-3 py-2 text-sm font-medium">${row.rank}ランク</td>
+              <td class="border border-green-300 px-3 py-2 text-sm">${row.distance_label || row.distance_km + 'km未満'}</td>
+              <td class="border border-green-300 px-3 py-2">
+                <div class="flex items-center justify-end gap-1">
+                  <span class="text-xs text-green-700">¥</span>
+                  <input type="number" id="konsai_price_${row.rank}" class="form-input text-sm text-right w-24" min="0" step="100" value="${row.price}" />
+                </div>
+              </td>
+              <td class="border border-green-300 px-3 py-2">
+                <div class="flex items-center justify-end gap-1">
+                  <span class="text-xs text-green-700">¥</span>
+                  <input type="number" id="konsai_road_permit_${row.rank}" class="form-input text-sm text-right w-24" min="0" step="100" value="${row.road_permit_fee}" />
+                </div>
+              </td>
+              <td class="border border-green-300 px-3 py-2">
+                <div class="flex items-center justify-end gap-1">
+                  <span class="text-xs text-green-700">¥</span>
+                  <input type="number" id="konsai_transport_${row.rank}" class="form-input text-sm text-right w-24" min="0" step="100" value="${row.transport_vehicle_fee}" />
+                </div>
+              </td>
+              <td class="border border-green-300 px-3 py-2">
+                <div class="flex items-center justify-end gap-1">
+                  <span class="text-xs text-green-700">¥</span>
+                  <input type="number" id="konsai_survey2_${row.rank}" class="form-input text-sm text-right w-24" min="0" step="100" value="${row.survey_twoman_fee}" />
+                </div>
+              </td>
+              <td class="border border-green-300 px-3 py-2">
+                <div class="flex items-center justify-end gap-1">
+                  <span class="text-xs text-green-700">¥</span>
+                  <input type="number" id="konsai_survey1_${row.rank}" class="form-input text-sm text-right w-24" min="0" step="100" value="${row.survey_oneman_fee}" />
+                </div>
+              </td>
+              <td class="border border-green-300 px-3 py-2">
+                <div class="flex items-center justify-end gap-1">
+                  <span class="text-xs text-green-700">¥</span>
+                  <input type="number" id="konsai_oneman_${row.rank}" class="form-input text-sm text-right w-24" min="0" step="1000" value="${row.oneman_discount_amount}" />
+                </div>
+              </td>
+            </tr>
+          `).join('');
         }
-      });
-    });
-
-    // 4t車のデフォルト価格設定
-    const default4tPrices = {
-      'A': { 'shared': 25000, 'half_day': 30000, 'full_day': 45000 },
-      'B': { 'shared': 30000, 'half_day': 36000, 'full_day': 54000 },
-      'C': { 'shared': 37500, 'half_day': 45000, 'full_day': 67500 },
-      'D': { 'shared': 50000, 'half_day': 60000, 'full_day': 90000 }
-    };
-
-    areas.forEach(area => {
-      types.forEach(type => {
-        const elementId = `vehicle_4t_${type}_${area}`;
-        const element = document.getElementById(elementId);
-        if (element) {
-          const vehicleValue = settings.vehicle_rates?.[`vehicle_4t_${type}_${area}`];
-          if (vehicleValue !== undefined && vehicleValue !== null) {
-            element.value = vehicleValue;
-          } else {
-            element.value = default4tPrices[area][type];
-          }
-        }
-      });
-    });
+      } else {
+        console.warn('⚠️ 混載便料金取得失敗');
+      }
+    } catch (error) {
+      console.error('❌ 混載便料金取得エラー:', error);
+    }
   },
 
-  // デフォルト価格設定用のヘルパー関数
+  // デフォルト価格設定用のヘルパー関数（新体系では不要だがフォールバック用に残す）
   setDefaultVehiclePrices: () => {
-    // 2t車のデフォルト価格設定
-    const default2tPrices = {
-      'A': { 'shared': 15000, 'half_day': 20000, 'full_day': 30000 },
-      'B': { 'shared': 18000, 'half_day': 24000, 'full_day': 36000 },
-      'C': { 'shared': 22500, 'half_day': 30000, 'full_day': 45000 },
-      'D': { 'shared': 30000, 'half_day': 40000, 'full_day': 60000 }
-    };
-
-    // 4t車のデフォルト価格設定
-    const default4tPrices = {
-      'A': { 'shared': 25000, 'half_day': 30000, 'full_day': 45000 },
-      'B': { 'shared': 30000, 'half_day': 36000, 'full_day': 54000 },
-      'C': { 'shared': 37500, 'half_day': 45000, 'full_day': 67500 },
-      'D': { 'shared': 50000, 'half_day': 60000, 'full_day': 90000 }
-    };
-
-    const areas = ['A', 'B', 'C', 'D'];
-    const types = ['shared', 'half_day', 'full_day'];
-    
-    // 2t車の設定
-    areas.forEach(area => {
-      types.forEach(type => {
-        const elementId = `vehicle_2t_${type}_${area}`;
-        const element = document.getElementById(elementId);
-        if (element && !element.value) {
-          element.value = default2tPrices[area][type];
-        }
-      });
-    });
-
-    // 4t車の設定
-    areas.forEach(area => {
-      types.forEach(type => {
-        const elementId = `vehicle_4t_${type}_${area}`;
-        const element = document.getElementById(elementId);
-        if (element && !element.value) {
-          element.value = default4tPrices[area][type];
-        }
-      });
-    });
+    console.log('⚠️ 車両デフォルト価格設定（フォールバック）');
+    // 新体系ではAPI直接取得のため、ここでは何もしない
   },
 
   // サービス設定表示
@@ -6220,44 +6215,58 @@ if (typeof MasterManagement === 'undefined') {
   // 車両設定保存
   saveVehicleSettings: async () => {
     try {
-      const getInputValue = (id) => {
-        const element = document.getElementById(id);
-        return element ? parseInt(element.value) || 0 : 0;
-      };
+      let successCount = 0;
+      let errorCount = 0;
 
-      // 実際のHTML IDに合わせたデータ収集
-      const vehicleData = {};
-      const areas = ['A', 'B', 'C', 'D'];
-      const types = ['shared', 'half_day', 'full_day'];
-      
-      // 2t車のデータ収集
-      areas.forEach(area => {
-        types.forEach(type => {
-          const elementId = `vehicle_2t_${type}_${area}`;
-          vehicleData[`vehicle_2t_${type}_${area}`] = getInputValue(elementId);
-        });
-      });
+      // 専属便料金の保存
+      const dedicatedAreas = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
+      for (const area of dedicatedAreas) {
+        const input = document.getElementById(`dedicated_price_${area}`);
+        if (input && input.value) {
+          const res = await API.put(`/dedicated-pricing/${area}`, { price: parseInt(input.value) || 0 });
+          if (res.success) {
+            successCount++;
+          } else {
+            errorCount++;
+            console.error(`❌ 専属便${area}エリア保存失敗:`, res.error);
+          }
+        }
+      }
 
-      // 4t車のデータ収集
-      areas.forEach(area => {
-        types.forEach(type => {
-          const elementId = `vehicle_4t_${type}_${area}`;
-          vehicleData[`vehicle_4t_${type}_${area}`] = getInputValue(elementId);
-        });
-      });
+      // 混載便料金の保存
+      const konsaiRanks = ['A', 'B', 'C', 'D', 'E', 'F'];
+      for (const rank of konsaiRanks) {
+        const priceEl = document.getElementById(`konsai_price_${rank}`);
+        const roadPermitEl = document.getElementById(`konsai_road_permit_${rank}`);
+        const transportEl = document.getElementById(`konsai_transport_${rank}`);
+        const survey2El = document.getElementById(`konsai_survey2_${rank}`);
+        const survey1El = document.getElementById(`konsai_survey1_${rank}`);
+        const onemanEl = document.getElementById(`konsai_oneman_${rank}`);
+        
+        if (priceEl) {
+          const data = {
+            price: parseInt(priceEl.value) || 0,
+            road_permit_fee: parseInt(roadPermitEl?.value) || 0,
+            transport_vehicle_fee: parseInt(transportEl?.value) || 0,
+            survey_twoman_fee: parseInt(survey2El?.value) || 0,
+            survey_oneman_fee: parseInt(survey1El?.value) || 0,
+            oneman_discount_amount: parseInt(onemanEl?.value) || 15000,
+            overtime_fee: 7000
+          };
+          const res = await API.put(`/konsai-pricing/${rank}`, data);
+          if (res.success) {
+            successCount++;
+          } else {
+            errorCount++;
+            console.error(`❌ 混載便${rank}ランク保存失敗:`, res.error);
+          }
+        }
+      }
 
-      // 既存のAPIの形式に合わせてデータを変換
-      const apiData = {
-        vehicle_rates: vehicleData
-      };
-
-      const response = await API.post('/master-settings', apiData);
-      
-      if (response.success) {
-        Utils.showSuccess('車両料金設定を保存しました');
-        await MasterManagement.loadMasterSettings();
+      if (errorCount === 0) {
+        Utils.showSuccess(`車両料金設定を保存しました（${successCount}件更新）`);
       } else {
-        Utils.showError('保存に失敗しました: ' + response.error);
+        Utils.showError(`一部の保存に失敗しました（成功: ${successCount}件、失敗: ${errorCount}件）`);
       }
 
     } catch (error) {

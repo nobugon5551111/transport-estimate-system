@@ -3571,6 +3571,54 @@ app.put('/api/konsai-pricing/:rank', async (c) => {
   }
 })
 
+// 専属便料金取得（全エリア）
+app.get('/api/dedicated-pricing', async (c) => {
+  try {
+    const { env } = c
+    const results = await env.DB.prepare(`
+      SELECT area, price FROM vehicle_pricing 
+      WHERE vehicle_type = '専属便' AND operation_type = '終日'
+      ORDER BY area ASC
+    `).all()
+    
+    return c.json({ success: true, data: results.results })
+  } catch (error) {
+    console.error('専属便料金取得エラー:', error)
+    return c.json({ success: false, error: '専属便料金の取得に失敗しました' }, 500)
+  }
+})
+
+// 専属便料金更新（マスター画面用）
+app.put('/api/dedicated-pricing/:area', async (c) => {
+  try {
+    const { env } = c
+    const area = c.req.param('area').toUpperCase()
+    const data = await c.req.json()
+    
+    const existing = await env.DB.prepare(`
+      SELECT id FROM vehicle_pricing 
+      WHERE vehicle_type = '専属便' AND operation_type = '終日' AND area = ?
+    `).bind(area).first()
+    
+    if (existing) {
+      await env.DB.prepare(`
+        UPDATE vehicle_pricing SET price = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE vehicle_type = '専属便' AND operation_type = '終日' AND area = ?
+      `).bind(data.price, area).run()
+    } else {
+      await env.DB.prepare(`
+        INSERT INTO vehicle_pricing (vehicle_type, operation_type, area, price, user_id, created_at, updated_at)
+        VALUES ('専属便', '終日', ?, ?, 'system', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `).bind(area, data.price).run()
+    }
+    
+    return c.json({ success: true, message: `専属便${area}エリアの料金を更新しました` })
+  } catch (error) {
+    console.error('専属便料金更新エラー:', error)
+    return c.json({ success: false, error: '専属便料金の更新に失敗しました' }, 500)
+  }
+})
+
 // API: 本社座標取得
 app.get('/api/office-location', async (c) => {
   try {
@@ -7978,155 +8026,66 @@ app.get('/masters', (c) => {
             {/* 車両タブ */}
             <div id="vehicle-content" className="master-content hidden">
               <div className="space-y-6">
-                <h3 className="text-lg font-medium text-gray-900">車両料金設定（エリア別）</h3>
+                <h3 className="text-lg font-medium text-gray-900">車両料金設定</h3>
                 
-                {/* 2t車料金設定 */}
+                {/* 専属便料金設定 */}
+                <div className="bg-orange-50 p-6 rounded-lg">
+                  <h4 className="text-md font-medium text-orange-900 mb-4">
+                    <i className="fas fa-truck-moving mr-2"></i>
+                    専属便料金設定（エリア別）
+                  </h4>
+                  <p className="text-sm text-orange-700 mb-4">各エリアの専属便基本料金を設定します。ワンマン割引は全エリア共通です。</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm border-collapse">
+                      <thead>
+                        <tr className="bg-orange-200">
+                          <th className="border border-orange-300 px-3 py-2 text-left">エリア</th>
+                          <th className="border border-orange-300 px-3 py-2 text-right">基本料金（税抜）</th>
+                        </tr>
+                      </thead>
+                      <tbody id="dedicatedPricingTable">
+                        <tr><td colSpan="2" className="text-center text-gray-500 py-4">読み込み中...</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="mt-4 flex items-center gap-4">
+                    <label className="text-sm font-medium text-orange-800">ワンマン割引額（全エリア共通）:</label>
+                    <div className="flex items-center gap-1">
+                      <span className="text-sm text-orange-700">¥</span>
+                      <input type="number" id="dedicated_oneman_discount" className="form-input text-sm w-32" min="0" step="1000" value="15000" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 混載便料金設定 */}
                 <div className="bg-green-50 p-6 rounded-lg">
                   <h4 className="text-md font-medium text-green-900 mb-4">
-                    <i className="fas fa-truck mr-2"></i>
-                    2t車料金設定
+                    <i className="fas fa-boxes mr-2"></i>
+                    混載便料金設定（ランク別）
                   </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="space-y-3">
-                      <h5 className="font-medium text-green-800">Aエリア（大阪市内・京都市内・神戸市内）</h5>
-                      <div>
-                        <label className="block text-xs text-green-700 mb-1">共配</label>
-                        <input type="number" id="vehicle_2t_shared_A" className="form-input text-sm" min="0" step="1000" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-green-700 mb-1">半日</label>
-                        <input type="number" id="vehicle_2t_half_day_A" className="form-input text-sm" min="0" step="1000" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-green-700 mb-1">終日</label>
-                        <input type="number" id="vehicle_2t_full_day_A" className="form-input text-sm" min="0" step="1000" />
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <h5 className="font-medium text-green-800">Bエリア（関西近郊主要都市）</h5>
-                      <div>
-                        <label className="block text-xs text-green-700 mb-1">共配</label>
-                        <input type="number" id="vehicle_2t_shared_B" className="form-input text-sm" min="0" step="1000" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-green-700 mb-1">半日</label>
-                        <input type="number" id="vehicle_2t_half_day_B" className="form-input text-sm" min="0" step="1000" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-green-700 mb-1">終日</label>
-                        <input type="number" id="vehicle_2t_full_day_B" className="form-input text-sm" min="0" step="1000" />
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <h5 className="font-medium text-green-800">Cエリア（地方都市部）</h5>
-                      <div>
-                        <label className="block text-xs text-green-700 mb-1">共配</label>
-                        <input type="number" id="vehicle_2t_shared_C" className="form-input text-sm" min="0" step="1000" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-green-700 mb-1">半日</label>
-                        <input type="number" id="vehicle_2t_half_day_C" className="form-input text-sm" min="0" step="1000" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-green-700 mb-1">終日</label>
-                        <input type="number" id="vehicle_2t_full_day_C" className="form-input text-sm" min="0" step="1000" />
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <h5 className="font-medium text-green-800">Dエリア（遠方・離島）</h5>
-                      <div>
-                        <label className="block text-xs text-green-700 mb-1">共配</label>
-                        <input type="number" id="vehicle_2t_shared_D" className="form-input text-sm" min="0" step="1000" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-green-700 mb-1">半日</label>
-                        <input type="number" id="vehicle_2t_half_day_D" className="form-input text-sm" min="0" step="1000" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-green-700 mb-1">終日</label>
-                        <input type="number" id="vehicle_2t_full_day_D" className="form-input text-sm" min="0" step="1000" />
-                      </div>
-                    </div>
+                  <p className="text-sm text-green-700 mb-4">各ランクの混載便料金を設定します。時間外追加料金は全ランク共通¥7,000です。</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm border-collapse">
+                      <thead>
+                        <tr className="bg-green-200">
+                          <th className="border border-green-300 px-3 py-2 text-left">ランク</th>
+                          <th className="border border-green-300 px-3 py-2 text-left">距離</th>
+                          <th className="border border-green-300 px-3 py-2 text-right">基本料金</th>
+                          <th className="border border-green-300 px-3 py-2 text-right">道路許可費</th>
+                          <th className="border border-green-300 px-3 py-2 text-right">輸送車両費</th>
+                          <th className="border border-green-300 px-3 py-2 text-right">下見2名</th>
+                          <th className="border border-green-300 px-3 py-2 text-right">下見1名</th>
+                          <th className="border border-green-300 px-3 py-2 text-right">ワンマン割引</th>
+                        </tr>
+                      </thead>
+                      <tbody id="konsaiPricingTable">
+                        <tr><td colSpan="8" className="text-center text-gray-500 py-4">読み込み中...</td></tr>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
 
-                {/* 4t車料金設定 */}
-                <div className="bg-blue-50 p-6 rounded-lg">
-                  <h4 className="text-md font-medium text-blue-900 mb-4">
-                    <i className="fas fa-truck mr-2"></i>
-                    4t車料金設定
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="space-y-3">
-                      <h5 className="font-medium text-blue-800">Aエリア（大阪市内・京都市内・神戸市内）</h5>
-                      <div>
-                        <label className="block text-xs text-blue-700 mb-1">共配</label>
-                        <input type="number" id="vehicle_4t_shared_A" className="form-input text-sm" min="0" step="1000" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-blue-700 mb-1">半日</label>
-                        <input type="number" id="vehicle_4t_half_day_A" className="form-input text-sm" min="0" step="1000" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-blue-700 mb-1">終日</label>
-                        <input type="number" id="vehicle_4t_full_day_A" className="form-input text-sm" min="0" step="1000" />
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <h5 className="font-medium text-blue-800">Bエリア（関西近郊主要都市）</h5>
-                      <div>
-                        <label className="block text-xs text-blue-700 mb-1">共配</label>
-                        <input type="number" id="vehicle_4t_shared_B" className="form-input text-sm" min="0" step="1000" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-blue-700 mb-1">半日</label>
-                        <input type="number" id="vehicle_4t_half_day_B" className="form-input text-sm" min="0" step="1000" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-blue-700 mb-1">終日</label>
-                        <input type="number" id="vehicle_4t_full_day_B" className="form-input text-sm" min="0" step="1000" />
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <h5 className="font-medium text-blue-800">Cエリア（地方都市部）</h5>
-                      <div>
-                        <label className="block text-xs text-blue-700 mb-1">共配</label>
-                        <input type="number" id="vehicle_4t_shared_C" className="form-input text-sm" min="0" step="1000" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-blue-700 mb-1">半日</label>
-                        <input type="number" id="vehicle_4t_half_day_C" className="form-input text-sm" min="0" step="1000" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-blue-700 mb-1">終日</label>
-                        <input type="number" id="vehicle_4t_full_day_C" className="form-input text-sm" min="0" step="1000" />
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <h5 className="font-medium text-blue-800">Dエリア（遠方・離島）</h5>
-                      <div>
-                        <label className="block text-xs text-blue-700 mb-1">共配</label>
-                        <input type="number" id="vehicle_4t_shared_D" className="form-input text-sm" min="0" step="1000" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-blue-700 mb-1">半日</label>
-                        <input type="number" id="vehicle_4t_half_day_D" className="form-input text-sm" min="0" step="1000" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-blue-700 mb-1">終日</label>
-                        <input type="number" id="vehicle_4t_full_day_D" className="form-input text-sm" min="0" step="1000" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-end">
+                <div className="flex justify-end gap-3">
                   <button onclick="saveVehicleSettings()" className="btn-success">
                     <i className="fas fa-save mr-2"></i>
                     車両設定を保存
