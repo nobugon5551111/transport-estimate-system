@@ -6740,21 +6740,21 @@ app.get('/estimate/step5', (c) => {
                     <input type="radio" name="work_time_type" value="early" className="mr-3" onChange="updateServicesCost()" />
                     <div>
                       <div className="font-medium">早朝</div>
-                      <div className="text-xs text-gray-500">20%割増</div>
+                      <div className="text-xs text-gray-500">25%割増</div>
                     </div>
                   </label>
                   <label className="flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50">
                     <input type="radio" name="work_time_type" value="night" className="mr-3" onChange="updateServicesCost()" />
                     <div>
                       <div className="font-medium">夜間</div>
-                      <div className="text-xs text-gray-500">50%割増</div>
+                      <div className="text-xs text-gray-500">25%割増</div>
                     </div>
                   </label>
                   <label className="flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50">
                     <input type="radio" name="work_time_type" value="midnight" className="mr-3" onChange="updateServicesCost()" />
                     <div>
                       <div className="font-medium">深夜</div>
-                      <div className="text-xs text-gray-500">100%割増</div>
+                      <div className="text-xs text-gray-500">50%割増</div>
                     </div>
                   </label>
                 </div>

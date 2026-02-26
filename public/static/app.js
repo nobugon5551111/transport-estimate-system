@@ -2525,10 +2525,9 @@ const Step5Implementation = {
           construction_m2_staff: parseFloat(apiData.m2_staff_rate) || 12500,
           work_time_multiplier: {
             normal: parseFloat(apiData.normal) || 1.0,
-            early: parseFloat(apiData.early) || 1.2,
-            evening: 1.25,  // データベースにないのでデフォルト値
-            night: parseFloat(apiData.night) || 1.5,
-            midnight: parseFloat(apiData.midnight) || 2.0
+            early: parseFloat(apiData.early) || 1.25,
+            night: parseFloat(apiData.night) || 1.25,
+            midnight: parseFloat(apiData.midnight) || 1.5
           }
         };
         console.log('✅ サービスレート変換完了（マスターデータ使用）:', Step5Implementation.serviceRates);
@@ -2543,7 +2542,7 @@ const Step5Implementation = {
           protection_work_per_floor: 3000,
           material_collection: { none: 0, few: 6000, medium: 12000, many: 20000 },
           construction_m2_staff: 12500,
-          work_time_multiplier: { normal: 1.0, early: 1.2, evening: 1.25, night: 1.5, midnight: 2.0 }
+          work_time_multiplier: { normal: 1.0, early: 1.25, night: 1.25, midnight: 1.5 }
         };
         console.warn('⚠️ サービス料金APIエラー、デフォルト値を使用します');
       }
@@ -2558,7 +2557,7 @@ const Step5Implementation = {
         protection_work_per_floor: 3000,
         material_collection: { none: 0, few: 6000, medium: 12000, many: 20000 },
         construction_m2_staff: 12500,
-        work_time_multiplier: { normal: 1.0, early: 1.2, evening: 1.25, night: 1.5, midnight: 2.0 }
+        work_time_multiplier: { normal: 1.0, early: 1.25, night: 1.25, midnight: 1.5 }
       };
       console.error('❌ サービス料金の取得に失敗しました、デフォルト値を使用します:', error);
     }
@@ -2691,7 +2690,7 @@ const Step5Implementation = {
         protection_work_per_floor: 3000,
         material_collection: { none: 0, few: 6000, medium: 12000, many: 20000 },
         construction_m2_staff: 12500,
-        work_time_multiplier: { normal: 1.0, evening: 1.25, night: 1.5, midnight: 2.0 }
+        work_time_multiplier: { normal: 1.0, early: 1.25, night: 1.25, midnight: 1.5 }
       };
     }
 
@@ -3053,10 +3052,9 @@ const Step6Implementation = {
           construction_m2_staff: parseFloat(apiData.m2_staff_rate) || 12500,
           work_time_multiplier: {
             normal: parseFloat(apiData.normal) || 1.0,
-            early: parseFloat(apiData.early) || 1.2,
-            evening: 1.25,
-            night: parseFloat(apiData.night) || 1.5,
-            midnight: parseFloat(apiData.midnight) || 2.0
+            early: parseFloat(apiData.early) || 1.25,
+            night: parseFloat(apiData.night) || 1.25,
+            midnight: parseFloat(apiData.midnight) || 1.5
           }
         };
         console.log('✅ STEP6: サービスレート取得完了:', Step5Implementation.serviceRates);
@@ -3072,7 +3070,7 @@ const Step6Implementation = {
         protection_work_per_floor: 3000,
         material_collection: { none: 0, few: 5000, medium: 10000, many: 15000 },
         construction_m2_staff: 12500,
-        work_time_multiplier: { normal: 1.0, early: 1.2, evening: 1.25, night: 1.5, midnight: 2.0 }
+        work_time_multiplier: { normal: 1.0, early: 1.25, night: 1.25, midnight: 1.5 }
       };
     }
 
@@ -3460,8 +3458,8 @@ const Step6Implementation = {
       material_collection_medium_rate: 4000,
       material_collection_large_rate: 6000,
       construction_m2_staff_rate: 12500,
-      early_morning_multiplier: 1.2,
-      late_night_multiplier: 1.5,
+      early_morning_multiplier: 1.25,
+      late_night_multiplier: 1.25,
       holiday_multiplier: 1.3
     };
 
@@ -6005,9 +6003,9 @@ if (typeof MasterManagement === 'undefined') {
     // 施工・作業時間帯
     setInputValue('service_construction_m2', serviceRates.construction_m2_staff_rate || 8000);
     setInputValue('service_time_normal', serviceRates.time_normal || 1.0);
-    setInputValue('service_time_early', serviceRates.time_early || 1.2);
-    setInputValue('service_time_night', serviceRates.time_night || 1.5);
-    setInputValue('service_time_midnight', serviceRates.time_midnight || 2.0);
+    setInputValue('service_time_early', serviceRates.time_early || 1.25);
+    setInputValue('service_time_night', serviceRates.time_night || 1.25);
+    setInputValue('service_time_midnight', serviceRates.time_midnight || 1.5);
     
     // システム設定
     setInputValue('system_tax_rate', systemSettings.tax_rate || 0.10);
@@ -6036,9 +6034,9 @@ if (typeof MasterManagement === 'undefined') {
     setInputValue('service_material_many', 15000);
     setInputValue('service_construction_m2', 8000);
     setInputValue('service_time_normal', 1.0);
-    setInputValue('service_time_early', 1.2);
-    setInputValue('service_time_night', 1.5);
-    setInputValue('service_time_midnight', 2.0);
+    setInputValue('service_time_early', 1.25);
+    setInputValue('service_time_night', 1.25);
+    setInputValue('service_time_midnight', 1.5);
     setInputValue('system_tax_rate', 0.10);
     setInputValue('system_estimate_prefix', 'EST');
   },

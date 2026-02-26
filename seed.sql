@@ -74,9 +74,9 @@ INSERT OR IGNORE INTO master_settings (category, subcategory, key, value, data_t
   
   -- 作業時間帯割増率
   ('service', 'work_time', 'normal', '1.0', 'number', '通常時間帯', 'test-user-001'),
-  ('service', 'work_time', 'early', '1.2', 'number', '早朝割増', 'test-user-001'),
-  ('service', 'work_time', 'night', '1.5', 'number', '夜間割増', 'test-user-001'),
-  ('service', 'work_time', 'midnight', '2.0', 'number', '深夜割増', 'test-user-001'),
+  ('service', 'work_time', 'early', '1.25', 'number', '早朝割増（25%）', 'test-user-001'),
+  ('service', 'work_time', 'night', '1.25', 'number', '夜間割増（25%）', 'test-user-001'),
+  ('service', 'work_time', 'midnight', '1.5', 'number', '深夜割増（50%）', 'test-user-001'),
   
   -- システム設定
   ('system', 'tax', 'rate', '0.1', 'number', '消費税率', 'test-user-001'),
