@@ -5770,16 +5770,24 @@ if (typeof MasterManagement === 'undefined') {
   },
 
   // マスタ設定データ読み込み
-  loadMasterSettings: async () => {
-
-    
+  loadMasterSettings: async (forceRefresh = false) => {
     try {
       const response = await API.get('/master-settings');
       if (response.success) {
-
         MasterManagement.masterSettings = response.data;
+        
+        // 強制リフレッシュ時はデータ保護フラグをリセット
+        if (forceRefresh) {
+          MasterManagement._dataPopulated = false;
+        }
+        
         // データをUIに反映
         MasterManagement.populateUIWithData();
+        
+        // 強制リフレッシュ時はスタッフ・エリア設定も明示的に再表示
+        if (forceRefresh) {
+          MasterManagement.displayStaffAreaSettings();
+        }
       }
     } catch (error) {
       console.error('マスタ設定読み込みエラー:', error);
@@ -6239,7 +6247,7 @@ if (typeof MasterManagement === 'undefined') {
       
       if (response.success) {
         Utils.showSuccess('スタッフ料金設定を保存しました');
-        await MasterManagement.loadMasterSettings();
+        await MasterManagement.loadMasterSettings(true);
       } else {
         Utils.showError('保存に失敗しました: ' + response.error);
       }
@@ -6375,7 +6383,7 @@ if (typeof MasterManagement === 'undefined') {
         MasterManagement._dataPopulated = false; // フラグをリセット
         MasterManagement._servicesDisplayed = false; // サービス表示フラグもリセット
         MasterManagement.masterSettings = null;  // キャッシュをクリア
-        await MasterManagement.loadMasterSettings();
+        await MasterManagement.loadMasterSettings(true);
         // サービス設定を強制的に再表示
         MasterManagement.displayServicesSettings();
       } else {
@@ -6416,7 +6424,7 @@ if (typeof MasterManagement === 'undefined') {
       
       if (response.success) {
         Utils.showSuccess('スタッフ料金設定を保存しました');
-        await MasterManagement.loadMasterSettings();
+        await MasterManagement.loadMasterSettings(true);
       } else {
         Utils.showError('保存に失敗しました: ' + response.error);
       }
