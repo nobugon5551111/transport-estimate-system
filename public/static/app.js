@@ -2226,14 +2226,14 @@ const Step4Implementation = {
     if (hasM2Staff) {
       m2StaffSection?.classList.remove('hidden');
       
-      // M2半日
+      // 一般社員
       if (counts.m2HalfDay > 0) {
         const m2HalfDiv = document.getElementById('m2HalfDayPricing');
         const m2HalfDetails = document.getElementById('m2HalfDayDetails');
         const m2HalfCost = document.getElementById('m2HalfDayCost');
         
         m2HalfDiv?.classList.remove('hidden');
-        if (m2HalfDetails) m2HalfDetails.textContent = `${counts.m2HalfDay}人 × ¥${rates.m2_half_day.toLocaleString()}/半日`;
+        if (m2HalfDetails) m2HalfDetails.textContent = `${counts.m2HalfDay}人 × ¥${rates.m2_half_day.toLocaleString()}/日`;
         if (m2HalfCost) m2HalfCost.textContent = Utils.formatCurrency(costs.m2_half_day);
       } else {
         document.getElementById('m2HalfDayPricing')?.classList.add('hidden');
@@ -2347,7 +2347,7 @@ const Step4Implementation = {
     let staffList = [];
     if (suggestion.supervisor_count > 0) staffList.push(`スーパーバイザー: ${suggestion.supervisor_count}人`);
     if (suggestion.leader_count > 0) staffList.push(`リーダー以上: ${suggestion.leader_count}人`);
-    if (suggestion.m2_staff_half_day > 0) staffList.push(`M2スタッフ（半日）: ${suggestion.m2_staff_half_day}人`);
+    if (suggestion.m2_staff_half_day > 0) staffList.push(`一般社員: ${suggestion.m2_staff_half_day}人`);
     if (suggestion.m2_staff_full_day > 0) staffList.push(`M2スタッフ（終日）: ${suggestion.m2_staff_full_day}人`);
     if (suggestion.temp_staff_half_day > 0) staffList.push(`派遣スタッフ（半日）: ${suggestion.temp_staff_half_day}人`);
     if (suggestion.temp_staff_full_day > 0) staffList.push(`派遣スタッフ（終日）: ${suggestion.temp_staff_full_day}人`);
@@ -3495,7 +3495,7 @@ const Step6Implementation = {
     if (staff.m2_staff_half_day > 0) {
       const cost = staff.m2_staff_half_day * staffRates.m2_half_day;
       totalCalculatedCost += cost;
-      details.push(`<div class="flex justify-between px-4 py-2"><span>M2スタッフ（半日）${staff.m2_staff_half_day}人 (¥${staffRates.m2_half_day.toLocaleString()}/人)</span><span>${Utils.formatCurrency(cost)}</span></div>`);
+      details.push(`<div class="flex justify-between px-4 py-2"><span>一般社員 ${staff.m2_staff_half_day}人 (¥${staffRates.m2_half_day.toLocaleString()}/人)</span><span>${Utils.formatCurrency(cost)}</span></div>`);
     }
     if (staff.m2_staff_full_day > 0) {
       const cost = staff.m2_staff_full_day * staffRates.m2_full_day;
@@ -4006,10 +4006,10 @@ const Step6Implementation = {
         });
       }
       
-      // M2スタッフ（半日）
+      // 一般社員
       if (staff.m2_staff_half_day > 0) {
         lineItems.staff.items.push({
-          description: `M2スタッフ（半日）${staff.m2_staff_half_day}名`,
+          description: `一般社員 ${staff.m2_staff_half_day}名`,
           detail: `@ ¥${staffRates.m2_half_day.toLocaleString()}`,
           quantity: staff.m2_staff_half_day,
           unit_price: staffRates.m2_half_day,
@@ -4971,7 +4971,7 @@ const Step6Implementation = {
     const staffTypes = [
       { key: 'supervisor', label: 'スーパーバイザー', count: staff.supervisor_count },
       { key: 'leader', label: 'リーダー以上', count: staff.leader_count },
-      { key: 'm2_half_day', label: 'M2スタッフ（半日）', count: staff.m2_staff_half_day },
+      { key: 'm2_half_day', label: '一般社員', count: staff.m2_staff_half_day },
       { key: 'm2_full_day', label: 'M2スタッフ（終日）', count: staff.m2_staff_full_day },
       { key: 'temp_half_day', label: '派遣スタッフ（半日）', count: staff.temp_staff_half_day },
       { key: 'temp_full_day', label: '派遣スタッフ（終日）', count: staff.temp_staff_full_day }
@@ -5079,7 +5079,7 @@ const Step6Implementation = {
     if (staff.m2_staff_half_day > 0) {
       const cost = staff.m2_staff_half_day * staffRates.m2_half_day;
       totalCalculatedCost += cost;
-      details.push(`<div class="flex justify-between px-4 py-2"><span>M2スタッフ（半日）${staff.m2_staff_half_day}人 (¥${staffRates.m2_half_day.toLocaleString()}/人) ${modifiedLabel}</span><span>${Utils.formatCurrency(cost)}</span></div>`);
+      details.push(`<div class="flex justify-between px-4 py-2"><span>一般社員 ${staff.m2_staff_half_day}人 (¥${staffRates.m2_half_day.toLocaleString()}/人) ${modifiedLabel}</span><span>${Utils.formatCurrency(cost)}</span></div>`);
     }
     if (staff.m2_staff_full_day > 0) {
       const cost = staff.m2_staff_full_day * staffRates.m2_full_day;
@@ -9850,7 +9850,7 @@ const EstimateManagement = {
               ` : ''}
               ${estimate.m2_staff_half_day > 0 ? `
                 <div>
-                  <span class="text-sm font-medium text-gray-600">M2スタッフ（半日）:</span>
+                  <span class="text-sm font-medium text-gray-600">一般社員:</span>
                   <p class="mt-1 text-sm text-gray-900">${estimate.m2_staff_half_day}名</p>
                 </div>
               ` : ''}
@@ -10497,7 +10497,7 @@ const AIFeatures = {
               <span class="font-medium">${recommendation.m2_staff_full_day}名</span>
             </div>
             <div class="flex justify-between">
-              <span>M2スタッフ(半日):</span>
+              <span>一般社員:</span>
               <span class="font-medium">${recommendation.m2_staff_half_day}名</span>
             </div>
             <div class="flex justify-between">

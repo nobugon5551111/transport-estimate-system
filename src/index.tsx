@@ -1176,7 +1176,7 @@ app.get('/test-step4-fixed', (c) => {
                 <div class="bg-yellow-50 p-4 rounded-lg">
                     <label class="block text-sm font-medium text-yellow-900 mb-2">
                         <i class="fas fa-user mr-2"></i>
-                        M2スタッフ半日（<span id="rate-display-m2-half">...</span>円/半日）
+                        一般社員（<span id="rate-display-m2-half">...</span>円/日）
                     </label>
                     <input type="number" id="rate_m2_half_day" class="form-input" min="0" step="500" />
                 </div>
@@ -2414,7 +2414,7 @@ app.post('/api/master-staff-rates', async (c) => {
     const staffRateUpdates = [
       { key: 'supervisor_rate', value: data.supervisor_rate, description: 'スタッフ主任単価（円/日）' },
       { key: 'leader_rate', value: data.leader_rate, description: 'スタッフリーダー単価（円/日）' },
-      { key: 'm2_half_day_rate', value: data.m2_half_day_rate, description: 'M2作業員半日単価（円/半日）' },
+      { key: 'm2_half_day_rate', value: data.m2_half_day_rate, description: '一般社員単価（円/日）' },
       { key: 'm2_full_day_rate', value: data.m2_full_day_rate, description: 'M2作業員終日単価（円/日）' },
       { key: 'temp_half_day_rate', value: data.temp_half_day_rate, description: '臨時作業員半日単価（円/半日）' },
       { key: 'temp_full_day_rate', value: data.temp_full_day_rate, description: '臨時作業員終日単価（円/日）' }
@@ -6069,13 +6069,13 @@ app.get('/estimate/step4', (c) => {
               <div>
                 <h4 className="text-lg font-medium text-gray-900 mb-4">追加スタッフ</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* M2スタッフ */}
+                  {/* M2スタッフ / 一般社員 */}
                   <div className="space-y-4">
                     <h5 className="font-medium text-gray-800">M2スタッフ</h5>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        半日勤務
-                        <span className="text-xs text-gray-500 ml-2">（¥<span id="rate-display-m2-half">...</span>/半日）</span>
+                        一般社員
+                        <span className="text-xs text-gray-500 ml-2">（¥<span id="rate-display-m2-half">...</span>/日）</span>
                       </label>
                       <div className="flex items-center space-x-3">
                         <input 
@@ -6191,7 +6191,7 @@ app.get('/estimate/step4', (c) => {
                   <div id="m2HalfDayPricing" className="flex justify-between items-center py-2 px-3 bg-white border border-green-200 rounded hidden">
                     <div className="flex items-center">
                       <i className="fas fa-user mr-2 text-green-600"></i>
-                      <span className="text-sm font-medium text-gray-700">M2スタッフ（半日）</span>
+                      <span className="text-sm font-medium text-gray-700">一般社員</span>
                       <span id="m2HalfDayDetails" className="text-xs text-gray-500 ml-2"></span>
                     </div>
                     <span id="m2HalfDayCost" className="text-lg font-semibold text-green-700">¥0</span>
@@ -7964,7 +7964,7 @@ app.get('/masters', (c) => {
                     <div className="bg-yellow-50 p-4 rounded-lg">
                       <label className="block text-sm font-medium text-yellow-900 mb-2">
                         <i className="fas fa-user mr-2"></i>
-                        M2スタッフ半日（<span id="rate-display-m2-half">...</span>円/半日）
+                        一般社員（<span id="rate-display-m2-half">...</span>円/日）
                       </label>
                       <input type="number" id="rate_m2_half_day" className="form-input" min="0" step="500" />
                     </div>
@@ -8652,7 +8652,7 @@ app.post('/api/master-settings', async (c) => {
       const staffDescriptions = {
         supervisor: 'スーパーバイザー日当',
         leader: 'リーダー以上日当',
-        m2_half_day: 'M2スタッフ半日',
+        m2_half_day: '一般社員',
         m2_full_day: 'M2スタッフ終日',
         temp_half_day: '派遣スタッフ半日',
         temp_full_day: '派遣スタッフ終日'
@@ -11733,7 +11733,7 @@ function compareStaffConfiguration(current: any, recommended: any) {
     { key: 'supervisor_count', label: '監督者', cost: 15000 },
     { key: 'leader_count', label: 'リーダー', cost: 12000 },
     { key: 'm2_staff_full_day', label: 'M2スタッフ（終日）', cost: 10000 },
-    { key: 'm2_staff_half_day', label: 'M2スタッフ（半日）', cost: 6000 },
+    { key: 'm2_staff_half_day', label: '一般社員', cost: 6000 },
     { key: 'temp_staff_full_day', label: '派遣スタッフ（終日）', cost: 9000 },
     { key: 'temp_staff_half_day', label: '派遣スタッフ（半日）', cost: 5500 }
   ]
@@ -15108,14 +15108,14 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                 `);
               }
               
-              // M2スタッフ（半日）
+              // 一般社員
               if (estimate.m2_staff_half_day && estimate.m2_staff_half_day > 0) {
                 const unitPrice = rates.m2_half_day || 0;
                 const count = estimate.m2_staff_half_day;
                 const total = unitPrice * count;
                 staffRows.push(`
                   <tr>
-                    <td>&nbsp;&nbsp;M2スタッフ（半日）${count}名 ¥${unitPrice.toLocaleString()} × ${count} = ¥${total.toLocaleString()}</td>
+                    <td>&nbsp;&nbsp;一般社員 ${count}名 ¥${unitPrice.toLocaleString()} × ${count} = ¥${total.toLocaleString()}</td>
                     <td class="amount-cell">¥${total.toLocaleString()}</td>
                   </tr>
                 `);
