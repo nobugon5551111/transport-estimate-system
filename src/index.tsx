@@ -13345,25 +13345,33 @@ function generateFreePdfHTML(estimate: any, items: any[], basicSettings: any = {
             vertical-align: top;
         }
         
-        /* 金額（税抜）合計ボックス - ヘッダー直下右側 */
+        /* 金額合計ボックス - ヘッダー直下右側 */
         .top-total-box {
             float: right;
             border: 3px solid #2563eb;
             padding: 12px 24px;
             margin-bottom: 20px;
             text-align: center;
-            min-width: 280px;
+            min-width: 300px;
         }
         .top-total-label {
-            font-size: 14px;
-            color: #374151;
+            font-size: 12px;
+            color: #6b7280;
             font-weight: bold;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
         }
         .top-total-amount {
             font-size: 26px;
             font-weight: bold;
             color: #1e3a5f;
+        }
+        .top-total-sub {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 4px;
+        }
+        .top-total-sub span {
+            margin: 0 6px;
         }
     </style>
 </head>
@@ -13380,10 +13388,14 @@ function generateFreePdfHTML(estimate: any, items: any[], basicSettings: any = {
         <img src="${basicSettings.logo || COMPANY_LOGO_DATA_URI}" alt="会社ロゴ" class="company-logo" />
     </div>
     
-    <!-- 金額（税抜）合計ボックス - ヘッダー直下右側 -->
+    <!-- 金額（税込）合計ボックス - ヘッダー直下右側 -->
     <div class="top-total-box">
-        <div class="top-total-label">金額（税抜）</div>
-        <div class="top-total-amount">¥${estimate.subtotal.toLocaleString()}-</div>
+        <div class="top-total-label">お見積金額（税込）</div>
+        <div class="top-total-amount">¥${estimate.total_amount.toLocaleString()}-</div>
+        <div class="top-total-sub">
+            <span>本体 ¥${estimate.subtotal.toLocaleString()}</span>
+            <span>税 ¥${estimate.tax_amount.toLocaleString()}</span>
+        </div>
     </div>
     
     <div style="clear: both;"></div>
@@ -14822,25 +14834,33 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
             vertical-align: top;
         }
         
-        /* 金額（税抜）合計ボックス - ヘッダー直下右側 */
+        /* 金額合計ボックス - ヘッダー直下右側 */
         .top-total-box {
             float: right;
             border: 3px solid #2563eb;
             padding: 12px 24px;
             margin-bottom: 20px;
             text-align: center;
-            min-width: 280px;
+            min-width: 300px;
         }
         .top-total-label {
-            font-size: 14px;
-            color: #374151;
+            font-size: 12px;
+            color: #6b7280;
             font-weight: bold;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
         }
         .top-total-amount {
             font-size: 26px;
             font-weight: bold;
             color: #1e3a5f;
+        }
+        .top-total-sub {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 4px;
+        }
+        .top-total-sub span {
+            margin: 0 6px;
         }
     </style>
 </head>
@@ -14857,27 +14877,84 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
         <img src="${basicSettings.logo || COMPANY_LOGO_DATA_URI}" alt="会社ロゴ" class="company-logo" />
     </div>
     
-    <!-- 金額（税抜）合計ボックス - ヘッダー直下右側 -->
+    <!-- 金額（税込）合計ボックス - ヘッダー直下右側 -->
     <div class="top-total-box">
-        <div class="top-total-label">金額（税抜）</div>
+        <div class="top-total-label">お見積金額（税込）</div>
         <div class="top-total-amount">¥${(() => {
+          // 小計を計算
+          let subtotal = 0;
           if (lineItems && estimate.subtotal > 0) {
-            return estimate.subtotal.toLocaleString();
+            subtotal = estimate.subtotal;
+          } else {
+            const vc = estimate.vehicle_cost || 0;
+            const sc = calculatedStaffCost;
+            const dc = (estimate.vehicle_dedicated_unit_price || 0) * (estimate.vehicle_dedicated_count || 0);
+            const cc = (estimate.vehicle_charter_unit_price || 0) * (estimate.vehicle_charter_count || 0);
+            const tvf = estimate.transport_vehicle_fee || 0;
+            const rpf = estimate.road_permit_fee || 0;
+            const sf = estimate.survey_fee || 0;
+            const svc = (estimate.site_survey_cost || 0) + (estimate.parking_officer_cost || 0) + (estimate.transport_cost || 0) + (estimate.waste_disposal_cost || 0) + (estimate.protection_cost || 0) + (estimate.material_collection_cost || 0) + (estimate.construction_cost || 0) + (estimate.parking_fee || 0) + (estimate.highway_fee || 0) + (estimate.external_contractor_cost || 0);
+            let wtp = 0;
+            if (estimate.work_time_type && estimate.work_time_type !== 'normal' && estimate.work_time_multiplier > 1) {
+              wtp = Math.round((vc + sc) * (estimate.work_time_multiplier - 1));
+            }
+            subtotal = Math.round(vc + sc + svc + wtp + dc + cc + tvf + rpf + sf);
           }
-          const vc = estimate.vehicle_cost || 0;
-          const sc = calculatedStaffCost;
-          const dc = (estimate.vehicle_dedicated_unit_price || 0) * (estimate.vehicle_dedicated_count || 0);
-          const cc = (estimate.vehicle_charter_unit_price || 0) * (estimate.vehicle_charter_count || 0);
-          const tvf = estimate.transport_vehicle_fee || 0;
-          const rpf = estimate.road_permit_fee || 0;
-          const sf = estimate.survey_fee || 0;
-          const svc = (estimate.site_survey_cost || 0) + (estimate.parking_officer_cost || 0) + (estimate.transport_cost || 0) + (estimate.waste_disposal_cost || 0) + (estimate.protection_cost || 0) + (estimate.material_collection_cost || 0) + (estimate.construction_cost || 0) + (estimate.parking_fee || 0) + (estimate.highway_fee || 0) + (estimate.external_contractor_cost || 0);
-          let wtp = 0;
-          if (estimate.work_time_type && estimate.work_time_type !== 'normal' && estimate.work_time_multiplier > 1) {
-            wtp = Math.round((vc + sc) * (estimate.work_time_multiplier - 1));
-          }
-          return Math.round(vc + sc + svc + wtp + dc + cc + tvf + rpf + sf).toLocaleString();
+          // 値引き適用
+          const discounted = Math.max(0, subtotal - (estimate.discount_amount || 0));
+          // 税額計算
+          const taxRate = estimate.tax_rate || 0.1;
+          const tax = (lineItems && estimate.tax_amount > 0) ? estimate.tax_amount : Math.floor(discounted * taxRate);
+          const total = (lineItems && estimate.total_amount > 0) ? estimate.total_amount : (discounted + tax);
+          return total.toLocaleString();
         })()}-</div>
+        <div class="top-total-sub">
+            <span>本体 ¥${(() => {
+              let subtotal = 0;
+              if (lineItems && estimate.subtotal > 0) {
+                subtotal = estimate.subtotal;
+              } else {
+                const vc = estimate.vehicle_cost || 0;
+                const sc = calculatedStaffCost;
+                const dc = (estimate.vehicle_dedicated_unit_price || 0) * (estimate.vehicle_dedicated_count || 0);
+                const cc = (estimate.vehicle_charter_unit_price || 0) * (estimate.vehicle_charter_count || 0);
+                const tvf = estimate.transport_vehicle_fee || 0;
+                const rpf = estimate.road_permit_fee || 0;
+                const sf = estimate.survey_fee || 0;
+                const svc = (estimate.site_survey_cost || 0) + (estimate.parking_officer_cost || 0) + (estimate.transport_cost || 0) + (estimate.waste_disposal_cost || 0) + (estimate.protection_cost || 0) + (estimate.material_collection_cost || 0) + (estimate.construction_cost || 0) + (estimate.parking_fee || 0) + (estimate.highway_fee || 0) + (estimate.external_contractor_cost || 0);
+                let wtp = 0;
+                if (estimate.work_time_type && estimate.work_time_type !== 'normal' && estimate.work_time_multiplier > 1) {
+                  wtp = Math.round((vc + sc) * (estimate.work_time_multiplier - 1));
+                }
+                subtotal = Math.round(vc + sc + svc + wtp + dc + cc + tvf + rpf + sf);
+              }
+              return Math.max(0, subtotal - (estimate.discount_amount || 0)).toLocaleString();
+            })()}</span>
+            <span>税 ¥${(() => {
+              let subtotal = 0;
+              if (lineItems && estimate.subtotal > 0) {
+                subtotal = estimate.subtotal;
+              } else {
+                const vc = estimate.vehicle_cost || 0;
+                const sc = calculatedStaffCost;
+                const dc = (estimate.vehicle_dedicated_unit_price || 0) * (estimate.vehicle_dedicated_count || 0);
+                const cc = (estimate.vehicle_charter_unit_price || 0) * (estimate.vehicle_charter_count || 0);
+                const tvf = estimate.transport_vehicle_fee || 0;
+                const rpf = estimate.road_permit_fee || 0;
+                const sf = estimate.survey_fee || 0;
+                const svc = (estimate.site_survey_cost || 0) + (estimate.parking_officer_cost || 0) + (estimate.transport_cost || 0) + (estimate.waste_disposal_cost || 0) + (estimate.protection_cost || 0) + (estimate.material_collection_cost || 0) + (estimate.construction_cost || 0) + (estimate.parking_fee || 0) + (estimate.highway_fee || 0) + (estimate.external_contractor_cost || 0);
+                let wtp = 0;
+                if (estimate.work_time_type && estimate.work_time_type !== 'normal' && estimate.work_time_multiplier > 1) {
+                  wtp = Math.round((vc + sc) * (estimate.work_time_multiplier - 1));
+                }
+                subtotal = Math.round(vc + sc + svc + wtp + dc + cc + tvf + rpf + sf);
+              }
+              const discounted = Math.max(0, subtotal - (estimate.discount_amount || 0));
+              const taxRate = estimate.tax_rate || 0.1;
+              if (lineItems && estimate.tax_amount > 0) return estimate.tax_amount.toLocaleString();
+              return Math.floor(discounted * taxRate).toLocaleString();
+            })()}</span>
+        </div>
     </div>
     
     <div style="clear: both;"></div>
