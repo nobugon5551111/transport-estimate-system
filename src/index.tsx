@@ -3595,6 +3595,7 @@ app.put('/api/dedicated-pricing/:area', async (c) => {
     const area = c.req.param('area').toUpperCase()
     const data = await c.req.json()
     
+    // 1. vehicle_pricing テーブルを更新
     const existing = await env.DB.prepare(`
       SELECT id FROM vehicle_pricing 
       WHERE vehicle_type = '専属便' AND operation_type = '終日' AND area = ?
@@ -3610,6 +3611,24 @@ app.put('/api/dedicated-pricing/:area', async (c) => {
         INSERT INTO vehicle_pricing (vehicle_type, operation_type, area, price, user_id, created_at, updated_at)
         VALUES ('専属便', '終日', ?, ?, 'system', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `).bind(area, data.price).run()
+    }
+    
+    // 2. distance_area_pricing テーブルも同期更新（見積画面Step3が参照するテーブル）
+    try {
+      const distPricing = await env.DB.prepare(`
+        SELECT id FROM distance_area_pricing WHERE area_rank = ?
+      `).bind(area).first()
+      
+      if (distPricing) {
+        await env.DB.prepare(`
+          UPDATE distance_area_pricing 
+          SET dedicated_price_1 = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE area_rank = ?
+        `).bind(data.price, area).run()
+        console.log(`distance_area_pricing ${area}ランクも同期更新: ¥${data.price}`)
+      }
+    } catch (syncError) {
+      console.warn(`distance_area_pricing同期更新スキップ（${area}）:`, syncError)
     }
     
     return c.json({ success: true, message: `チャーター便${area}エリアの料金を更新しました` })
