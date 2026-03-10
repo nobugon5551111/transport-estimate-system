@@ -3465,7 +3465,7 @@ app.get('/api/konsai-pricing/by-area', async (c) => {
       return c.json({ 
         success: true, 
         out_of_area: true, 
-        message: '混載便エリア外です。専属便をご利用ください。',
+        message: '混載便エリア外です。チャーター便をご利用ください。',
         original_rank: upper
       })
     }
@@ -3571,7 +3571,7 @@ app.put('/api/konsai-pricing/:rank', async (c) => {
   }
 })
 
-// 専属便料金取得（全エリア）
+// チャーター便料金取得（全エリア）
 app.get('/api/dedicated-pricing', async (c) => {
   try {
     const { env } = c
@@ -3583,12 +3583,12 @@ app.get('/api/dedicated-pricing', async (c) => {
     
     return c.json({ success: true, data: results.results })
   } catch (error) {
-    console.error('専属便料金取得エラー:', error)
-    return c.json({ success: false, error: '専属便料金の取得に失敗しました' }, 500)
+    console.error('チャーター便料金取得エラー:', error)
+    return c.json({ success: false, error: 'チャーター便料金の取得に失敗しました' }, 500)
   }
 })
 
-// 専属便料金更新（マスター画面用）
+// チャーター便料金更新（マスター画面用）
 app.put('/api/dedicated-pricing/:area', async (c) => {
   try {
     const { env } = c
@@ -3612,10 +3612,10 @@ app.put('/api/dedicated-pricing/:area', async (c) => {
       `).bind(area, data.price).run()
     }
     
-    return c.json({ success: true, message: `専属便${area}エリアの料金を更新しました` })
+    return c.json({ success: true, message: `チャーター便${area}エリアの料金を更新しました` })
   } catch (error) {
-    console.error('専属便料金更新エラー:', error)
-    return c.json({ success: false, error: '専属便料金の更新に失敗しました' }, 500)
+    console.error('チャーター便料金更新エラー:', error)
+    return c.json({ success: false, error: 'チャーター便料金の更新に失敗しました' }, 500)
   }
 })
 
@@ -5398,7 +5398,7 @@ app.get('/estimate/step3', (c) => {
         <div className="bg-white shadow rounded-lg p-6">
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">車両・便種選択</h2>
-            <p className="text-gray-600">便種（専属便・混載便）を選択してください。配送エリアに基づいて料金が自動計算されます。</p>
+            <p className="text-gray-600">便種（チャーター便・混載便）を選択してください。配送エリアに基づいて料金が自動計算されます。</p>
           </div>
 
           {/* 選択済み情報表示 */}
@@ -5420,13 +5420,13 @@ app.get('/estimate/step3', (c) => {
             </div>
           </div>
 
-          {/* 便種選択（専属便 or 混載便） */}
+          {/* 便種選択（チャーター便 or 混載便） */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-3">
               便種を選択 <span className="text-red-500">*</span>
             </label>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* 専属便カード */}
+              {/* チャーター便カード */}
               <div 
                 id="serviceTypeDedicated" 
                 onclick="handleServiceTypeChange('dedicated')"
@@ -5437,7 +5437,7 @@ app.get('/estimate/step3', (c) => {
                     <i className="fas fa-truck-moving text-orange-600 text-lg"></i>
                   </div>
                   <div>
-                    <h4 className="text-lg font-bold text-gray-900">専属便</h4>
+                    <h4 className="text-lg font-bold text-gray-900">チャーター便</h4>
                     <span className="text-xs text-gray-500">エリア A〜I対応</span>
                   </div>
                 </div>
@@ -5472,16 +5472,16 @@ app.get('/estimate/step3', (c) => {
               <i className="fas fa-exclamation-triangle text-red-500 text-xl mr-3"></i>
               <div>
                 <p className="text-red-700 font-bold">混載便エリア外です</p>
-                <p className="text-red-600 text-sm">このエリアは混載便の対応範囲外（A〜Fランクまで）です。専属便をご利用ください。</p>
+                <p className="text-red-600 text-sm">このエリアは混載便の対応範囲外（A〜Fランクまで）です。チャーター便をご利用ください。</p>
               </div>
             </div>
           </div>
 
-          {/* ===== 専属便 詳細セクション ===== */}
+          {/* ===== チャーター便 詳細セクション ===== */}
           <div id="dedicatedSection" className="mb-6 hidden">
             <div className="p-5 border-2 border-orange-300 rounded-xl bg-orange-50">
               <h3 className="text-lg font-bold text-orange-900 mb-4">
-                <i className="fas fa-truck-moving mr-2"></i>専属便 設定
+                <i className="fas fa-truck-moving mr-2"></i>チャーター便 設定
               </h3>
 
               {/* ワンマン割引 */}
@@ -5525,7 +5525,7 @@ app.get('/estimate/step3', (c) => {
                 </div>
               </div>
 
-              {/* 専属便 料金詳細 */}
+              {/* チャーター便 料金詳細 */}
               <div id="dedicatedPricingDetail" className="mt-4 p-4 bg-white rounded-lg border border-orange-200">
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
@@ -5533,7 +5533,7 @@ app.get('/estimate/step3', (c) => {
                     <span id="dedicatedAreaRank" className="font-semibold">-</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">専属便 単価</span>
+                    <span className="text-gray-600">チャーター便 単価</span>
                     <span id="dedicatedUnitPrice" className="font-semibold">-</span>
                   </div>
                   <div id="dedicatedDiscountRow" className="flex justify-between text-green-600 hidden">
@@ -8028,13 +8028,13 @@ app.get('/masters', (c) => {
               <div className="space-y-6">
                 <h3 className="text-lg font-medium text-gray-900">車両料金設定</h3>
                 
-                {/* 専属便料金設定 */}
+                {/* チャーター便料金設定 */}
                 <div className="bg-orange-50 p-6 rounded-lg">
                   <h4 className="text-md font-medium text-orange-900 mb-4">
                     <i className="fas fa-truck-moving mr-2"></i>
-                    専属便料金設定（エリア別）
+                    チャーター便料金設定（エリア別）
                   </h4>
-                  <p className="text-sm text-orange-700 mb-4">各エリアの専属便基本料金を設定します。ワンマン割引は全エリア共通です。</p>
+                  <p className="text-sm text-orange-700 mb-4">各エリアのチャーター便基本料金を設定します。ワンマン割引は全エリア共通です。</p>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm border-collapse">
                       <thead>
@@ -15014,13 +15014,13 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                 `);
               }
               
-              // 専属便表示
+              // チャーター便表示
               if (estimate.vehicle_dedicated_count && estimate.vehicle_dedicated_count > 0) {
                 const dedUnitPrice = estimate.vehicle_dedicated_unit_price || 0;
                 const dedTotal = dedUnitPrice * estimate.vehicle_dedicated_count;
                 vehicleRows.push(`
                   <tr>
-                    <td>&nbsp;&nbsp;専属便${estimate.vehicle_dedicated_count}台（${estimate.delivery_area}ランク）¥${dedUnitPrice.toLocaleString()} × ${estimate.vehicle_dedicated_count}</td>
+                    <td>&nbsp;&nbsp;チャーター便${estimate.vehicle_dedicated_count}台（${estimate.delivery_area}ランク）¥${dedUnitPrice.toLocaleString()} × ${estimate.vehicle_dedicated_count}</td>
                     <td class="amount-cell">¥${dedTotal.toLocaleString()}</td>
                   </tr>
                 `);
@@ -15246,11 +15246,11 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
             <tr>
                 <th>小計</th>
                 <td>¥${(() => {
-                  // 実際の項目費用を計算（専属便・チャーター・付帯費用含む）
+                  // 実際の項目費用を計算（チャーター便・付帯費用含む）
                   const vehicleCost = estimate.vehicle_cost || 0;
                   const staffCost = calculatedStaffCost;
                   
-                  // 専属便・チャーター費用
+                  // チャーター便費用
                   const dedicatedCost = (estimate.vehicle_dedicated_unit_price || 0) * (estimate.vehicle_dedicated_count || 0);
                   const charterCost = (estimate.vehicle_charter_unit_price || 0) * (estimate.vehicle_charter_count || 0);
                   const transportVehicleFee = estimate.transport_vehicle_fee || 0;

@@ -1472,7 +1472,7 @@ window.updateAreaCostDisplay = Step2Implementation.updateAreaCostDisplay;
 window.goBackToStep1 = Step2Implementation.goBackToStep1;
 window.proceedToStep3 = Step2Implementation.proceedToStep3;
 
-// STEP3: 車両・便種選択の実装（専属便/混載便 新体系）
+// STEP3: 車両・便種選択の実装（チャーター便/混載便 新体系）
 const Step3Implementation = {
   currentVehicleInfo: null,
   currentArea: null,
@@ -1522,7 +1522,7 @@ const Step3Implementation = {
   fetchPricingData: async () => {
     const area = Step3Implementation.currentArea;
     try {
-      // 専属便料金（distance_area_pricing）
+      // チャーター便料金（distance_area_pricing）
       const dedResp = await fetch(`/api/distance-area-pricing?area_rank=${area}`);
       const dedData = await dedResp.json();
       if (dedData.success && dedData.pricing) {
@@ -1685,11 +1685,11 @@ const Step3Implementation = {
     }
   },
 
-  // 専属便料金計算・表示
+  // チャーター便料金計算・表示
   updateDedicatedPricing: () => {
     const pricing = Step3Implementation.dedicatedPricing;
     if (!pricing) {
-      console.error('専属便料金データが未取得');
+      console.error('チャーター便料金データが未取得');
       return;
     }
     
@@ -1726,12 +1726,12 @@ const Step3Implementation = {
     const totalCost = vehicleSubtotal + ancillary.total;
     
     // サマリー更新
-    Step3Implementation.updateSummary('専属便', count, totalCost, isOneman, ancillary.total);
+    Step3Implementation.updateSummary('チャーター便', count, totalCost, isOneman, ancillary.total);
     
     // 車両情報保存（付帯費用を含む）
     Step3Implementation.currentVehicleInfo = {
       service_type: 'dedicated',
-      service_type_label: '専属便',
+      service_type_label: 'チャーター便',
       area: Step3Implementation.currentArea,
       unit_price: unitPrice,
       oneman_discount: isOneman,
@@ -1852,7 +1852,7 @@ const Step3Implementation = {
     if (totalEl) totalEl.textContent = `¥${total.toLocaleString()}`;
   },
 
-  // 専属便台数調整
+  // チャーター便台数調整
   adjustDedicatedCount: (delta) => {
     const input = document.getElementById('dedicatedVehicleCount');
     if (!input) return;
@@ -1862,7 +1862,7 @@ const Step3Implementation = {
     Step3Implementation.updateDedicatedPricing();
   },
 
-  // 専属便オプション変更（ワンマン・台数）
+  // チャーター便オプション変更（ワンマン・台数）
   handleDedicatedOptionsChange: () => {
     Step3Implementation.updateDedicatedPricing();
   },
@@ -1887,7 +1887,7 @@ const Step3Implementation = {
     }
     
     if (!Step3Implementation.selectedServiceType) {
-      Utils.showError('専属便または混載便を選択してください');
+      Utils.showError('チャーター便または混載便を選択してください');
       return;
     }
 
@@ -1988,7 +1988,7 @@ const Step4Implementation = {
       if (vehicleElement && flowData.vehicle) {
         let vehicleText = '';
         if (flowData.vehicle.service_type) {
-          // 新体系（専属便/混載便）
+          // 新体系（チャーター便/混載便）
           vehicleText = `${flowData.vehicle.service_type_label} ${flowData.vehicle.vehicle_count}台`;
           if (flowData.vehicle.oneman_discount) {
             vehicleText += '（ワンマン）';
@@ -3226,19 +3226,19 @@ const Step6Implementation = {
     
     console.log('STEP6車両詳細表示:', vehicle);
     
-    // 新体系：専属便/混載便
+    // 新体系：チャーター便/混載便
     if (vehicle.service_type) {
       const details = [];
       let totalVehicleCost = vehicle.cost || 0;
       
       if (vehicle.service_type === 'dedicated') {
-        // 専属便
+        // チャーター便
         const unitPrice = vehicle.unit_price || 0;
         const count = vehicle.vehicle_count || 1;
         const discount = vehicle.oneman_discount ? 15000 : 0;
         const perVehicle = unitPrice - discount;
         
-        details.push(`<div class="flex justify-between px-4 py-2"><span>専属便 ${count}台（${vehicle.area}ランク）@ ¥${unitPrice.toLocaleString()}</span><span>${Utils.formatCurrency(unitPrice * count)}</span></div>`);
+        details.push(`<div class="flex justify-between px-4 py-2"><span>チャーター便 ${count}台（${vehicle.area}ランク）@ ¥${unitPrice.toLocaleString()}</span><span>${Utils.formatCurrency(unitPrice * count)}</span></div>`);
         
         if (vehicle.oneman_discount) {
           details.push(`<div class="flex justify-between px-4 py-2 text-green-600"><span>ワンマン割引 × ${count}台</span><span>-${Utils.formatCurrency(discount * count)}</span></div>`);
@@ -3304,7 +3304,7 @@ const Step6Implementation = {
           details.push(`<div class="flex justify-between px-4 py-2"><span>外部協力業者費用</span><span>${Utils.formatCurrency(vehicle.external_contractor_cost)}</span></div>`);
         }
         
-        // 専属便（distance_area_pricing対応）
+        // チャーター便（distance_area_pricing対応）
         if (vehicle.vehicle_dedicated_count > 0) {
           try {
             const apiUrlDed = `/vehicle-pricing?vehicle_type=${encodeURIComponent('専属便')}&operation_type=${encodeURIComponent('終日')}&delivery_area=${vehicle.area}`;
@@ -3315,7 +3315,7 @@ const Step6Implementation = {
               totalVehicleCost += dedTotalCost;
               // 単価をestimateDataに保存（saveEstimate用）
               Step6Implementation.estimateData.vehicle.vehicle_dedicated_unit_price = dedUnitPrice;
-              details.push(`<div class="flex justify-between px-4 py-2"><span>専属便 ${vehicle.vehicle_dedicated_count}台（${vehicle.area}ランク）@ ¥${dedUnitPrice.toLocaleString()}</span><span>${Utils.formatCurrency(dedTotalCost)}</span></div>`);
+              details.push(`<div class="flex justify-between px-4 py-2"><span>チャーター便 ${vehicle.vehicle_dedicated_count}台（${vehicle.area}ランク）@ ¥${dedUnitPrice.toLocaleString()}</span><span>${Utils.formatCurrency(dedTotalCost)}</span></div>`);
             }
           } catch (e) {
             // distance_area_pricingからフォールバック
@@ -3325,9 +3325,9 @@ const Step6Implementation = {
                 const dedPrice = distResp.pricing.dedicated_price_1;
                 const dedTotal = dedPrice * vehicle.vehicle_dedicated_count;
                 totalVehicleCost += dedTotal;
-                details.push(`<div class="flex justify-between px-4 py-2"><span>専属便 ${vehicle.vehicle_dedicated_count}台（${vehicle.area}ランク）@ ¥${dedPrice.toLocaleString()}</span><span>${Utils.formatCurrency(dedTotal)}</span></div>`);
+                details.push(`<div class="flex justify-between px-4 py-2"><span>チャーター便 ${vehicle.vehicle_dedicated_count}台（${vehicle.area}ランク）@ ¥${dedPrice.toLocaleString()}</span><span>${Utils.formatCurrency(dedTotal)}</span></div>`);
               }
-            } catch (e2) { console.error('専属便料金取得失敗:', e2); }
+            } catch (e2) { console.error('チャーター便料金取得失敗:', e2); }
           }
         }
         
@@ -3853,12 +3853,12 @@ const Step6Implementation = {
 
     // 1. 車両費用明細
     if (vehicle.service_type) {
-      // 新体系：専属便/混載便
+      // 新体系：チャーター便/混載便
       if (vehicle.service_type === 'dedicated') {
         const unitPrice = vehicle.unit_price || 0;
         const count = vehicle.vehicle_count || 1;
         lineItems.vehicle.items.push({
-          description: `専属便 ${count}台（${vehicle.area}ランク）`,
+          description: `チャーター便 ${count}台（${vehicle.area}ランク）`,
           detail: `@ ¥${unitPrice.toLocaleString()}`,
           quantity: count,
           unit_price: unitPrice,
@@ -4187,7 +4187,7 @@ const Step6Implementation = {
     // 1. 車両費用の計算
     let finalVehicleCost = 0;
     
-    // 新体系：専属便/混載便
+    // 新体系：チャーター便/混載便
     if (vehicle.service_type) {
       finalVehicleCost = vehicle.cost || 0;
       console.log('車両費用（新体系）:', finalVehicleCost, vehicle.service_type_label);
@@ -4497,7 +4497,7 @@ const Step6Implementation = {
         delivery_postal_code: Step6Implementation.estimateData.delivery.postal_code,
         delivery_area: Step6Implementation.estimateData.delivery.area,
         
-        // 車両情報（新体系：専属便/混載便対応）
+        // 車両情報（新体系：チャーター便/混載便対応）
         vehicle_type: Step6Implementation.estimateData.vehicle.service_type_label || 
           Step6Implementation.estimateData.vehicle.type || 
           (Step6Implementation.estimateData.vehicle.uses_multiple_vehicles ? '複数車両' : '2t車'),
@@ -4647,13 +4647,13 @@ const Step6Implementation = {
     let html = '';
     
     if (vehicle.service_type) {
-      // 新体系：専属便/混載便
+      // 新体系：チャーター便/混載便
       if (vehicle.service_type === 'dedicated') {
         const currentPrice = Step6Implementation.editingPrices.vehicle.unit_price !== undefined ?
                              Step6Implementation.editingPrices.vehicle.unit_price : (vehicle.unit_price || 0);
         html += `
           <div class="flex items-center justify-between mb-2">
-            <label class="text-sm text-gray-700">専属便 単価 (${vehicle.vehicle_count || 1}台・${vehicle.area}ランク)</label>
+            <label class="text-sm text-gray-700">チャーター便 単価 (${vehicle.vehicle_count || 1}台・${vehicle.area}ランク)</label>
             <div class="flex items-center">
               <span class="mr-2">¥</span>
               <input type="number" id="edit_dedicated_price" 
@@ -4781,7 +4781,7 @@ const Step6Implementation = {
     
     // 編集した単価を適用
     if (vehicle.service_type) {
-      // 新体系：専属便/混載便
+      // 新体系：チャーター便/混載便
       if (editedPrices.unit_price !== undefined) {
         vehicle.unit_price = editedPrices.unit_price;
       }
@@ -4853,7 +4853,7 @@ const Step6Implementation = {
     let html = '';
     
     if (vehicle.service_type) {
-      // 新体系：専属便/混載便
+      // 新体系：チャーター便/混載便
       const details = [];
       const modifiedTag = vehicle.price_modified ? '<span class="text-xs text-blue-600 ml-1">(修正済)</span>' : '';
       
@@ -4862,7 +4862,7 @@ const Step6Implementation = {
         const count = vehicle.vehicle_count || 1;
         const discount = vehicle.oneman_discount ? 15000 : 0;
         
-        details.push(`<div class="flex justify-between px-4 py-2"><span>専属便 ${count}台（${vehicle.area}ランク）@ ¥${unitPrice.toLocaleString()} ${modifiedTag}</span><span>${Utils.formatCurrency(unitPrice * count)}</span></div>`);
+        details.push(`<div class="flex justify-between px-4 py-2"><span>チャーター便 ${count}台（${vehicle.area}ランク）@ ¥${unitPrice.toLocaleString()} ${modifiedTag}</span><span>${Utils.formatCurrency(unitPrice * count)}</span></div>`);
         if (vehicle.oneman_discount) {
           details.push(`<div class="flex justify-between px-4 py-2 text-green-600"><span>ワンマン割引 × ${count}台</span><span>-${Utils.formatCurrency(discount * count)}</span></div>`);
         }
@@ -5780,7 +5780,7 @@ if (typeof MasterManagement === 'undefined') {
       // 車両料金データをUIに反映
       if (settings.vehicle_rates) {
         Object.entries(settings.vehicle_rates).forEach(([key, value]) => {
-          // 旧2t/4t車両マスターキーはスキップ（専属便・混載便に移行済み）
+          // 旧2t/4t車両マスターキーはスキップ（チャーター便・混載便に移行済み）
           if (key.startsWith('vehicle_2t_') || key.startsWith('vehicle_4t_')) {
             return;
           }
@@ -5954,9 +5954,9 @@ if (typeof MasterManagement === 'undefined') {
 
   // 車両設定表示
   displayVehicleSettings: async () => {
-    console.log('🚛 車両設定表示（専属便・混載便）');
+    console.log('🚛 車両設定表示（チャーター便・混載便）');
     
-    // 専属便料金を取得・表示
+    // チャーター便料金を取得・表示
     try {
       const dedicatedRes = await API.get('/dedicated-pricing');
       if (dedicatedRes.success && dedicatedRes.data) {
@@ -5986,10 +5986,10 @@ if (typeof MasterManagement === 'undefined') {
           `).join('');
         }
       } else {
-        console.warn('⚠️ 専属便料金取得失敗');
+        console.warn('⚠️ チャーター便料金取得失敗');
       }
     } catch (error) {
-      console.error('❌ 専属便料金取得エラー:', error);
+      console.error('❌ チャーター便料金取得エラー:', error);
     }
     
     // 混載便料金を取得・表示
@@ -6222,7 +6222,7 @@ if (typeof MasterManagement === 'undefined') {
       let successCount = 0;
       let errorCount = 0;
 
-      // 専属便料金の保存
+      // チャーター便料金の保存
       const dedicatedAreas = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
       for (const area of dedicatedAreas) {
         const input = document.getElementById(`dedicated_price_${area}`);
@@ -6232,7 +6232,7 @@ if (typeof MasterManagement === 'undefined') {
             successCount++;
           } else {
             errorCount++;
-            console.error(`❌ 専属便${area}エリア保存失敗:`, res.error);
+            console.error(`❌ チャーター便${area}エリア保存失敗:`, res.error);
           }
         }
       }
