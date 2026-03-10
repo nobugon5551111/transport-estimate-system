@@ -1523,10 +1523,42 @@ const Step3Implementation = {
     const area = Step3Implementation.currentArea;
     try {
       // チャーター便料金（distance_area_pricing）
-      const dedResp = await fetch(`/api/distance-area-pricing?area_rank=${area}`);
-      const dedData = await dedResp.json();
-      if (dedData.success && dedData.pricing) {
-        Step3Implementation.dedicatedPricing = dedData.pricing;
+      try {
+        const dedResp = await fetch(`/api/distance-area-pricing?area_rank=${area}`);
+        const dedData = await dedResp.json();
+        if (dedData.success && dedData.pricing) {
+          Step3Implementation.dedicatedPricing = dedData.pricing;
+        }
+      } catch (e) {
+        console.warn('distance-area-pricing取得失敗、フォールバック使用:', e);
+      }
+      
+      // フォールバック: distance_area_pricingが取得できなかった場合、dedicated-pricing APIから取得
+      if (!Step3Implementation.dedicatedPricing) {
+        try {
+          const fallbackResp = await fetch('/api/dedicated-pricing');
+          const fallbackData = await fallbackResp.json();
+          if (fallbackData.success && fallbackData.data) {
+            const areaPrice = fallbackData.data.find(d => d.area === area);
+            if (areaPrice) {
+              Step3Implementation.dedicatedPricing = {
+                area_rank: area,
+                dedicated_price_1: areaPrice.price,
+                dedicated_price_2: areaPrice.price,
+                oneman_discount_eligible: ['A','B','C','D','E','F'].includes(area) ? 1 : 0,
+                oneman_discount_amount: 15000,
+                highway_included: area === 'A' ? 1 : 0,
+                road_permit_fee: 0,
+                transport_vehicle_fee: 0,
+                survey_twoman_fee: 0,
+                survey_oneman_fee: 0
+              };
+              console.log('チャーター便料金フォールバック取得成功:', Step3Implementation.dedicatedPricing);
+            }
+          }
+        } catch (e2) {
+          console.error('チャーター便料金フォールバックも失敗:', e2);
+        }
       }
       
       // 混載便料金（konsai_pricing by area）
@@ -1690,6 +1722,7 @@ const Step3Implementation = {
     const pricing = Step3Implementation.dedicatedPricing;
     if (!pricing) {
       console.error('チャーター便料金データが未取得');
+      Utils.showError('チャーター便の料金データを取得できませんでした。ページを再読み込みしてください。');
       return;
     }
     
