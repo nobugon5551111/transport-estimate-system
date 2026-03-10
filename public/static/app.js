@@ -2058,12 +2058,12 @@ const Step4Implementation = {
       } else {
         console.warn('⚠️ STEP4: スタッフ単価取得失敗、デフォルト値を使用');
         Step4Implementation.staffRates = {
-          supervisor_rate: 20000,
-          leader_rate: 17000,
-          m2_half_day_rate: 7000,
-          m2_full_day_rate: 12500,
-          temp_half_day_rate: 6500,
-          temp_full_day_rate: 11500
+          supervisor_rate: 15000,
+          leader_rate: 12000,
+          m2_half_day_rate: 6000,
+          m2_full_day_rate: 10000,
+          temp_half_day_rate: 5500,
+          temp_full_day_rate: 9500
         };
         // デフォルト値でもフォーム表示を更新
         updateStaffRateDisplays(Step4Implementation.staffRates);
@@ -2135,15 +2135,8 @@ const Step4Implementation = {
       supervisorCount, leaderCount, m2HalfDay, m2FullDay, tempHalfDay, tempFullDay
     });
 
-    // 各費用計算（統一されたデータベース単価でフォールバック）
-    const rates = {
-      supervisor: Step4Implementation.staffRates.supervisor_rate || 20000,
-      leader: Step4Implementation.staffRates.leader_rate || 17000,
-      m2_half_day: Step4Implementation.staffRates.m2_half_day_rate || 7000,
-      m2_full_day: Step4Implementation.staffRates.m2_full_day_rate || 12500,
-      temp_half_day: Step4Implementation.staffRates.temp_half_day_rate || 6500,
-      temp_full_day: Step4Implementation.staffRates.temp_full_day_rate || 11500
-    };
+    // 各費用計算（resolveStaffRatesでAPIキー名の違いを吸収）
+    const rates = resolveStaffRates(Step4Implementation.staffRates);
 
     const costs = {
       supervisor: supervisorCount * rates.supervisor,
@@ -2426,14 +2419,7 @@ const Step4Implementation = {
     };
     
     // 現在の入力値から費用を再計算（統一された正しい単価を使用）
-    const rates = {
-      supervisor: Step4Implementation.staffRates?.supervisor_rate || 20000,
-      leader: Step4Implementation.staffRates?.leader_rate || 17000,
-      m2_half_day: Step4Implementation.staffRates?.m2_half_day_rate || 7000,
-      m2_full_day: Step4Implementation.staffRates?.m2_full_day_rate || 12500,
-      temp_half_day: Step4Implementation.staffRates?.temp_half_day_rate || 6500,
-      temp_full_day: Step4Implementation.staffRates?.temp_full_day_rate || 11500
-    };
+    const rates = resolveStaffRates(Step4Implementation.staffRates);
     
     const calculatedTotalCost = 
       currentInputValues.supervisor_count * rates.supervisor +
@@ -3032,6 +3018,41 @@ window.applyAISuggestion = Step4Implementation.applyAISuggestion;
 window.goBackToStep3 = Step4Implementation.goBackToStep3;
 window.proceedToStep5 = Step4Implementation.proceedToStep5;
 
+// === スタッフ単価ヘルパー（API応答キー名統一） ===
+// API /staff-rates が返すキー: supervisor_rate, leader_rate, m2_half_rate, m2_full_rate, temp_half_rate, temp_full_rate
+// (+ 短縮形: supervisor, leader, m2_half, m2_full, temp_half, temp_full)
+// デフォルト値はマスターの初期値に合わせる
+const STAFF_RATE_DEFAULTS = {
+  supervisor: 15000, leader: 12000,
+  m2_half_day: 6000, m2_full_day: 10000,
+  temp_half_day: 5500, temp_full_day: 9500
+};
+
+function resolveStaffRates(dbRates) {
+  if (!dbRates) return { ...STAFF_RATE_DEFAULTS };
+  return {
+    supervisor:    dbRates.supervisor_rate    || dbRates.supervisor    || STAFF_RATE_DEFAULTS.supervisor,
+    leader:        dbRates.leader_rate        || dbRates.leader        || STAFF_RATE_DEFAULTS.leader,
+    m2_half_day:   dbRates.m2_half_day_rate   || dbRates.m2_half_rate  || dbRates.m2_half  || STAFF_RATE_DEFAULTS.m2_half_day,
+    m2_full_day:   dbRates.m2_full_day_rate   || dbRates.m2_full_rate  || dbRates.m2_full  || STAFF_RATE_DEFAULTS.m2_full_day,
+    temp_half_day: dbRates.temp_half_day_rate || dbRates.temp_half_rate || dbRates.temp_half || STAFF_RATE_DEFAULTS.temp_half_day,
+    temp_full_day: dbRates.temp_full_day_rate || dbRates.temp_full_rate || dbRates.temp_full || STAFF_RATE_DEFAULTS.temp_full_day
+  };
+}
+
+// APIからスタッフ単価を取得して resolveStaffRates で正規化する
+async function fetchResolvedStaffRates() {
+  try {
+    const resp = await API.get('/staff-rates');
+    if (resp.success && resp.data && resp.data.staffRates) {
+      return resolveStaffRates(resp.data.staffRates);
+    }
+  } catch (e) {
+    console.warn('⚠️ スタッフ単価API取得失敗:', e);
+  }
+  return { ...STAFF_RATE_DEFAULTS };
+}
+
 // === マスター料金 → フォーム表示 連動更新ヘルパー ===
 
 // Step4: スタッフ料金表示を API / staffRates オブジェクトから更新
@@ -3455,36 +3476,9 @@ const Step6Implementation = {
       staff_cost: staff.staff_cost
     });
     
-    // スタッフ単価をAPIから取得（データベースと同じフォールバック値）
-    let staffRates = {
-      supervisor: 20000,
-      leader: 17000,
-      m2_half_day: 7000,
-      m2_full_day: 12500,
-      temp_half_day: 6500,
-      temp_full_day: 11500
-    };
-    
-    try {
-      console.log('📊 STEP6: スタッフ単価取得開始');
-      const ratesResponse = await API.get('/staff-rates');
-      if (ratesResponse.success && ratesResponse.data && ratesResponse.data.staffRates) {
-        const dbRates = ratesResponse.data.staffRates;
-        staffRates = {
-          supervisor: dbRates.supervisor_rate || 20000,
-          leader: dbRates.leader_rate || 17000,
-          m2_half_day: dbRates.m2_half_day_rate || 7000,
-          m2_full_day: dbRates.m2_full_day_rate || 12500,
-          temp_half_day: dbRates.temp_half_day_rate || 6500,
-          temp_full_day: dbRates.temp_full_day_rate || 11500
-        };
-        console.log('✅ STEP6: スタッフ単価取得完了:', staffRates);
-      } else {
-        console.warn('⚠️ STEP6: スタッフ単価取得失敗、フォールバック使用');
-      }
-    } catch (error) {
-      console.error('❌ STEP6: スタッフ単価取得エラー:', error);
-    }
+    // スタッフ単価をAPIから取得（統一ヘルパー使用）
+    let staffRates = await fetchResolvedStaffRates();
+    console.log('✅ STEP6: スタッフ単価取得完了:', staffRates);
     
     let totalCalculatedCost = 0;
     
@@ -3983,21 +3977,11 @@ const Step6Implementation = {
     // 2. スタッフ費用明細（STEP6表示と同じ構造）
     const staffRatesPromise = API.get('/staff-rates');
     staffRatesPromise.then(ratesResponse => {
-      let staffRates = {
-        supervisor: 20000, leader: 17000, m2_half_day: 7000,
-        m2_full_day: 12500, temp_half_day: 6500, temp_full_day: 11500
-      };
-      
+      let staffRates;
       if (ratesResponse.success && ratesResponse.data && ratesResponse.data.staffRates) {
-        const dbRates = ratesResponse.data.staffRates;
-        staffRates = {
-          supervisor: dbRates.supervisor_rate || 20000,
-          leader: dbRates.leader_rate || 17000,
-          m2_half_day: dbRates.m2_half_day_rate || 7000,
-          m2_full_day: dbRates.m2_full_day_rate || 12500,
-          temp_half_day: dbRates.temp_half_day_rate || 6500,
-          temp_full_day: dbRates.temp_full_day_rate || 11500
-        };
+        staffRates = resolveStaffRates(ratesResponse.data.staffRates);
+      } else {
+        staffRates = { ...STAFF_RATE_DEFAULTS };
       }
 
       // 監督
@@ -4270,34 +4254,19 @@ const Step6Implementation = {
     // 修正済みの場合はその値を使用
     if (staff.price_modified && staff.modified_rates) {
       const rates = staff.modified_rates;
+      const d = STAFF_RATE_DEFAULTS;
       finalStaffCost = 
-        (staff.supervisor_count || 0) * (rates.supervisor || 20000) +
-        (staff.leader_count || 0) * (rates.leader || 17000) +
-        (staff.m2_staff_half_day || 0) * (rates.m2_half_day || 7000) +
-        (staff.m2_staff_full_day || 0) * (rates.m2_full_day || 12500) +
-        (staff.temp_staff_half_day || 0) * (rates.temp_half_day || 6500) +
-        (staff.temp_staff_full_day || 0) * (rates.temp_full_day || 11500);
+        (staff.supervisor_count || 0) * (rates.supervisor || d.supervisor) +
+        (staff.leader_count || 0) * (rates.leader || d.leader) +
+        (staff.m2_staff_half_day || 0) * (rates.m2_half_day || d.m2_half_day) +
+        (staff.m2_staff_full_day || 0) * (rates.m2_full_day || d.m2_full_day) +
+        (staff.temp_staff_half_day || 0) * (rates.temp_half_day || d.temp_half_day) +
+        (staff.temp_staff_full_day || 0) * (rates.temp_full_day || d.temp_full_day);
       console.log('✅ スタッフ費用（修正済み単価使用）:', finalStaffCost);
     } else {
       // マスターから取得
       try {
-        const ratesResponse = await API.get('/staff-rates');
-        let staffRates = {
-          supervisor: 20000, leader: 17000, m2_half_day: 7000, 
-          m2_full_day: 12500, temp_half_day: 6500, temp_full_day: 11500
-        };
-        
-        if (ratesResponse.success && ratesResponse.data && ratesResponse.data.staffRates) {
-          const dbRates = ratesResponse.data.staffRates;
-          staffRates = {
-            supervisor: dbRates.supervisor_rate || 20000,
-            leader: dbRates.leader_rate || 17000,
-            m2_half_day: dbRates.m2_half_day_rate || 7000,
-            m2_full_day: dbRates.m2_full_day_rate || 12500,
-            temp_half_day: dbRates.temp_half_day_rate || 6500,
-            temp_full_day: dbRates.temp_full_day_rate || 11500
-          };
-        }
+        const staffRates = await fetchResolvedStaffRates();
         
         finalStaffCost = 
           (staff.supervisor_count || 0) * staffRates.supervisor +
@@ -4988,32 +4957,8 @@ const Step6Implementation = {
       return;
     }
 
-    // 現在の単価を取得（APIから取得 or デフォルト）
-    let currentRates = {
-      supervisor: 20000,
-      leader: 17000,
-      m2_half_day: 7000,
-      m2_full_day: 12500,
-      temp_half_day: 6500,
-      temp_full_day: 11500
-    };
-    
-    try {
-      const ratesResponse = await API.get('/staff-rates');
-      if (ratesResponse.success && ratesResponse.data && ratesResponse.data.staffRates) {
-        const dbRates = ratesResponse.data.staffRates;
-        currentRates = {
-          supervisor: dbRates.supervisor_rate || 20000,
-          leader: dbRates.leader_rate || 17000,
-          m2_half_day: dbRates.m2_half_day_rate || 7000,
-          m2_full_day: dbRates.m2_full_day_rate || 12500,
-          temp_half_day: dbRates.temp_half_day_rate || 6500,
-          temp_full_day: dbRates.temp_full_day_rate || 11500
-        };
-      }
-    } catch (error) {
-      console.warn('スタッフ単価取得失敗、デフォルト使用');
-    }
+    // 現在の単価を取得（統一ヘルパー使用）
+    let currentRates = await fetchResolvedStaffRates();
     
     // 編集中の単価があればそれを使用
     const editingRates = { ...currentRates, ...Step6Implementation.editingPrices.staff };
@@ -5073,13 +5018,14 @@ const Step6Implementation = {
     
     // スタッフ費用合計を再計算
     const rates = staff.modified_rates;
+    const d = STAFF_RATE_DEFAULTS;
     staff.total_cost = 
-      (staff.supervisor_count || 0) * (rates.supervisor || 20000) +
-      (staff.leader_count || 0) * (rates.leader || 17000) +
-      (staff.m2_staff_half_day || 0) * (rates.m2_half_day || 7000) +
-      (staff.m2_staff_full_day || 0) * (rates.m2_full_day || 12500) +
-      (staff.temp_staff_half_day || 0) * (rates.temp_half_day || 6500) +
-      (staff.temp_staff_full_day || 0) * (rates.temp_full_day || 11500);
+      (staff.supervisor_count || 0) * (rates.supervisor || d.supervisor) +
+      (staff.leader_count || 0) * (rates.leader || d.leader) +
+      (staff.m2_staff_half_day || 0) * (rates.m2_half_day || d.m2_half_day) +
+      (staff.m2_staff_full_day || 0) * (rates.m2_full_day || d.m2_full_day) +
+      (staff.temp_staff_half_day || 0) * (rates.temp_half_day || d.temp_half_day) +
+      (staff.temp_staff_full_day || 0) * (rates.temp_full_day || d.temp_full_day);
     
     // sessionStorageに保存
     const flowData = JSON.parse(sessionStorage.getItem('estimateFlow') || '{}');
@@ -5110,36 +5056,11 @@ const Step6Implementation = {
     const staff = Step6Implementation.estimateData.staff;
     const details = [];
     
-    // 修正済み単価があればそれを使用
-    let staffRates = {
-      supervisor: 20000,
-      leader: 17000,
-      m2_half_day: 7000,
-      m2_full_day: 12500,
-      temp_half_day: 6500,
-      temp_full_day: 11500
-    };
+    // 修正済み単価があればそれを使用、なければAPIから取得
+    let staffRates = await fetchResolvedStaffRates();
     
     if (staff.modified_rates) {
       Object.assign(staffRates, staff.modified_rates);
-    } else {
-      // APIから取得
-      try {
-        const ratesResponse = await API.get('/staff-rates');
-        if (ratesResponse.success && ratesResponse.data && ratesResponse.data.staffRates) {
-          const dbRates = ratesResponse.data.staffRates;
-          staffRates = {
-            supervisor: dbRates.supervisor_rate || 20000,
-            leader: dbRates.leader_rate || 17000,
-            m2_half_day: dbRates.m2_half_day_rate || 7000,
-            m2_full_day: dbRates.m2_full_day_rate || 12500,
-            temp_half_day: dbRates.temp_half_day_rate || 6500,
-            temp_full_day: dbRates.temp_full_day_rate || 11500
-          };
-        }
-      } catch (error) {
-        console.warn('スタッフ単価取得失敗');
-      }
     }
     
     const modifiedLabel = staff.price_modified ? '<span class="text-xs text-blue-600">(修正済)</span>' : '';

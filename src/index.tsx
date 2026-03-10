@@ -1160,7 +1160,7 @@ app.get('/test-step4-fixed', (c) => {
                 <div class="bg-blue-50 p-4 rounded-lg">
                     <label class="block text-sm font-medium text-blue-900 mb-2">
                         <i class="fas fa-user-tie mr-2"></i>
-                        スーパーバイザー（<span id="rate-display-supervisor">40,000</span>円/日）
+                        スーパーバイザー（<span id="rate-display-supervisor">...</span>円/日）
                     </label>
                     <input type="number" id="rate_supervisor" class="form-input" min="0" step="1000" />
                 </div>
@@ -1168,7 +1168,7 @@ app.get('/test-step4-fixed', (c) => {
                 <div class="bg-green-50 p-4 rounded-lg">
                     <label class="block text-sm font-medium text-green-900 mb-2">
                         <i class="fas fa-user-cog mr-2"></i>
-                        リーダー以上（<span id="rate-display-leader">12,000</span>円/日）
+                        リーダー以上（<span id="rate-display-leader">...</span>円/日）
                     </label>
                     <input type="number" id="rate_leader" class="form-input" min="0" step="1000" />
                 </div>
@@ -1176,7 +1176,7 @@ app.get('/test-step4-fixed', (c) => {
                 <div class="bg-yellow-50 p-4 rounded-lg">
                     <label class="block text-sm font-medium text-yellow-900 mb-2">
                         <i class="fas fa-user mr-2"></i>
-                        M2スタッフ半日（<span id="rate-display-m2-half">6,000</span>円/半日）
+                        M2スタッフ半日（<span id="rate-display-m2-half">...</span>円/半日）
                     </label>
                     <input type="number" id="rate_m2_half_day" class="form-input" min="0" step="500" />
                 </div>
@@ -1184,7 +1184,7 @@ app.get('/test-step4-fixed', (c) => {
                 <div class="bg-yellow-50 p-4 rounded-lg">
                     <label class="block text-sm font-medium text-yellow-900 mb-2">
                         <i class="fas fa-user mr-2"></i>
-                        M2スタッフ終日（<span id="rate-display-m2-full">10,000</span>円/日）
+                        M2スタッフ終日（<span id="rate-display-m2-full">...</span>円/日）
                     </label>
                     <input type="number" id="rate_m2_full_day" class="form-input" min="0" step="1000" />
                 </div>
@@ -1192,7 +1192,7 @@ app.get('/test-step4-fixed', (c) => {
                 <div class="bg-purple-50 p-4 rounded-lg">
                     <label class="block text-sm font-medium text-purple-900 mb-2">
                         <i class="fas fa-user-clock mr-2"></i>
-                        派遣スタッフ半日（<span id="rate-display-temp-half">5,500</span>円/半日）
+                        派遣スタッフ半日（<span id="rate-display-temp-half">...</span>円/半日）
                     </label>
                     <input type="number" id="rate_temp_half_day" class="form-input" min="0" step="500" />
                 </div>
@@ -1200,7 +1200,7 @@ app.get('/test-step4-fixed', (c) => {
                 <div class="bg-purple-50 p-4 rounded-lg">
                     <label class="block text-sm font-medium text-purple-900 mb-2">
                         <i class="fas fa-user-clock mr-2"></i>
-                        派遣スタッフ終日（<span id="rate-display-temp-full">9,500</span>円/日）
+                        派遣スタッフ終日（<span id="rate-display-temp-full">...</span>円/日）
                     </label>
                     <input type="number" id="rate_temp_full_day" class="form-input" min="0" step="1000" />
                 </div>
@@ -1398,7 +1398,7 @@ app.get('/test-step4-labels', (c) => {
             <div class="mb-6">
                 <label class="block text-sm font-medium text-blue-900 mb-2">
                     <i class="fas fa-user-tie mr-2"></i>
-                    スーパーバイザー（<span id="rate-display-supervisor">40,000</span>円/日）
+                    スーパーバイザー（<span id="rate-display-supervisor">...</span>円/日）
                 </label>
                 <input 
                     type="number" 
@@ -1415,7 +1415,7 @@ app.get('/test-step4-labels', (c) => {
             <div class="mb-6">
                 <label class="block text-sm font-medium text-blue-900 mb-2">
                     <i class="fas fa-user-cog mr-2"></i>
-                    リーダー（<span id="rate-display-leader">12,000</span>円/日）
+                    リーダー（<span id="rate-display-leader">...</span>円/日）
                 </label>
                 <input 
                     type="number" 
@@ -6026,7 +6026,7 @@ app.get('/estimate/step4', (c) => {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       スーパーバイザー
-                      <span className="text-xs text-gray-500 ml-2">（¥<span id="rate-display-supervisor">40,000</span>/日）</span>
+                      <span className="text-xs text-gray-500 ml-2">（¥<span id="rate-display-supervisor">...</span>/日）</span>
                     </label>
                     <div className="flex items-center space-x-3">
                       <input 
@@ -6046,7 +6046,7 @@ app.get('/estimate/step4', (c) => {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       リーダー以上
-                      <span className="text-xs text-gray-500 ml-2">（¥<span id="rate-display-leader">30,000</span>/日）</span>
+                      <span className="text-xs text-gray-500 ml-2">（¥<span id="rate-display-leader">...</span>/日）</span>
                     </label>
                     <div className="flex items-center space-x-3">
                       <input 
@@ -6075,7 +6075,7 @@ app.get('/estimate/step4', (c) => {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         半日勤務
-                        <span className="text-xs text-gray-500 ml-2">（¥<span id="rate-display-m2-half">10,000</span>/半日）</span>
+                        <span className="text-xs text-gray-500 ml-2">（¥<span id="rate-display-m2-half">...</span>/半日）</span>
                       </label>
                       <div className="flex items-center space-x-3">
                         <input 
@@ -6093,7 +6093,7 @@ app.get('/estimate/step4', (c) => {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         終日勤務
-                        <span className="text-xs text-gray-500 ml-2">（¥<span id="rate-display-m2-full">20,000</span>/日）</span>
+                        <span className="text-xs text-gray-500 ml-2">（¥<span id="rate-display-m2-full">...</span>/日）</span>
                       </label>
                       <div className="flex items-center space-x-3">
                         <input 
@@ -6116,7 +6116,7 @@ app.get('/estimate/step4', (c) => {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         半日勤務
-                        <span className="text-xs text-gray-500 ml-2">（¥<span id="rate-display-temp-half">9,000</span>/半日）</span>
+                        <span className="text-xs text-gray-500 ml-2">（¥<span id="rate-display-temp-half">...</span>/半日）</span>
                       </label>
                       <div className="flex items-center space-x-3">
                         <input 
@@ -6134,7 +6134,7 @@ app.get('/estimate/step4', (c) => {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         終日勤務
-                        <span className="text-xs text-gray-500 ml-2">（¥<span id="rate-display-temp-full">18,000</span>/日）</span>
+                        <span className="text-xs text-gray-500 ml-2">（¥<span id="rate-display-temp-full">...</span>/日）</span>
                       </label>
                       <div className="flex items-center space-x-3">
                         <input 
@@ -7948,7 +7948,7 @@ app.get('/masters', (c) => {
                     <div className="bg-blue-50 p-4 rounded-lg">
                       <label className="block text-sm font-medium text-blue-900 mb-2">
                         <i className="fas fa-user-tie mr-2"></i>
-                        スーパーバイザー（<span id="rate-display-supervisor">40,000</span>円/日）
+                        スーパーバイザー（<span id="rate-display-supervisor">...</span>円/日）
                       </label>
                       <input type="number" id="rate_supervisor" className="form-input" min="0" step="1000" />
                     </div>
@@ -7956,7 +7956,7 @@ app.get('/masters', (c) => {
                     <div className="bg-green-50 p-4 rounded-lg">
                       <label className="block text-sm font-medium text-green-900 mb-2">
                         <i className="fas fa-user-cog mr-2"></i>
-                        リーダー以上（<span id="rate-display-leader">12,000</span>円/日）
+                        リーダー以上（<span id="rate-display-leader">...</span>円/日）
                       </label>
                       <input type="number" id="rate_leader" className="form-input" min="0" step="1000" />
                     </div>
@@ -7964,7 +7964,7 @@ app.get('/masters', (c) => {
                     <div className="bg-yellow-50 p-4 rounded-lg">
                       <label className="block text-sm font-medium text-yellow-900 mb-2">
                         <i className="fas fa-user mr-2"></i>
-                        M2スタッフ半日（<span id="rate-display-m2-half">6,000</span>円/半日）
+                        M2スタッフ半日（<span id="rate-display-m2-half">...</span>円/半日）
                       </label>
                       <input type="number" id="rate_m2_half_day" className="form-input" min="0" step="500" />
                     </div>
@@ -7972,7 +7972,7 @@ app.get('/masters', (c) => {
                     <div className="bg-yellow-50 p-4 rounded-lg">
                       <label className="block text-sm font-medium text-yellow-900 mb-2">
                         <i className="fas fa-user mr-2"></i>
-                        M2スタッフ終日（<span id="rate-display-m2-full">10,000</span>円/日）
+                        M2スタッフ終日（<span id="rate-display-m2-full">...</span>円/日）
                       </label>
                       <input type="number" id="rate_m2_full_day" className="form-input" min="0" step="1000" />
                     </div>
@@ -7980,7 +7980,7 @@ app.get('/masters', (c) => {
                     <div className="bg-purple-50 p-4 rounded-lg">
                       <label className="block text-sm font-medium text-purple-900 mb-2">
                         <i className="fas fa-user-clock mr-2"></i>
-                        派遣スタッフ半日（<span id="rate-display-temp-half">5,500</span>円/半日）
+                        派遣スタッフ半日（<span id="rate-display-temp-half">...</span>円/半日）
                       </label>
                       <input type="number" id="rate_temp_half_day" className="form-input" min="0" step="500" />
                     </div>
@@ -7988,7 +7988,7 @@ app.get('/masters', (c) => {
                     <div className="bg-purple-50 p-4 rounded-lg">
                       <label className="block text-sm font-medium text-purple-900 mb-2">
                         <i className="fas fa-user-clock mr-2"></i>
-                        派遣スタッフ終日（<span id="rate-display-temp-full">9,500</span>円/日）
+                        派遣スタッフ終日（<span id="rate-display-temp-full">...</span>円/日）
                       </label>
                       <input type="number" id="rate_temp_full_day" className="form-input" min="0" step="1000" />
                     </div>
