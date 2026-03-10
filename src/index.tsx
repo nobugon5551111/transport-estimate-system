@@ -12520,7 +12520,7 @@ app.get('/estimate/type-select', (c) => {
           <p className="text-gray-600">お客様の状況に合わせて適切な見積もり方式をお選びください</p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8">
+        <div className="grid md:grid-cols-3 gap-8">
           {/* 標準見積もり */}
           <div className="bg-white rounded-lg shadow-lg p-8 hover:shadow-xl transition-shadow">
             <div className="text-center mb-6">
@@ -12594,6 +12594,44 @@ app.get('/estimate/type-select', (c) => {
             >
               <i className="fas fa-arrow-right mr-2"></i>
               フリー見積もりで進む
+            </button>
+          </div>
+
+          {/* 現地調査専門見積もり */}
+          <div className="bg-white rounded-lg shadow-lg p-8 hover:shadow-xl transition-shadow">
+            <div className="text-center mb-6">
+              <div className="bg-orange-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
+                <i className="fas fa-search-location text-orange-600 text-3xl"></i>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-800 mb-2">現地調査専門</h3>
+              <p className="text-gray-600">調査のみの単体見積もり</p>
+            </div>
+
+            <div className="mb-6">
+              <h4 className="font-semibold text-gray-800 mb-3">対象ケース：</h4>
+              <ul className="text-sm text-gray-600 space-y-2">
+                <li><i className="fas fa-check text-orange-500 mr-2"></i>家具納品前の現地調査</li>
+                <li><i className="fas fa-check text-orange-500 mr-2"></i>搬入経路・設置場所の確認</li>
+                <li><i className="fas fa-check text-orange-500 mr-2"></i>ワンマン / ツーマン選択</li>
+                <li><i className="fas fa-check text-orange-500 mr-2"></i>エリア別料金自動計算</li>
+              </ul>
+            </div>
+
+            <div className="mb-6">
+              <h4 className="font-semibold text-gray-800 mb-3">特徴：</h4>
+              <ul className="text-sm text-gray-600 space-y-1">
+                <li>• 調査費のみの単体見積書を発行</li>
+                <li>• エリアA〜Fの料金体系に対応</li>
+                <li>• 車両費・距離超過料金を自動計算</li>
+              </ul>
+            </div>
+
+            <button 
+              onclick="window.location.href='/estimate/survey-only'" 
+              className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-4 px-6 rounded-lg transition-colors"
+            >
+              <i className="fas fa-arrow-right mr-2"></i>
+              現地調査見積もりで進む
             </button>
           </div>
         </div>
@@ -12887,6 +12925,668 @@ app.get('/estimate/free-form', (c) => {
   )
 })
 
+// ==========================================
+// 現地調査専門見積もりページ
+// ==========================================
+app.get('/estimate/survey-only', (c) => {
+  return c.render(
+    <div className="min-h-screen bg-gray-50">
+      {/* ヘッダー */}
+      <header className="bg-orange-600 shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
+            <div className="flex items-center">
+              <a href="/" className="flex items-center text-white hover:text-orange-200">
+                <i className="fas fa-search-location text-white text-2xl mr-3"></i>
+                <h1 className="text-xl font-bold">Office M2 見積システム</h1>
+              </a>
+            </div>
+            <div className="text-white">
+              <span className="text-sm">現地調査専門見積作成</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* メインコンテンツ */}
+      <main className="max-w-4xl mx-auto py-8 px-4">
+        <div className="bg-white rounded-lg shadow-lg p-8">
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">
+              <i className="fas fa-search-location text-orange-600 mr-2"></i>
+              現地調査専門見積もり
+            </h2>
+            <p className="text-gray-600">家具納品前の現地調査（搬入経路・設置場所確認）の見積もりを作成します</p>
+          </div>
+
+          <form id="surveyEstimateForm">
+            {/* 基本情報 */}
+            <div className="bg-orange-50 rounded-lg p-6 mb-8">
+              <h3 className="text-lg font-bold text-gray-800 mb-4">
+                <i className="fas fa-user mr-2 text-orange-600"></i>基本情報
+              </h3>
+              <div className="grid md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    顧客名 <span className="text-red-500">*</span>
+                  </label>
+                  <input 
+                    type="text" 
+                    id="surveyCustomerName" 
+                    required 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    placeholder="例：山田太郎 様"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    案件名 <span className="text-red-500">*</span>
+                  </label>
+                  <input 
+                    type="text" 
+                    id="surveyProjectName" 
+                    required 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    placeholder="例：○○マンション 家具納品 現地調査"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    調査予定日
+                  </label>
+                  <input 
+                    type="date" 
+                    id="surveyDate" 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    見積有効期限
+                  </label>
+                  <input 
+                    type="date" 
+                    id="surveyValidUntil" 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    調査先住所
+                  </label>
+                  <input 
+                    type="text" 
+                    id="surveyAddress" 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    placeholder="例：大阪市中央区○○町1-2-3"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 調査内容 */}
+            <div className="bg-blue-50 rounded-lg p-6 mb-8">
+              <h3 className="text-lg font-bold text-gray-800 mb-4">
+                <i className="fas fa-clipboard-check mr-2 text-blue-600"></i>調査内容
+              </h3>
+              
+              {/* 調査員タイプ */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  調査員人数 <span className="text-red-500">*</span>
+                </label>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <label className="relative flex cursor-pointer rounded-lg border bg-white p-4 shadow-sm focus:outline-none hover:border-orange-400 transition-all" id="label-oneman">
+                    <input type="radio" name="surveyType" value="oneman" className="sr-only" onChange="updateSurveyCalc()" />
+                    <div className="flex w-full items-center justify-between">
+                      <div className="flex items-center">
+                        <div className="text-sm">
+                          <p className="font-bold text-gray-900 text-lg">
+                            <i className="fas fa-user text-blue-500 mr-2"></i>ワンマン（1人）
+                          </p>
+                          <p className="text-gray-500 mt-1">1名による現地調査</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-orange-600 font-bold text-lg" id="oneman-price-display">-</span>
+                        <p className="text-xs text-gray-500">エリア別料金</p>
+                      </div>
+                    </div>
+                  </label>
+                  
+                  <label className="relative flex cursor-pointer rounded-lg border bg-white p-4 shadow-sm focus:outline-none hover:border-orange-400 transition-all" id="label-twoman">
+                    <input type="radio" name="surveyType" value="twoman" className="sr-only" onChange="updateSurveyCalc()" />
+                    <div className="flex w-full items-center justify-between">
+                      <div className="flex items-center">
+                        <div className="text-sm">
+                          <p className="font-bold text-gray-900 text-lg">
+                            <i className="fas fa-user-friends text-green-500 mr-2"></i>ツーマン（2人）
+                          </p>
+                          <p className="text-gray-500 mt-1">2名による現地調査</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-orange-600 font-bold text-lg" id="twoman-price-display">-</span>
+                        <p className="text-xs text-gray-500">エリア別料金</p>
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* エリア選択 */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  エリア選択 <span className="text-red-500">*</span>
+                </label>
+                <select 
+                  id="surveyArea" 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  onChange="updateSurveyCalc()"
+                >
+                  <option value="">エリアを選択してください</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-2" id="surveyAreaRegions"></p>
+              </div>
+
+              {/* 距離入力 */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  片道距離（km）
+                </label>
+                <div className="flex items-center space-x-3">
+                  <input 
+                    type="number" 
+                    id="surveyDistance" 
+                    className="w-40 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" 
+                    min="0" 
+                    max="500" 
+                    step="0.1"
+                    value="0"
+                    onChange="updateSurveyCalc()"
+                  />
+                  <span className="text-sm text-gray-600">km</span>
+                  <span className="text-xs text-gray-500">（基本車両費に20kmまで含む / 超過分: ¥150/8km）</span>
+                </div>
+              </div>
+
+              {/* 備考 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  調査内容・備考
+                </label>
+                <textarea 
+                  id="surveyNotes" 
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  placeholder="例：搬入経路の幅・天井高確認、エレベーター有無、設置場所の寸法確認 等"
+                ></textarea>
+              </div>
+            </div>
+
+            {/* 料金計算結果 */}
+            <div className="bg-gradient-to-r from-orange-50 to-yellow-50 rounded-lg p-6 mb-8 border-2 border-orange-200">
+              <h3 className="text-lg font-bold text-gray-800 mb-4">
+                <i className="fas fa-calculator mr-2 text-orange-600"></i>料金計算
+              </h3>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center py-2 border-b border-orange-100">
+                  <span className="text-gray-700">調査費（基本料金）</span>
+                  <span className="font-bold text-gray-800" id="surveyCalcBase">¥0</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-orange-100">
+                  <span className="text-gray-700">車両費（基本20km含む）</span>
+                  <span className="font-bold text-gray-800" id="surveyCalcVehicle">¥0</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-orange-100">
+                  <span className="text-gray-700">距離超過料金</span>
+                  <span className="font-bold text-gray-800" id="surveyCalcDistance">¥0</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-orange-200">
+                  <span className="text-gray-700 font-semibold">小計（税抜）</span>
+                  <span className="font-bold text-gray-800 text-lg" id="surveyCalcSubtotal">¥0</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-orange-100">
+                  <span className="text-gray-700">消費税（10%）</span>
+                  <span className="font-bold text-gray-800" id="surveyCalcTax">¥0</span>
+                </div>
+                <div className="flex justify-between items-center py-3 bg-orange-100 rounded-lg px-4 mt-2">
+                  <span className="text-orange-800 font-bold text-lg">合計（税込）</span>
+                  <span className="font-bold text-orange-600 text-2xl" id="surveyCalcTotal">¥0</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 値引き */}
+            <div className="bg-gray-50 rounded-lg p-6 mb-8">
+              <h3 className="text-lg font-bold text-gray-800 mb-4">
+                <i className="fas fa-tags mr-2 text-red-500"></i>値引き（任意）
+              </h3>
+              <div className="flex items-center space-x-3">
+                <span className="text-sm text-gray-600">値引き金額:</span>
+                <input 
+                  type="number" 
+                  id="surveyDiscount" 
+                  className="w-40 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" 
+                  min="0" 
+                  step="100"
+                  value="0"
+                  onChange="updateSurveyCalc()"
+                />
+                <span className="text-sm text-gray-600">円</span>
+              </div>
+            </div>
+
+            {/* ボタン */}
+            <div className="flex justify-between items-center">
+              <a href="/estimate/type-select" className="text-gray-600 hover:text-gray-800">
+                <i className="fas fa-arrow-left mr-2"></i>
+                タイプ選択に戻る
+              </a>
+              <div className="flex space-x-4">
+                <button 
+                  type="button"
+                  onclick="saveSurveyEstimate()"
+                  className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-8 rounded-lg transition-colors"
+                >
+                  <i className="fas fa-save mr-2"></i>
+                  見積もりを保存
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        {/* 保存成功モーダル */}
+        <div id="surveySaveModal" className="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+          <div className="bg-white rounded-lg shadow-xl p-8 max-w-md mx-4">
+            <div className="text-center">
+              <div className="bg-green-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                <i className="fas fa-check text-green-600 text-3xl"></i>
+              </div>
+              <h3 className="text-xl font-bold text-gray-800 mb-2">保存完了</h3>
+              <p className="text-gray-600 mb-4" id="surveySaveMessage">見積もりが保存されました</p>
+              <div className="space-y-3">
+                <a id="surveyPdfLink" href="#" target="_blank"
+                  className="block w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-colors">
+                  <i className="fas fa-file-pdf mr-2"></i>PDF出力
+                </a>
+                <a id="surveyDetailLink" href="#"
+                  className="block w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors">
+                  <i className="fas fa-eye mr-2"></i>見積詳細を見る
+                </a>
+                <button onclick="document.getElementById('surveySaveModal').classList.add('hidden')"
+                  className="block w-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-3 px-6 rounded-lg transition-colors">
+                  閉じる
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <script dangerouslySetInnerHTML={{__html: `
+        // エリア料金データ
+        let areaPricingData = [];
+        
+        // 初期化
+        async function initSurveyPage() {
+          try {
+            const res = await fetch('/api/distance-area-pricing');
+            const data = await res.json();
+            if (data.success && data.pricing) {
+              areaPricingData = data.pricing;
+              populateAreaSelect();
+            }
+          } catch (e) {
+            console.error('エリア料金取得エラー:', e);
+          }
+        }
+        
+        // エリアセレクトを構築
+        function populateAreaSelect() {
+          const sel = document.getElementById('surveyArea');
+          sel.innerHTML = '<option value="">エリアを選択してください</option>';
+          areaPricingData.forEach(area => {
+            const opt = document.createElement('option');
+            opt.value = area.area_rank;
+            opt.textContent = 'エリア' + area.area_rank + '（' + area.regions + '）- 距離: ' + area.distance_km + 'km';
+            sel.appendChild(opt);
+          });
+        }
+        
+        // 料金計算を更新
+        function updateSurveyCalc() {
+          const surveyType = document.querySelector('input[name="surveyType"]:checked');
+          const areaRank = document.getElementById('surveyArea').value;
+          const distance = parseFloat(document.getElementById('surveyDistance').value) || 0;
+          const discount = parseInt(document.getElementById('surveyDiscount').value) || 0;
+          
+          // ラジオボタンの見た目更新
+          document.getElementById('label-oneman').classList.remove('border-orange-500', 'bg-orange-50');
+          document.getElementById('label-twoman').classList.remove('border-orange-500', 'bg-orange-50');
+          if (surveyType) {
+            const labelId = surveyType.value === 'oneman' ? 'label-oneman' : 'label-twoman';
+            document.getElementById(labelId).classList.add('border-orange-500', 'bg-orange-50');
+          }
+          
+          // エリア選択時に対応地域を表示
+          const regionsEl = document.getElementById('surveyAreaRegions');
+          const areaData = areaPricingData.find(a => a.area_rank === areaRank);
+          if (areaData) {
+            regionsEl.textContent = '対象地域: ' + areaData.regions;
+            // 選択エリアの料金を表示
+            document.getElementById('oneman-price-display').textContent = '¥' + (areaData.survey_oneman_fee || 0).toLocaleString();
+            document.getElementById('twoman-price-display').textContent = '¥' + (areaData.survey_twoman_fee || 0).toLocaleString();
+            // 距離をエリアのデフォルトに設定（ユーザーが変更していない場合）
+            if (document.getElementById('surveyDistance').value === '0' || document.getElementById('surveyDistance').value === '') {
+              document.getElementById('surveyDistance').value = areaData.distance_km;
+            }
+          } else {
+            regionsEl.textContent = '';
+          }
+          
+          if (!surveyType || !areaRank || !areaData) {
+            resetCalcDisplay();
+            return;
+          }
+          
+          // 基本料金
+          const baseFee = surveyType.value === 'oneman' 
+            ? (areaData.survey_oneman_fee || 20000) 
+            : (areaData.survey_twoman_fee || 25000);
+          
+          // 車両費（基本5,000円 - 20km含む）
+          const vehicleFee = areaData.transport_vehicle_fee || 5000;
+          
+          // 距離超過料金（20km超 ¥150/8km）
+          let distanceFee = 0;
+          if (distance > 20) {
+            distanceFee = Math.ceil((distance - 20) / 8) * 150;
+          }
+          
+          // 小計
+          const subtotal = baseFee + vehicleFee + distanceFee;
+          const discountedSubtotal = Math.max(0, subtotal - discount);
+          const tax = Math.floor(discountedSubtotal * 0.1);
+          const total = discountedSubtotal + tax;
+          
+          // 表示更新
+          document.getElementById('surveyCalcBase').textContent = '¥' + baseFee.toLocaleString();
+          document.getElementById('surveyCalcVehicle').textContent = '¥' + vehicleFee.toLocaleString();
+          document.getElementById('surveyCalcDistance').textContent = distance > 20 ? '¥' + distanceFee.toLocaleString() : '¥0（20km以内）';
+          document.getElementById('surveyCalcSubtotal').textContent = '¥' + discountedSubtotal.toLocaleString();
+          document.getElementById('surveyCalcTax').textContent = '¥' + tax.toLocaleString();
+          document.getElementById('surveyCalcTotal').textContent = '¥' + total.toLocaleString();
+        }
+        
+        function resetCalcDisplay() {
+          ['surveyCalcBase', 'surveyCalcVehicle', 'surveyCalcDistance', 'surveyCalcSubtotal', 'surveyCalcTax', 'surveyCalcTotal'].forEach(id => {
+            document.getElementById(id).textContent = '¥0';
+          });
+        }
+        
+        // 保存
+        async function saveSurveyEstimate() {
+          const customerName = document.getElementById('surveyCustomerName').value.trim();
+          const projectName = document.getElementById('surveyProjectName').value.trim();
+          const surveyType = document.querySelector('input[name="surveyType"]:checked');
+          const areaRank = document.getElementById('surveyArea').value;
+          
+          if (!customerName) { alert('顧客名を入力してください'); return; }
+          if (!projectName) { alert('案件名を入力してください'); return; }
+          if (!surveyType) { alert('調査員人数（ワンマン/ツーマン）を選択してください'); return; }
+          if (!areaRank) { alert('エリアを選択してください'); return; }
+          
+          const areaData = areaPricingData.find(a => a.area_rank === areaRank);
+          const distance = parseFloat(document.getElementById('surveyDistance').value) || 0;
+          const discount = parseInt(document.getElementById('surveyDiscount').value) || 0;
+          
+          const baseFee = surveyType.value === 'oneman' 
+            ? (areaData.survey_oneman_fee || 20000) 
+            : (areaData.survey_twoman_fee || 25000);
+          const vehicleFee = areaData.transport_vehicle_fee || 5000;
+          let distanceFee = 0;
+          if (distance > 20) {
+            distanceFee = Math.ceil((distance - 20) / 8) * 150;
+          }
+          
+          const subtotal = baseFee + vehicleFee + distanceFee;
+          const discountedSubtotal = Math.max(0, subtotal - discount);
+          const tax = Math.floor(discountedSubtotal * 0.1);
+          const total = discountedSubtotal + tax;
+          
+          const payload = {
+            customer_name: customerName,
+            project_name: projectName,
+            survey_date: document.getElementById('surveyDate').value,
+            valid_until: document.getElementById('surveyValidUntil').value,
+            address: document.getElementById('surveyAddress').value,
+            survey_type: surveyType.value,
+            survey_people: surveyType.value === 'oneman' ? 1 : 2,
+            area_rank: areaRank,
+            area_regions: areaData.regions,
+            distance_km: distance,
+            base_fee: baseFee,
+            vehicle_fee: vehicleFee,
+            distance_fee: distanceFee,
+            subtotal: subtotal,
+            discount_amount: discount,
+            discounted_subtotal: discountedSubtotal,
+            tax: tax,
+            total: total,
+            notes: document.getElementById('surveyNotes').value
+          };
+          
+          try {
+            const res = await fetch('/api/estimates/survey', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+            const result = await res.json();
+            
+            if (result.success) {
+              document.getElementById('surveySaveMessage').textContent = 
+                '見積番号: ' + result.estimate.estimate_number + ' が保存されました';
+              document.getElementById('surveyPdfLink').href = '/estimate/' + result.estimate.id + '/pdf';
+              document.getElementById('surveyDetailLink').href = '/estimate/' + result.estimate.id;
+              document.getElementById('surveySaveModal').classList.remove('hidden');
+            } else {
+              alert('保存エラー: ' + (result.error || '不明なエラー'));
+            }
+          } catch (e) {
+            console.error('保存エラー:', e);
+            alert('保存に失敗しました: ' + e.message);
+          }
+        }
+        
+        // ページ読み込み時に初期化
+        initSurveyPage();
+      `}}></script>
+    </div>
+  )
+})
+
+// 現地調査専門見積もり保存API
+app.post('/api/estimates/survey', async (c) => {
+  try {
+    const { env } = c
+    const data = await c.req.json()
+    
+    console.log('現地調査見積保存データ:', data)
+    
+    // 見積番号を生成（SURVEY-YYYY-XXX形式）
+    const now = new Date()
+    const year = now.getFullYear()
+    const estimateNumber = `SURVEY-${year}-${String(Date.now()).slice(-3)}`
+    
+    // 金額計算
+    const subtotal = data.subtotal || 0
+    const discountAmount = data.discount_amount || 0
+    const discountedSubtotal = data.discounted_subtotal || Math.max(0, subtotal - discountAmount)
+    const tax = data.tax || Math.floor(discountedSubtotal * 0.1)
+    const total = data.total || (discountedSubtotal + tax)
+    
+    // デフォルト顧客が存在するかチェック
+    let customerId = 1
+    let projectId = 1
+    
+    const existingCustomer = await env.DB.prepare(`
+      SELECT id FROM customers WHERE name = '現地調査顧客' LIMIT 1
+    `).first()
+    
+    if (!existingCustomer) {
+      const customerResult = await env.DB.prepare(`
+        INSERT INTO customers (name, contact_person, phone, email, address, user_id, created_at, updated_at)
+        VALUES ('現地調査顧客', '担当者', '', '', '', 'system', datetime('now'), datetime('now'))
+      `).run()
+      customerId = customerResult.meta.last_row_id
+    } else {
+      customerId = existingCustomer.id
+    }
+    
+    const existingProject = await env.DB.prepare(`
+      SELECT id FROM projects WHERE name = '現地調査プロジェクト' AND customer_id = ? LIMIT 1
+    `).bind(customerId).first()
+    
+    if (!existingProject) {
+      const projectResult = await env.DB.prepare(`
+        INSERT INTO projects (customer_id, name, description, status, user_id, created_at, updated_at)
+        VALUES (?, '現地調査プロジェクト', ?, 'active', 'system', datetime('now'), datetime('now'))
+      `).bind(customerId, `顧客: ${data.customer_name}\n案件: ${data.project_name}`).run()
+      projectId = projectResult.meta.last_row_id
+    } else {
+      projectId = existingProject.id
+    }
+    
+    // セッションからユーザー情報取得
+    const sessionInfo = await verifySession(c)
+    const createdByName = sessionInfo.valid ? sessionInfo.userName : '未設定'
+    
+    // 現地調査の情報をJSON形式で構築
+    const surveyDetails = JSON.stringify({
+      type: 'survey_only',
+      survey_type: data.survey_type,
+      survey_people: data.survey_people,
+      area_rank: data.area_rank,
+      area_regions: data.area_regions,
+      distance_km: data.distance_km,
+      base_fee: data.base_fee,
+      vehicle_fee: data.vehicle_fee,
+      distance_fee: data.distance_fee,
+      survey_date: data.survey_date,
+      valid_until: data.valid_until,
+      address: data.address,
+      discount_amount: discountAmount
+    })
+    
+    // line_items_json に調査見積データを格納
+    const lineItems = JSON.stringify({
+      type: 'survey_only',
+      items: [
+        {
+          name: data.survey_type === 'oneman' ? '現地調査（ワンマン・1人）' : '現地調査（ツーマン・2人）',
+          detail: `エリア${data.area_rank}（${data.area_regions || ''})`,
+          amount: data.base_fee
+        },
+        {
+          name: '車両費',
+          detail: '基本20km含む',
+          amount: data.vehicle_fee
+        },
+        ...(data.distance_fee > 0 ? [{
+          name: '距離超過料金',
+          detail: `${data.distance_km}km（20km超過分）`,
+          amount: data.distance_fee
+        }] : []),
+        ...(discountAmount > 0 ? [{
+          name: '値引き',
+          detail: '',
+          amount: -discountAmount
+        }] : [])
+      ],
+      survey_meta: {
+        survey_type: data.survey_type,
+        survey_people: data.survey_people,
+        area_rank: data.area_rank,
+        area_regions: data.area_regions,
+        distance_km: data.distance_km,
+        survey_date: data.survey_date,
+        address: data.address,
+        customer_name: data.customer_name,
+        project_name: data.project_name,
+        valid_until: data.valid_until
+      }
+    })
+    
+    const estimateResult = await env.DB.prepare(`
+      INSERT INTO estimates (
+        customer_id, project_id, estimate_number,
+        delivery_address, delivery_postal_code, delivery_area,
+        vehicle_type, operation_type, vehicle_cost, staff_cost,
+        site_survey_people, site_survey_distance, site_survey_base_cost,
+        site_survey_vehicle_cost, site_survey_distance_cost, site_survey_cost,
+        subtotal, tax_rate, tax_amount, total_amount,
+        notes, line_items_json, user_id, created_at, updated_at, created_by_name,
+        discount_amount
+      ) VALUES (
+        ?, ?, ?,
+        ?, '', ?,
+        '現地調査', '現地調査', 0, 0,
+        ?, ?, ?,
+        ?, ?, ?,
+        ?, 0.1, ?, ?,
+        ?, ?, 'system', datetime('now'), datetime('now'), ?,
+        ?
+      )
+    `).bind(
+      customerId,
+      projectId,
+      estimateNumber,
+      data.address || `顧客: ${data.customer_name}, 案件: ${data.project_name}`,
+      data.area_rank || 'A',
+      data.survey_people || 1,
+      data.distance_km || 0,
+      data.base_fee || 0,
+      data.vehicle_fee || 0,
+      data.distance_fee || 0,
+      (data.base_fee || 0) + (data.vehicle_fee || 0) + (data.distance_fee || 0),
+      discountedSubtotal,
+      tax,
+      total,
+      data.notes || '',
+      lineItems,
+      createdByName,
+      discountAmount
+    ).run()
+    
+    const estimateId = estimateResult.meta.last_row_id
+    console.log('現地調査見積ID:', estimateId)
+    
+    return c.json({
+      success: true,
+      estimate: {
+        id: estimateId,
+        estimate_number: estimateNumber,
+        customer_name: data.customer_name,
+        project_name: data.project_name,
+        subtotal: discountedSubtotal,
+        tax: tax,
+        total: total
+      },
+      message: '現地調査見積を正常に保存しました'
+    })
+    
+  } catch (error) {
+    console.error('現地調査見積保存エラー:', error)
+    return c.json({ 
+      error: '現地調査見積の保存に失敗しました', 
+      detail: String(error) 
+    }, 500)
+  }
+})
+
 // 見積詳細表示ページ
 app.get('/estimate/:id', async (c) => {
   try {
@@ -13117,6 +13817,31 @@ app.get('/estimate/:id/pdf', async (c) => {
       // フリー見積用PDF生成関数を呼び出し（標準見積と同じフォーマット）
       const pdfHtml = generateFreePdfHTML(estimate, items.results, basicSettings, customerInfo)
       
+      return c.html(pdfHtml)
+      
+    } else if (estimate.estimate_number && estimate.estimate_number.startsWith('SURVEY-')) {
+      // 現地調査専門見積の場合
+      const basicSettings = {
+        company_name: (env.KV ? await env.KV.get('basic_settings:company_name') : null) || '輸送サービス株式会社',
+        company_address: (env.KV ? await env.KV.get('basic_settings:company_address') : null) || '',
+        company_phone: (env.KV ? await env.KV.get('basic_settings:company_phone') : null) || '',
+        company_fax: (env.KV ? await env.KV.get('basic_settings:company_fax') : null) || '',
+        company_email: (env.KV ? await env.KV.get('basic_settings:company_email') : null) || '',
+        logo: (env.KV ? await env.KV.get('basic_settings:company_logo') : null) || null
+      }
+
+      // line_items_jsonから調査見積データを取得
+      let surveyMeta: any = {}
+      let surveyItems: any[] = []
+      try {
+        const lineItemsData = JSON.parse(estimate.line_items_json || '{}')
+        surveyMeta = lineItemsData.survey_meta || {}
+        surveyItems = lineItemsData.items || []
+      } catch (e) {
+        console.error('line_items_json解析エラー:', e)
+      }
+
+      const pdfHtml = generateSurveyPdfHTML(estimate, surveyItems, surveyMeta, basicSettings)
       return c.html(pdfHtml)
       
     } else {
@@ -14288,6 +15013,63 @@ app.get('/api/estimates/:id/pdf', async (c) => {
       })
     }
     
+    // 現地調査専門見積の場合は専用処理
+    if (estimateResult.estimate_number && estimateResult.estimate_number.startsWith('SURVEY-')) {
+      console.log('📋 現地調査見積PDF生成:', estimateResult.estimate_number)
+      
+      // 基本設定（ロゴ含む）をD1から取得
+      const settingsResult = await env.DB.prepare(`
+        SELECT key, value 
+        FROM master_settings 
+        WHERE category = 'basic' AND subcategory = 'company_info'
+        ORDER BY updated_at DESC
+      `).all()
+      
+      const basicSettings: any = {
+        company_name: '',
+        company_address: '',
+        company_phone: '',
+        company_fax: '',
+        company_email: '',
+        logo: null
+      }
+      
+      if (settingsResult.results) {
+        settingsResult.results.forEach((row: any) => {
+          if (row.key === 'company_name') basicSettings.company_name = row.value
+          else if (row.key === 'company_address') basicSettings.company_address = row.value
+          else if (row.key === 'company_phone') basicSettings.company_phone = row.value
+          else if (row.key === 'company_fax') basicSettings.company_fax = row.value
+          else if (row.key === 'company_email') basicSettings.company_email = row.value
+          else if (row.key === 'company_logo') basicSettings.logo = row.value
+        })
+      }
+      
+      // line_items_jsonから調査見積データを取得
+      let surveyMeta: any = {}
+      let surveyItems: any[] = []
+      try {
+        const lineItemsData = JSON.parse(estimateResult.line_items_json || '{}')
+        surveyMeta = lineItemsData.survey_meta || {}
+        surveyItems = lineItemsData.items || []
+      } catch (e) {
+        console.error('line_items_json解析エラー:', e)
+      }
+      
+      const customerName = surveyMeta.customer_name || '現地調査顧客'
+      const projectName = surveyMeta.project_name || '現地調査'
+      
+      // 現地調査専門PDF HTML生成
+      const pdfHtml = generateSurveyPdfHTML(estimateResult, surveyItems, surveyMeta, basicSettings)
+      
+      return new Response(pdfHtml, {
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Content-Disposition': `inline; filename="survey_estimate_${estimateResult.estimate_number}.html"`
+        }
+      })
+    }
+    
     // スタッフ単価をデータベースから取得
     let staffRates = {
       supervisor: 20000,
@@ -14617,6 +15399,192 @@ app.notFound((c) => {
 
 // 会社ロゴのBase64データURI（PDF埋め込み用）
 const COMPANY_LOGO_DATA_URI = 'data:image/png;base64,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';
+
+// 現地調査専門見積書PDF HTML生成
+function generateSurveyPdfHTML(estimate: any, items: any[], surveyMeta: any = {}, basicSettings: any = {}): string {
+  const currentDate = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
+  const surveyDate = surveyMeta.survey_date ? new Date(surveyMeta.survey_date).toLocaleDateString('ja-JP') : '未定'
+  const validUntil = surveyMeta.valid_until ? new Date(surveyMeta.valid_until).toLocaleDateString('ja-JP') : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('ja-JP')
+  const customerName = surveyMeta.customer_name || '現地調査顧客'
+  const projectName = surveyMeta.project_name || '現地調査'
+  const surveyTypeLabel = surveyMeta.survey_type === 'oneman' ? 'ワンマン（1人）' : 'ツーマン（2人）'
+  const areaLabel = surveyMeta.area_rank ? `エリア${surveyMeta.area_rank}` : ''
+  const discountAmount = estimate.discount_amount || 0
+  
+  // 小計は値引き前の金額
+  const rawSubtotal = items.filter(i => i.amount > 0).reduce((sum, i) => sum + i.amount, 0)
+  const discountedSubtotal = Math.max(0, rawSubtotal - discountAmount)
+  const tax = Math.floor(discountedSubtotal * 0.1)
+  const total = discountedSubtotal + tax
+
+  return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>現地調査見積書 - ${estimate.estimate_number}</title>
+    <style>
+        @page { size: A4; margin: 15mm; }
+        body { font-family: 'Hiragino Sans', 'Meiryo', sans-serif; font-size: 10px; color: #333; margin: 0; padding: 20px; }
+        .no-print { margin-bottom: 20px; }
+        @media print { .no-print { display: none; } body { padding: 0; } }
+        .print-button { background: #e67e22; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-right: 10px; font-size: 14px; }
+        .print-button:hover { opacity: 0.8; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #e67e22; padding-bottom: 10px; margin-bottom: 15px; }
+        .header h1 { font-size: 24px; color: #e67e22; margin: 0; }
+        .header .survey-badge { background: #e67e22; color: white; padding: 4px 12px; border-radius: 4px; font-size: 11px; margin-top: 4px; display: inline-block; }
+        .company-logo { max-height: 60px; max-width: 200px; }
+        .top-total-box { float: right; background: linear-gradient(135deg, #fff7ed, #ffedd5); border: 2px solid #e67e22; border-radius: 8px; padding: 12px 20px; margin: 10px 0 15px; text-align: right; min-width: 240px; }
+        .top-total-label { font-size: 11px; color: #9a3412; font-weight: bold; }
+        .top-total-amount { font-size: 22px; font-weight: bold; color: #c2410c; margin: 4px 0; }
+        .top-total-sub { font-size: 9px; color: #78350f; }
+        .top-total-sub span { margin-left: 8px; }
+        .company-info { text-align: right; font-size: 9px; color: #555; margin-bottom: 15px; }
+        .estimate-info { display: flex; justify-content: space-between; margin-bottom: 15px; gap: 15px; }
+        .estimate-info > div { flex: 1; }
+        .info-box { border: 1px solid #ddd; border-radius: 5px; padding: 10px; font-size: 9px; }
+        .info-box h3 { margin: 0 0 8px 0; font-size: 11px; color: #e67e22; border-bottom: 1px solid #fed7aa; padding-bottom: 4px; }
+        .estimate-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+        .estimate-table th { background: #fdba74; color: #7c2d12; padding: 8px; font-size: 10px; text-align: left; border: 1px solid #ddd; }
+        .estimate-table td { padding: 7px 8px; border: 1px solid #ddd; font-size: 9px; }
+        .estimate-table .amount-cell { text-align: right; font-weight: bold; white-space: nowrap; }
+        .total-section { margin-top: 10px; }
+        .total-row { display: flex; justify-content: flex-end; padding: 5px 0; font-size: 10px; }
+        .total-row .label { width: 150px; text-align: right; padding-right: 15px; }
+        .total-row .value { width: 120px; text-align: right; font-weight: bold; }
+        .total-row.grand-total { border-top: 2px solid #e67e22; padding-top: 8px; margin-top: 3px; font-size: 13px; color: #c2410c; }
+        .total-row.discount { color: #dc2626; }
+        .notes-section { margin-top: 15px; border: 1px solid #ddd; border-radius: 5px; padding: 10px; font-size: 9px; }
+        .notes-section h3 { margin: 0 0 8px 0; font-size: 11px; color: #e67e22; }
+        .survey-detail { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 5px; padding: 10px; margin-bottom: 15px; font-size: 9px; }
+        .survey-detail h3 { margin: 0 0 8px 0; font-size: 11px; color: #e67e22; }
+        .survey-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+        .survey-detail-item { display: flex; }
+        .survey-detail-item .dl { font-weight: bold; min-width: 80px; }
+    </style>
+</head>
+<body>
+    <div class="no-print">
+        <button class="print-button" onclick="window.print()">印刷</button>
+        <button class="print-button" onclick="window.close()">閉じる</button>
+    </div>
+
+    <div class="header">
+        <div>
+            <h1>見 積 書</h1>
+            <span class="survey-badge">現地調査専門</span>
+        </div>
+        <img src="${basicSettings.logo || COMPANY_LOGO_DATA_URI}" alt="会社ロゴ" class="company-logo" />
+    </div>
+    
+    <div class="top-total-box">
+        <div class="top-total-label">お見積金額（税込）</div>
+        <div class="top-total-amount">¥${total.toLocaleString()}-</div>
+        <div class="top-total-sub">
+            <span>本体 ¥${discountedSubtotal.toLocaleString()}</span>
+            <span>税 ¥${tax.toLocaleString()}</span>
+        </div>
+    </div>
+    
+    <div style="clear: both;"></div>
+    
+    <div class="company-info">
+        ${basicSettings.company_name ? `<strong>${basicSettings.company_name}</strong><br>` : ''}
+        ${basicSettings.company_address ? `${basicSettings.company_address}<br>` : ''}
+        ${basicSettings.company_phone ? `TEL: ${basicSettings.company_phone}` : ''}${basicSettings.company_fax ? ` / FAX: ${basicSettings.company_fax}` : ''}${basicSettings.company_phone || basicSettings.company_fax ? '<br>' : ''}
+        ${basicSettings.company_email ? `Email: ${basicSettings.company_email}` : ''}
+    </div>
+    
+    <div class="estimate-info">
+        <div class="customer-info">
+            <div class="info-box">
+                <h3>お客様情報</h3>
+                <strong>${customerName} 様</strong><br>
+                案件: ${projectName}<br>
+                ${surveyMeta.address ? `調査先: ${surveyMeta.address}` : ''}
+            </div>
+        </div>
+        
+        <div class="estimate-details">
+            <div class="info-box">
+                <h3>見積詳細</h3>
+                <strong>見積番号:</strong> ${estimate.estimate_number || ''}<br>
+                <strong>作成日:</strong> ${currentDate}<br>
+                <strong>有効期限:</strong> ${validUntil}<br>
+                <strong>調査予定日:</strong> ${surveyDate}<br>
+                ${estimate.created_by_name ? `<strong>担当者:</strong> ${estimate.created_by_name}<br>` : ''}
+            </div>
+        </div>
+    </div>
+    
+    <!-- 調査内容詳細 -->
+    <div class="survey-detail">
+        <h3>調査内容</h3>
+        <div class="survey-detail-grid">
+            <div class="survey-detail-item"><span class="dl">調査形態:</span> ${surveyTypeLabel}</div>
+            <div class="survey-detail-item"><span class="dl">エリア:</span> ${areaLabel}（${surveyMeta.area_regions || ''}）</div>
+            <div class="survey-detail-item"><span class="dl">距離:</span> ${surveyMeta.distance_km || 0} km</div>
+            <div class="survey-detail-item"><span class="dl">調査目的:</span> 搬入経路・設置場所確認</div>
+        </div>
+    </div>
+    
+    <table class="estimate-table">
+        <thead>
+            <tr>
+                <th style="width: 55%">項目</th>
+                <th style="width: 25%">内容</th>
+                <th style="width: 20%">金額（税抜）</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${items.filter(i => i.amount > 0).map((item, idx) => `
+            <tr>
+                <td>${item.name}</td>
+                <td>${item.detail || ''}</td>
+                <td class="amount-cell">¥${item.amount.toLocaleString()}</td>
+            </tr>
+            `).join('')}
+        </tbody>
+    </table>
+    
+    <div class="total-section">
+        <div class="total-row">
+            <span class="label">小計:</span>
+            <span class="value">¥${rawSubtotal.toLocaleString()}</span>
+        </div>
+        ${discountAmount > 0 ? `
+        <div class="total-row discount">
+            <span class="label">値引き:</span>
+            <span class="value">-¥${discountAmount.toLocaleString()}</span>
+        </div>
+        <div class="total-row">
+            <span class="label">値引き後小計:</span>
+            <span class="value">¥${discountedSubtotal.toLocaleString()}</span>
+        </div>
+        ` : ''}
+        <div class="total-row">
+            <span class="label">消費税（10%）:</span>
+            <span class="value">¥${tax.toLocaleString()}</span>
+        </div>
+        <div class="total-row grand-total">
+            <span class="label">合計（税込）:</span>
+            <span class="value">¥${total.toLocaleString()}</span>
+        </div>
+    </div>
+    
+    ${estimate.notes ? `
+    <div class="notes-section">
+        <h3>備考</h3>
+        <p style="white-space: pre-wrap;">${estimate.notes}</p>
+    </div>
+    ` : ''}
+    
+    <div style="margin-top: 20px; font-size: 8px; color: #999; text-align: center;">
+        本見積書の有効期限は発行日より30日間となります。
+    </div>
+</body>
+</html>`
+}
 
 function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {}, basicSettings: any = {}, calculatedStaffCost: number = 0): string {
   // エリアランク説明マッピング（A-I）
