@@ -13679,9 +13679,16 @@ app.get('/estimate/:id', async (c) => {
     const { env } = c
     const estimateId = c.req.param('id')
     
-    // 見積データ取得
+    // 見積データ取得（顧客・案件情報もJOINで取得）
     const estimate = await env.DB.prepare(`
-      SELECT * FROM estimates WHERE id = ?
+      SELECT e.*, 
+             c.name as customer_name, c.contact_person as customer_contact_person,
+             c.phone as customer_phone, c.email as customer_email, c.address as customer_address,
+             p.name as project_name
+      FROM estimates e
+      LEFT JOIN customers c ON e.customer_id = c.id
+      LEFT JOIN projects p ON e.project_id = p.id
+      WHERE e.id = ?
     `).bind(estimateId).first()
     
     if (!estimate) {
@@ -13778,19 +13785,343 @@ app.get('/estimate/:id', async (c) => {
           ` : ''}
         </div>
       `
-    } else {
-      // 標準見積の場合（既存処理）
+    } else if (estimate.estimate_number && estimate.estimate_number.startsWith('SURVEY-')) {
+      // 現地調査専門見積の場合
+      let surveyMeta: any = {}
+      let surveyItems: any[] = []
+      try {
+        const lineItemsData = JSON.parse(estimate.line_items_json || '{}')
+        surveyMeta = lineItemsData.survey_meta || {}
+        surveyItems = (lineItemsData.items || []).filter((i: any) => i.amount > 0)
+      } catch (e) {
+        console.error('survey line_items_json解析エラー:', e)
+      }
+
+      const surveyTypeLabel = surveyMeta.survey_type === 'oneman' ? 'ワンマン（1人）' : 'ツーマン（2人）'
+      const rawSubtotal = surveyItems.reduce((sum: number, i: any) => sum + i.amount, 0)
+      const discountAmount = estimate.discount_amount || 0
+      const discountedSubtotal = Math.max(0, rawSubtotal - discountAmount)
+      const tax = Math.floor(discountedSubtotal * 0.1)
+      const total = discountedSubtotal + tax
+
       estimateHtml = `
         <div class="bg-white rounded-lg shadow-lg p-8">
           <div class="text-center mb-8">
             <h1 class="text-3xl font-bold text-gray-800 mb-2">見 積 書</h1>
             <p class="text-gray-600">見積番号: ${estimate.estimate_number}</p>
-            <p class="text-gray-500 text-sm">標準見積もり</p>
+            <span class="inline-block bg-blue-600 text-white text-xs px-3 py-1 rounded mt-2">現地調査専門</span>
           </div>
-          <div class="text-center">
-            <p class="text-gray-600">標準見積の詳細表示機能は実装中です</p>
-            <p class="text-2xl font-bold text-blue-600 mt-4">合計金額: ¥${estimate.total_amount.toLocaleString()}</p>
+
+          <!-- 合計金額 -->
+          <div class="bg-blue-50 border-2 border-blue-400 rounded-lg p-6 mb-8">
+            <div class="grid grid-cols-3 gap-4 text-center">
+              <div>
+                <div class="text-sm text-gray-600">小計（税抜）</div>
+                <div class="text-xl font-bold text-gray-800">¥${discountedSubtotal.toLocaleString()}</div>
+              </div>
+              <div>
+                <div class="text-sm text-gray-600">消費税（10%）</div>
+                <div class="text-xl font-bold text-gray-800">¥${tax.toLocaleString()}</div>
+              </div>
+              <div>
+                <div class="text-sm text-gray-600">合計（税込）</div>
+                <div class="text-3xl font-bold text-blue-600">¥${total.toLocaleString()}</div>
+              </div>
+            </div>
           </div>
+
+          <!-- 基本情報 -->
+          <div class="grid grid-cols-2 gap-8 mb-8">
+            <div class="bg-gray-50 p-4 rounded-lg border">
+              <h3 class="text-lg font-bold text-gray-800 mb-3 border-b pb-2">お客様情報</h3>
+              <p><strong>顧客名：</strong> ${surveyMeta.customer_name || '未設定'}</p>
+              <p><strong>案件名：</strong> ${surveyMeta.project_name || '未設定'}</p>
+              ${surveyMeta.address ? `<p><strong>調査先：</strong> ${surveyMeta.address}</p>` : ''}
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg border">
+              <h3 class="text-lg font-bold text-gray-800 mb-3 border-b pb-2">見積もり情報</h3>
+              <p><strong>作成日：</strong> ${new Date(estimate.created_at).toLocaleDateString('ja-JP')}</p>
+              <p><strong>調査予定日：</strong> ${surveyMeta.survey_date ? new Date(surveyMeta.survey_date).toLocaleDateString('ja-JP') : '未定'}</p>
+              <p><strong>有効期限：</strong> ${surveyMeta.valid_until ? new Date(surveyMeta.valid_until).toLocaleDateString('ja-JP') : '未設定'}</p>
+              ${estimate.created_by_name ? `<p><strong>担当者：</strong> ${estimate.created_by_name}</p>` : ''}
+            </div>
+          </div>
+
+          <!-- 調査内容 -->
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
+            <h3 class="text-md font-bold text-gray-800 mb-3 border-b border-blue-200 pb-2">調査内容</h3>
+            <div class="grid grid-cols-2 gap-3 text-sm">
+              <p><strong>調査形態：</strong> ${surveyTypeLabel}</p>
+              <p><strong>エリア：</strong> ${surveyMeta.area_rank ? 'エリア' + surveyMeta.area_rank : '未設定'}${surveyMeta.area_regions ? '（' + surveyMeta.area_regions + '）' : ''}</p>
+              <p><strong>調査目的：</strong> 搬入経路・設置場所確認</p>
+            </div>
+          </div>
+
+          <!-- 明細 -->
+          <div class="mb-8">
+            <table class="w-full border-collapse border border-gray-300">
+              <thead>
+                <tr class="bg-blue-600 text-white">
+                  <th class="px-4 py-3 border text-left">項目</th>
+                  <th class="px-4 py-3 border text-left">内容</th>
+                  <th class="px-4 py-3 border text-right">金額（税抜）</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${surveyItems.map((item: any, index: number) => `
+                <tr class="${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}">
+                  <td class="px-4 py-2 border">${item.name}</td>
+                  <td class="px-4 py-2 border">${item.detail || ''}</td>
+                  <td class="px-4 py-2 border text-right font-bold">¥${item.amount.toLocaleString()}</td>
+                </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- 合計セクション -->
+          <div class="flex justify-end mb-8">
+            <div class="w-80">
+              <div class="flex justify-between py-2 border-b">
+                <span class="text-gray-700">小計</span>
+                <span class="font-bold">¥${rawSubtotal.toLocaleString()}</span>
+              </div>
+              ${discountAmount > 0 ? `
+              <div class="flex justify-between py-2 border-b text-red-600">
+                <span>値引き</span>
+                <span class="font-bold">-¥${discountAmount.toLocaleString()}</span>
+              </div>
+              <div class="flex justify-between py-2 border-b bg-yellow-50 px-2">
+                <span class="font-semibold">値引き後小計</span>
+                <span class="font-bold">¥${discountedSubtotal.toLocaleString()}</span>
+              </div>
+              ` : ''}
+              <div class="flex justify-between py-2 border-b">
+                <span class="text-gray-700">消費税（10%）</span>
+                <span class="font-bold">¥${tax.toLocaleString()}</span>
+              </div>
+              <div class="flex justify-between py-3 bg-blue-50 rounded px-2 mt-1">
+                <span class="text-blue-800 font-bold text-lg">合計金額</span>
+                <span class="font-bold text-blue-600 text-lg">¥${total.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+
+          ${estimate.notes ? `
+          <div class="mb-8">
+            <h3 class="text-lg font-bold text-gray-800 mb-3">備考</h3>
+            <div class="bg-gray-50 p-4 rounded-md border">
+              <p class="whitespace-pre-wrap">${estimate.notes}</p>
+            </div>
+          </div>
+          ` : ''}
+        </div>
+      `
+
+    } else {
+      // 標準見積の場合
+      let lineItems: any = null
+      try {
+        if (estimate.line_items_json) {
+          lineItems = JSON.parse(estimate.line_items_json)
+        }
+      } catch (e) {
+        console.error('line_items_json解析エラー:', e)
+      }
+
+      // 金額計算
+      let subtotal = estimate.subtotal || 0
+      const discountAmount = estimate.discount_amount || 0
+      const discountedSubtotal = Math.max(0, subtotal - discountAmount)
+      const taxRate = estimate.tax_rate || 0.1
+      const tax = estimate.tax_amount || Math.floor(discountedSubtotal * taxRate)
+      const total = estimate.total_amount || (discountedSubtotal + tax)
+
+      // エリア表示
+      const areaRankDescriptions: Record<string, string> = {
+        'A': '大阪市内（15km圏）', 'B': '大阪府・神戸市・京都市・奈良県（30km圏）',
+        'C': '南丹（50km圏）', 'D': '東播磨・北播磨・丹波・滋賀県・和歌山県（100km圏）',
+        'E': '淡路・西播磨・中丹・三重県（150km圏）', 'F': '但馬・丹後・愛知県・岐阜県・徳島県・香川県（200km圏）',
+        'G': '岡山県・鳥取県・福井県（300km圏）', 'H': '広島県・愛媛県・高知県・島根県・石川県・富山県（400km圏）',
+        'I': '山口県（500km圏）'
+      }
+      const areaDesc = areaRankDescriptions[estimate.delivery_area] || ''
+
+      // 明細行を生成
+      let itemRowsHtml = ''
+      if (lineItems) {
+        // line_items_json が存在する場合
+        const sections = ['vehicle', 'staff', 'services']
+        for (const sec of sections) {
+          const sectionData = lineItems[sec]
+          if (sectionData && sectionData.items && sectionData.items.length > 0) {
+            itemRowsHtml += `
+              <tr class="bg-blue-50">
+                <td colspan="2" class="px-4 py-2 border font-bold text-blue-800">【${sectionData.section_name}】</td>
+              </tr>`
+            for (const item of sectionData.items) {
+              itemRowsHtml += `
+              <tr class="bg-white hover:bg-gray-50">
+                <td class="px-4 py-2 border">${item.description}${item.detail ? ' ' + item.detail : ''}${item.note ? '<br><small class="text-gray-500">' + item.note + '</small>' : ''}</td>
+                <td class="px-4 py-2 border text-right font-bold">¥${item.amount.toLocaleString()}</td>
+              </tr>`
+            }
+            itemRowsHtml += `
+              <tr class="bg-gray-100">
+                <td class="px-4 py-2 border font-bold">${sectionData.section_name}小計</td>
+                <td class="px-4 py-2 border text-right font-bold">¥${sectionData.subtotal.toLocaleString()}</td>
+              </tr>`
+          }
+        }
+      } else {
+        // フォールバック: 基本的なコスト表示
+        const costs = [
+          { name: '車両費', amount: estimate.vehicle_cost || 0 },
+          { name: 'スタッフ費', amount: estimate.staff_cost || 0 },
+          { name: '駐車対策員費', amount: estimate.parking_officer_cost || 0 },
+          { name: '人員輸送費', amount: estimate.transport_cost || 0 },
+          { name: '引取り廃棄費', amount: estimate.waste_disposal_cost || 0 },
+          { name: '養生作業費', amount: estimate.protection_cost || 0 },
+          { name: '残材回収費', amount: estimate.material_collection_cost || 0 },
+          { name: '施工費', amount: estimate.construction_cost || 0 },
+          { name: '駐車料金', amount: estimate.parking_fee || 0 },
+          { name: '高速料金', amount: estimate.highway_fee || 0 },
+          { name: '外注費', amount: estimate.external_contractor_cost || 0 },
+        ].filter(c => c.amount > 0)
+
+        if (estimate.vehicle_dedicated_count > 0) {
+          costs.unshift({
+            name: 'チャーター便 ' + estimate.vehicle_dedicated_count + '台（' + estimate.delivery_area + 'ランク）',
+            amount: (estimate.vehicle_dedicated_unit_price || 0) * (estimate.vehicle_dedicated_count || 0)
+          })
+        }
+        if (estimate.vehicle_charter_count > 0) {
+          costs.unshift({
+            name: '混載便 ' + estimate.vehicle_charter_count + '台（' + estimate.delivery_area + 'ランク）',
+            amount: (estimate.vehicle_charter_unit_price || 0) * (estimate.vehicle_charter_count || 0)
+          })
+        }
+
+        for (const [index, cost] of costs.entries()) {
+          itemRowsHtml += `
+            <tr class="${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}">
+              <td class="px-4 py-2 border">${cost.name}</td>
+              <td class="px-4 py-2 border text-right font-bold">¥${cost.amount.toLocaleString()}</td>
+            </tr>`
+        }
+      }
+
+      // 時間帯割増の表示
+      const workTimeLabels: Record<string, string> = {
+        'normal': '通常（8:00-17:00）', 'early': '早朝（6:00-8:00）',
+        'night': '夜間（17:00-22:00）', 'midnight': '深夜（22:00-6:00）'
+      }
+
+      estimateHtml = `
+        <div class="bg-white rounded-lg shadow-lg p-8">
+          <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">見 積 書</h1>
+            <p class="text-gray-600">見積番号: ${estimate.estimate_number}</p>
+            <span class="inline-block bg-blue-600 text-white text-xs px-3 py-1 rounded mt-2">標準見積もり</span>
+          </div>
+
+          <!-- 合計金額 -->
+          <div class="bg-blue-50 border-2 border-blue-400 rounded-lg p-6 mb-8">
+            <div class="grid grid-cols-3 gap-4 text-center">
+              <div>
+                <div class="text-sm text-gray-600">小計（税抜）</div>
+                <div class="text-xl font-bold text-gray-800">¥${discountedSubtotal.toLocaleString()}</div>
+              </div>
+              <div>
+                <div class="text-sm text-gray-600">消費税</div>
+                <div class="text-xl font-bold text-gray-800">¥${tax.toLocaleString()}</div>
+              </div>
+              <div>
+                <div class="text-sm text-gray-600">合計（税込）</div>
+                <div class="text-3xl font-bold text-blue-600">¥${total.toLocaleString()}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 基本情報 -->
+          <div class="grid grid-cols-2 gap-8 mb-8">
+            <div class="bg-gray-50 p-4 rounded-lg border">
+              <h3 class="text-lg font-bold text-gray-800 mb-3 border-b pb-2">お客様情報</h3>
+              <p><strong>顧客名：</strong> ${estimate.customer_name || '未設定'}</p>
+              ${estimate.customer_contact_person ? `<p><strong>担当者：</strong> ${estimate.customer_contact_person}</p>` : ''}
+              ${estimate.customer_address ? `<p><strong>住所：</strong> ${estimate.customer_address}</p>` : ''}
+              ${estimate.customer_phone ? `<p><strong>TEL：</strong> ${estimate.customer_phone}</p>` : ''}
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg border">
+              <h3 class="text-lg font-bold text-gray-800 mb-3 border-b pb-2">見積もり情報</h3>
+              <p><strong>案件名：</strong> ${estimate.project_name || '未設定'}</p>
+              <p><strong>作成日：</strong> ${new Date(estimate.created_at).toLocaleDateString('ja-JP')}</p>
+              ${estimate.created_by_name ? `<p><strong>作成者：</strong> ${estimate.created_by_name}</p>` : ''}
+              ${estimate.work_time_type && estimate.work_time_type !== 'normal' ? `<p><strong>作業時間帯：</strong> ${workTimeLabels[estimate.work_time_type] || estimate.work_time_type}（${estimate.work_time_multiplier}倍）</p>` : ''}
+            </div>
+          </div>
+
+          <!-- 配送先情報 -->
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
+            <h3 class="text-md font-bold text-gray-800 mb-3 border-b border-blue-200 pb-2">配送先情報</h3>
+            <div class="grid grid-cols-2 gap-3 text-sm">
+              <p><strong>配送先住所：</strong> ${estimate.delivery_address || '未設定'}</p>
+              <p><strong>エリア：</strong> ${estimate.delivery_area}ランク${areaDesc ? '（' + areaDesc + '）' : ''}</p>
+              ${estimate.delivery_postal_code ? `<p><strong>郵便番号：</strong> ${estimate.delivery_postal_code}</p>` : ''}
+            </div>
+          </div>
+
+          <!-- 明細 -->
+          <div class="mb-8">
+            <table class="w-full border-collapse border border-gray-300">
+              <thead>
+                <tr class="bg-blue-600 text-white">
+                  <th class="px-4 py-3 border text-left">項目</th>
+                  <th class="px-4 py-3 border text-right">金額（税抜）</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemRowsHtml}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- 合計セクション -->
+          <div class="flex justify-end mb-8">
+            <div class="w-80">
+              <div class="flex justify-between py-2 border-b">
+                <span class="text-gray-700">小計</span>
+                <span class="font-bold">¥${subtotal.toLocaleString()}</span>
+              </div>
+              ${discountAmount > 0 ? `
+              <div class="flex justify-between py-2 border-b text-red-600">
+                <span>値引き</span>
+                <span class="font-bold">-¥${discountAmount.toLocaleString()}</span>
+              </div>
+              <div class="flex justify-between py-2 border-b bg-yellow-50 px-2">
+                <span class="font-semibold">値引き後小計</span>
+                <span class="font-bold">¥${discountedSubtotal.toLocaleString()}</span>
+              </div>
+              ` : ''}
+              <div class="flex justify-between py-2 border-b">
+                <span class="text-gray-700">消費税（${Math.round(taxRate * 100)}%）</span>
+                <span class="font-bold">¥${tax.toLocaleString()}</span>
+              </div>
+              <div class="flex justify-between py-3 bg-blue-50 rounded px-2 mt-1">
+                <span class="text-blue-800 font-bold text-lg">合計金額</span>
+                <span class="font-bold text-blue-600 text-lg">¥${total.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+
+          ${estimate.notes ? `
+          <div class="mb-8">
+            <h3 class="text-lg font-bold text-gray-800 mb-3">備考</h3>
+            <div class="bg-gray-50 p-4 rounded-md border">
+              <p class="whitespace-pre-wrap">${estimate.notes}</p>
+            </div>
+          </div>
+          ` : ''}
         </div>
       `
     }
