@@ -1717,7 +1717,7 @@ const Step3Implementation = {
     }
   },
 
-  // チャーター便料金計算・表示
+  // チャーター便料金計算・表示（車両ブロック方式）
   updateDedicatedPricing: () => {
     const pricing = Step3Implementation.dedicatedPricing;
     if (!pricing) {
@@ -1726,24 +1726,63 @@ const Step3Implementation = {
       return;
     }
     
-    const count = parseInt(document.getElementById('dedicatedVehicleCount')?.value) || 1;
-    const isOneman = document.getElementById('dedicatedOnemanDiscount')?.checked || false;
+    // 車両ブロックからチェック状態を取得
+    const checkboxes = document.querySelectorAll('.dedicated-oneman-cb');
+    const vehicles = [];
+    checkboxes.forEach((cb, i) => {
+      vehicles.push({ idx: i, oneman_discount: cb.checked });
+    });
+    const count = vehicles.length || 1;
     
     const unitPrice = pricing.dedicated_price_1 || 0;
-    const discount = isOneman ? 15000 : 0;
-    const vehicleSubtotal = (unitPrice - discount) * count;
     
     // ワンマン割引対象チェック
     const onemanEligible = pricing.oneman_discount_eligible === 1 || pricing.oneman_discount_eligible === true;
-    const onemanCheckbox = document.getElementById('dedicatedOnemanDiscount');
     const onemanNote = document.getElementById('dedicatedOnemanNote');
     if (!onemanEligible) {
-      if (onemanCheckbox) { onemanCheckbox.checked = false; onemanCheckbox.disabled = true; }
-      if (onemanNote) onemanNote.textContent = 'このエリアはワンマン割引対象外です';
+      checkboxes.forEach(cb => { cb.checked = false; cb.disabled = true; });
+      if (onemanNote) {
+        onemanNote.innerHTML = `
+          <div class="flex items-center">
+            <i class="fas fa-times-circle text-gray-400 mr-2"></i>
+            <span class="text-xs text-gray-500">このエリアはワンマン割引対象外です</span>
+          </div>
+        `;
+        onemanNote.className = 'mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg';
+      }
     } else {
-      if (onemanCheckbox) onemanCheckbox.disabled = false;
-      if (onemanNote) onemanNote.textContent = 'ワンマン割引対象エリアです';
+      checkboxes.forEach(cb => { cb.disabled = false; });
+      if (onemanNote) {
+        onemanNote.innerHTML = `
+          <div class="flex items-center">
+            <i class="fas fa-info-circle text-blue-500 mr-2"></i>
+            <span class="text-xs text-blue-700">ワンマン割引対象エリアです &#8212; 各車両のチェックボックスで個別に割引を適用できます</span>
+          </div>
+        `;
+        onemanNote.className = 'mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg';
+      }
     }
+    
+    // 車両ごとに料金計算
+    let vehicleSubtotal = 0;
+    let discountedCount = 0;
+    vehicles.forEach((v, i) => {
+      const discount = v.oneman_discount ? 15000 : 0;
+      const perVehicle = unitPrice - discount;
+      vehicleSubtotal += perVehicle;
+      if (v.oneman_discount) discountedCount++;
+      // 各車両の単価表示を更新
+      const priceEl = document.getElementById(`dedicatedVehiclePrice_${i}`);
+      if (priceEl) {
+        if (v.oneman_discount) {
+          priceEl.innerHTML = `<span class="text-green-600">¥${perVehicle.toLocaleString()}</span> <span class="text-xs text-green-500">(割引済)</span>`;
+        } else {
+          priceEl.textContent = `¥${unitPrice.toLocaleString()}`;
+        }
+      }
+    });
+    const totalDiscount = discountedCount * 15000;
+    const hasAnyDiscount = discountedCount > 0;
     
     // 表示更新
     document.getElementById('dedicatedAreaRank').textContent = `${Step3Implementation.currentArea}ランク`;
@@ -1752,24 +1791,34 @@ const Step3Implementation = {
     document.getElementById('dedicatedSubtotal').textContent = `¥${vehicleSubtotal.toLocaleString()}`;
     
     const discountRow = document.getElementById('dedicatedDiscountRow');
-    if (discountRow) discountRow.classList.toggle('hidden', !isOneman);
+    const discountDetail = document.getElementById('dedicatedDiscountDetail');
+    if (discountRow) discountRow.classList.toggle('hidden', !hasAnyDiscount);
+    if (discountDetail) {
+      if (discountedCount === count) {
+        discountDetail.textContent = `-¥${totalDiscount.toLocaleString()}（全${count}台に適用）`;
+      } else {
+        discountDetail.textContent = `-¥${totalDiscount.toLocaleString()}（${discountedCount}台/${count}台に適用）`;
+      }
+    }
     
     // 付帯費用チェックボックスから合計を計算
     const ancillary = Step3Implementation.getAncillaryCost('dedicated', pricing);
     const totalCost = vehicleSubtotal + ancillary.total;
     
     // サマリー更新
-    Step3Implementation.updateSummary('チャーター便', count, totalCost, isOneman, ancillary.total);
+    Step3Implementation.updateSummary('チャーター便', count, totalCost, hasAnyDiscount, ancillary.total);
     
-    // 車両情報保存（付帯費用を含む）
+    // 車両情報保存（車両ブロック情報を含む）
     Step3Implementation.currentVehicleInfo = {
       service_type: 'dedicated',
       service_type_label: 'チャーター便',
       area: Step3Implementation.currentArea,
       unit_price: unitPrice,
-      oneman_discount: isOneman,
-      discount_amount: discount,
+      oneman_discount: hasAnyDiscount,
+      discount_amount: totalDiscount,
+      discounted_count: discountedCount,
       vehicle_count: count,
+      vehicles: vehicles,
       cost: totalCost,
       vehicle_subtotal: vehicleSubtotal,
       ancillary_cost: ancillary.total,
@@ -1885,17 +1934,78 @@ const Step3Implementation = {
     if (totalEl) totalEl.textContent = `¥${total.toLocaleString()}`;
   },
 
-  // チャーター便台数調整
-  adjustDedicatedCount: (delta) => {
-    const input = document.getElementById('dedicatedVehicleCount');
-    if (!input) return;
-    let val = parseInt(input.value) || 1;
-    val = Math.max(1, Math.min(99, val + delta));
-    input.value = val;
+  // チャーター便 車両追加
+  addDedicatedVehicle: () => {
+    const container = document.getElementById('dedicatedVehicleBlocks');
+    if (!container) return;
+    const blocks = container.querySelectorAll('.vehicle-block');
+    const newIdx = blocks.length;
+    if (newIdx >= 20) { alert('最大20台まで追加できます'); return; }
+    
+    const block = document.createElement('div');
+    block.className = 'vehicle-block p-4 bg-white rounded-lg border border-orange-200 shadow-sm';
+    block.dataset.vehicleIdx = newIdx;
+    block.innerHTML = `
+      <div class="flex items-center justify-between">
+        <div class="flex items-center">
+          <div class="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center mr-3">
+            <i class="fas fa-truck text-orange-500 text-sm"></i>
+          </div>
+          <div>
+            <span class="font-bold text-gray-800 text-sm">車両 #${newIdx + 1}</span>
+            <span class="ml-2 text-xs text-gray-400">（追加）</span>
+          </div>
+        </div>
+        <div class="flex items-center space-x-3">
+          <span class="text-sm font-semibold text-gray-700" id="dedicatedVehiclePrice_${newIdx}">-</span>
+          <button type="button" onclick="removeDedicatedVehicle(this)" 
+            class="w-7 h-7 flex items-center justify-center rounded-full text-red-400 hover:text-white hover:bg-red-500 transition-all" title="この車両を削除">
+            <i class="fas fa-times text-sm"></i>
+          </button>
+        </div>
+      </div>
+      <div class="mt-3 pt-3 border-t border-orange-100">
+        <label class="flex items-center cursor-pointer group">
+          <input type="checkbox" class="dedicated-oneman-cb w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+            data-idx="${newIdx}" onchange="handleDedicatedOptionsChange()" />
+          <span class="ml-2 text-sm text-green-700 font-medium group-hover:text-green-800">
+            <i class="fas fa-tag mr-1"></i>ワンマン割引を適用 (-¥15,000)
+          </span>
+        </label>
+      </div>
+    `;
+    container.appendChild(block);
     Step3Implementation.updateDedicatedPricing();
   },
 
-  // チャーター便オプション変更（ワンマン・台数）
+  // チャーター便 車両削除
+  removeDedicatedVehicle: (btn) => {
+    const block = btn.closest('.vehicle-block');
+    if (block) {
+      block.remove();
+      // 番号振り直し
+      const container = document.getElementById('dedicatedVehicleBlocks');
+      const blocks = container.querySelectorAll('.vehicle-block');
+      blocks.forEach((b, i) => {
+        b.dataset.vehicleIdx = i;
+        const label = b.querySelector('.font-bold.text-gray-800');
+        if (label) label.textContent = `車両 #${i + 1}`;
+        // ラベル横の補足テキストも更新（基本 or 追加）
+        const subLabel = label ? label.nextElementSibling : null;
+        if (subLabel && subLabel.classList.contains('text-xs')) {
+          subLabel.textContent = i === 0 ? '（基本）' : '（追加）';
+          subLabel.className = i === 0 ? 'ml-2 text-xs text-orange-400' : 'ml-2 text-xs text-gray-400';
+        }
+        const cb = b.querySelector('.dedicated-oneman-cb');
+        if (cb) cb.dataset.idx = i;
+        const priceEl = b.querySelector('[id^="dedicatedVehiclePrice_"]');
+        if (priceEl) priceEl.id = `dedicatedVehiclePrice_${i}`;
+      });
+      Step3Implementation.updateDedicatedPricing();
+    }
+  },
+
+  // チャーター便オプション変更（ワンマン）
   handleDedicatedOptionsChange: () => {
     Step3Implementation.updateDedicatedPricing();
   },
@@ -1954,7 +2064,8 @@ const Step3Implementation = {
 window.handleServiceTypeChange = (type) => Step3Implementation.handleServiceTypeChange(type);
 window.handleDedicatedOptionsChange = () => Step3Implementation.handleDedicatedOptionsChange();
 window.handleKonsaiOptionsChange = () => Step3Implementation.handleKonsaiOptionsChange();
-window.adjustDedicatedCount = (delta) => Step3Implementation.adjustDedicatedCount(delta);
+window.addDedicatedVehicle = () => Step3Implementation.addDedicatedVehicle();
+window.removeDedicatedVehicle = (btn) => Step3Implementation.removeDedicatedVehicle(btn);
 window.goBackToStep2 = Step3Implementation.goBackToStep2;
 window.proceedToStep4 = () => {
   console.log('proceedToStep4 グローバル関数が呼び出されました');
@@ -2023,8 +2134,9 @@ const Step4Implementation = {
         if (flowData.vehicle.service_type) {
           // 新体系（チャーター便/混載便）
           vehicleText = `${flowData.vehicle.service_type_label} ${flowData.vehicle.vehicle_count}台`;
-          if (flowData.vehicle.oneman_discount) {
-            vehicleText += '（ワンマン）';
+          if (flowData.vehicle.discounted_count > 0 || flowData.vehicle.oneman_discount) {
+            const dc = flowData.vehicle.discounted_count || (flowData.vehicle.oneman_discount ? flowData.vehicle.vehicle_count : 0);
+            vehicleText += dc === flowData.vehicle.vehicle_count ? '（ワンマン）' : `（ワンマン ${dc}/${flowData.vehicle.vehicle_count}台）`;
           }
         } else if (flowData.vehicle.uses_multiple_vehicles) {
           const vehicleDetails = [];
@@ -3289,13 +3401,16 @@ const Step6Implementation = {
         // チャーター便
         const unitPrice = vehicle.unit_price || 0;
         const count = vehicle.vehicle_count || 1;
-        const discount = vehicle.oneman_discount ? 15000 : 0;
-        const perVehicle = unitPrice - discount;
+        const discountedCount = vehicle.discounted_count || 0;
+        const totalDiscount = vehicle.discount_amount || 0;
         
         details.push(`<div class="flex justify-between px-4 py-2"><span>チャーター便 ${count}台（${vehicle.area}ランク）@ ¥${unitPrice.toLocaleString()}</span><span>${Utils.formatCurrency(unitPrice * count)}</span></div>`);
         
-        if (vehicle.oneman_discount) {
-          details.push(`<div class="flex justify-between px-4 py-2 text-green-600"><span>ワンマン割引 × ${count}台</span><span>-${Utils.formatCurrency(discount * count)}</span></div>`);
+        if (discountedCount > 0) {
+          const discountLabel = discountedCount === count 
+            ? `ワンマン割引 × ${count}台` 
+            : `ワンマン割引 × ${discountedCount}/${count}台`;
+          details.push(`<div class="flex justify-between px-4 py-2 text-green-600"><span>${discountLabel}</span><span>-${Utils.formatCurrency(totalDiscount)}</span></div>`);
         }
       } else if (vehicle.service_type === 'konsai') {
         // 混載便
@@ -3884,6 +3999,8 @@ const Step6Implementation = {
       if (vehicle.service_type === 'dedicated') {
         const unitPrice = vehicle.unit_price || 0;
         const count = vehicle.vehicle_count || 1;
+        const discountedCount = vehicle.discounted_count || 0;
+        const totalDiscount = vehicle.discount_amount || 0;
         lineItems.vehicle.items.push({
           description: `チャーター便 ${count}台（${vehicle.area}ランク）`,
           detail: `@ ¥${unitPrice.toLocaleString()}`,
@@ -3891,13 +4008,16 @@ const Step6Implementation = {
           unit_price: unitPrice,
           amount: unitPrice * count
         });
-        if (vehicle.oneman_discount) {
+        if (discountedCount > 0) {
+          const discountLabel = discountedCount === count 
+            ? `ワンマン割引 × ${count}台` 
+            : `ワンマン割引 × ${discountedCount}/${count}台`;
           lineItems.vehicle.items.push({
-            description: 'ワンマン割引',
-            detail: `× ${count}台`,
-            quantity: count,
+            description: discountLabel,
+            detail: '',
+            quantity: discountedCount,
             unit_price: -15000,
-            amount: -15000 * count
+            amount: -totalDiscount
           });
         }
       } else if (vehicle.service_type === 'konsai') {
@@ -4794,11 +4914,13 @@ const Step6Implementation = {
       // 車両費用合計を再計算
       if (vehicle.service_type === 'dedicated') {
         const count = vehicle.vehicle_count || 1;
-        const discount = vehicle.oneman_discount ? 15000 : 0;
-        vehicle.cost = (vehicle.unit_price - discount) * count;
+        const totalDiscount = vehicle.discount_amount || 0;
+        vehicle.vehicle_subtotal = vehicle.unit_price * count - totalDiscount;
+        vehicle.cost = vehicle.vehicle_subtotal + (vehicle.ancillary_cost || 0);
       } else if (vehicle.service_type === 'konsai') {
         const discount = vehicle.oneman_discount ? 15000 : 0;
-        vehicle.cost = vehicle.unit_price - discount;
+        vehicle.vehicle_subtotal = vehicle.unit_price - discount;
+        vehicle.cost = vehicle.vehicle_subtotal + (vehicle.ancillary_cost || 0);
       }
     } else if (vehicle.uses_multiple_vehicles) {
       if (editedPrices.vehicle_2t_unit_price !== undefined) {
@@ -4862,11 +4984,15 @@ const Step6Implementation = {
       if (vehicle.service_type === 'dedicated') {
         const unitPrice = vehicle.unit_price || 0;
         const count = vehicle.vehicle_count || 1;
-        const discount = vehicle.oneman_discount ? 15000 : 0;
+        const discountedCount = vehicle.discounted_count || 0;
+        const totalDiscount = vehicle.discount_amount || 0;
         
         details.push(`<div class="flex justify-between px-4 py-2"><span>チャーター便 ${count}台（${vehicle.area}ランク）@ ¥${unitPrice.toLocaleString()} ${modifiedTag}</span><span>${Utils.formatCurrency(unitPrice * count)}</span></div>`);
-        if (vehicle.oneman_discount) {
-          details.push(`<div class="flex justify-between px-4 py-2 text-green-600"><span>ワンマン割引 × ${count}台</span><span>-${Utils.formatCurrency(discount * count)}</span></div>`);
+        if (discountedCount > 0) {
+          const discountLabel = discountedCount === count 
+            ? `ワンマン割引 × ${count}台` 
+            : `ワンマン割引 × ${discountedCount}/${count}台`;
+          details.push(`<div class="flex justify-between px-4 py-2 text-green-600"><span>${discountLabel}</span><span>-${Utils.formatCurrency(totalDiscount)}</span></div>`);
         }
       } else if (vehicle.service_type === 'konsai') {
         const basePrice = vehicle.unit_price || 0;

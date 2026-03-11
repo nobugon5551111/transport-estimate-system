@@ -5503,46 +5503,56 @@ app.get('/estimate/step3', (c) => {
                 <i className="fas fa-truck-moving mr-2"></i>チャーター便 設定
               </h3>
 
-              {/* ワンマン割引 */}
-              <div className="mb-4">
-                <label className="flex items-center cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    id="dedicatedOnemanDiscount" 
-                    onChange="handleDedicatedOptionsChange()"
-                    className="w-5 h-5 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
-                  />
-                  <span className="ml-3 text-sm font-medium text-gray-700">
-                    ワンマン割引を適用（-¥15,000）
-                  </span>
-                </label>
-                <p id="dedicatedOnemanNote" className="text-xs text-gray-500 mt-1 ml-8">ワンマン割引対象エリアの場合に適用可能です</p>
-              </div>
-
-              {/* 台数選択 */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">台数</label>
-                <div className="flex items-center space-x-3">
-                  <button 
-                    onclick="adjustDedicatedCount(-1)"
-                    className="w-10 h-10 bg-orange-200 hover:bg-orange-300 text-orange-800 rounded-full flex items-center justify-center font-bold text-xl transition"
-                  >-</button>
-                  <input 
-                    type="number" 
-                    id="dedicatedVehicleCount" 
-                    min="1" 
-                    max="99"
-                    value="1"
-                    onChange="handleDedicatedOptionsChange()"
-                    className="w-20 px-2 py-2 border border-orange-300 rounded-md text-center text-lg font-bold focus:outline-none focus:ring-orange-500 focus:border-orange-500"
-                  />
-                  <button 
-                    onclick="adjustDedicatedCount(1)"
-                    className="w-10 h-10 bg-orange-400 hover:bg-orange-500 text-white rounded-full flex items-center justify-center font-bold text-xl transition"
-                  >+</button>
-                  <span className="text-sm text-gray-500">台</span>
+              {/* ワンマン割引対象ノート */}
+              <div id="dedicatedOnemanNote" className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center">
+                  <i className="fas fa-info-circle text-blue-500 mr-2"></i>
+                  <span className="text-xs text-blue-700">ワンマン割引対象エリアの場合、車両ごとに個別に割引を適用できます</span>
                 </div>
               </div>
+
+              {/* 車両ブロックコンテナ */}
+              <div id="dedicatedVehicleBlocks" className="space-y-3 mb-4">
+                {/* 1台目（基本ブロック・削除不可） */}
+                <div className="vehicle-block p-4 bg-white rounded-lg border border-orange-200 shadow-sm" data-vehicle-idx="0">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center mr-3">
+                        <i className="fas fa-truck text-orange-500 text-sm"></i>
+                      </div>
+                      <div>
+                        <span className="font-bold text-gray-800 text-sm">車両 #1</span>
+                        <span className="ml-2 text-xs text-orange-400">（基本）</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <span className="text-sm font-semibold text-gray-700" id="dedicatedVehiclePrice_0">-</span>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-orange-100">
+                    <label className="flex items-center cursor-pointer group">
+                      <input 
+                        type="checkbox" 
+                        className="dedicated-oneman-cb w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                        data-idx="0"
+                        onChange="handleDedicatedOptionsChange()"
+                      />
+                      <span className="ml-2 text-sm text-green-700 font-medium group-hover:text-green-800">
+                        <i className="fas fa-tag mr-1"></i>ワンマン割引を適用 (-¥15,000)
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* 車両追加ボタン */}
+              <button 
+                type="button"
+                onclick="addDedicatedVehicle()"
+                className="w-full py-3 border-2 border-dashed border-orange-300 rounded-lg text-orange-600 hover:bg-orange-100 hover:border-orange-400 transition-all text-sm font-bold flex items-center justify-center"
+              >
+                <i className="fas fa-plus-circle mr-2 text-lg"></i> 車両を追加（1台ずつ）
+              </button>
 
               {/* チャーター便 料金詳細 */}
               <div id="dedicatedPricingDetail" className="mt-4 p-4 bg-white rounded-lg border border-orange-200">
@@ -5555,13 +5565,13 @@ app.get('/estimate/step3', (c) => {
                     <span className="text-gray-600">チャーター便 単価</span>
                     <span id="dedicatedUnitPrice" className="font-semibold">-</span>
                   </div>
-                  <div id="dedicatedDiscountRow" className="flex justify-between text-green-600 hidden">
-                    <span>ワンマン割引</span>
-                    <span>-¥15,000</span>
-                  </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">台数</span>
                     <span id="dedicatedCountDisplay" className="font-semibold">1台</span>
+                  </div>
+                  <div id="dedicatedDiscountRow" className="flex justify-between text-green-600 hidden">
+                    <span>ワンマン割引</span>
+                    <span id="dedicatedDiscountDetail">-</span>
                   </div>
                   <div className="border-t border-orange-200 pt-2 mt-2 flex justify-between">
                     <span className="font-bold text-gray-900">車両費用 小計</span>
@@ -5627,28 +5637,30 @@ app.get('/estimate/step3', (c) => {
                 <i className="fas fa-boxes-stacked mr-2"></i>混載便 設定
               </h3>
 
-              {/* ワンマン割引 */}
-              <div className="mb-4">
-                <label className="flex items-center cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    id="konsaiOnemanDiscount" 
-                    onChange="handleKonsaiOptionsChange()"
-                    className="w-5 h-5 text-green-600 border-gray-300 rounded focus:ring-green-500"
-                  />
-                  <span className="ml-3 text-sm font-medium text-gray-700">
-                    ワンマン割引を適用（-¥15,000）
-                  </span>
-                </label>
-                <p id="konsaiOnemanNote" className="text-xs text-gray-500 mt-1 ml-8">ワンマン割引対象エリアの場合に適用可能です</p>
-              </div>
+              {/* ワンマン割引対象ノート */}
+              <p id="konsaiOnemanNote" className="text-xs text-gray-500 mb-4">ワンマン割引対象エリアの場合に適用可能です</p>
 
-              {/* 台数（固定1台表示） */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">台数</label>
-                <div className="flex items-center space-x-2">
-                  <span className="text-lg font-bold text-gray-900">1台</span>
-                  <span className="text-xs text-gray-400">（混載便は1台固定です）</span>
+              {/* 車両ブロック（1台固定） */}
+              <div id="konsaiVehicleBlocks" className="space-y-3 mb-4">
+                <div className="vehicle-block p-3 bg-white rounded-lg border border-green-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <i className="fas fa-boxes-stacked text-green-500 mr-2"></i>
+                      <span className="font-bold text-gray-800 text-sm">混載便 1台</span>
+                      <span className="ml-2 text-xs text-gray-400">（固定）</span>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <label className="flex items-center cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          id="konsaiOnemanDiscount" 
+                          onChange="handleKonsaiOptionsChange()"
+                          className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                        />
+                        <span className="ml-2 text-sm text-green-700 font-medium">ワンマン割引 (-¥15,000)</span>
+                      </label>
+                    </div>
+                  </div>
                 </div>
               </div>
 
