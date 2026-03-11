@@ -15414,7 +15414,14 @@ const COMPANY_LOGO_DATA_URI = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJ0
 
 // 現地調査専門見積書PDF HTML生成
 function generateSurveyPdfHTML(estimate: any, items: any[], surveyMeta: any = {}, basicSettings: any = {}): string {
-  const currentDate = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
+  // 日本時間で現在日時を取得（UTC+9）
+  const jstDate = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const currentDate = jstDate.toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'Asia/Tokyo'
+  })
   const surveyDate = surveyMeta.survey_date ? new Date(surveyMeta.survey_date).toLocaleDateString('ja-JP') : '未定'
   const validUntil = surveyMeta.valid_until ? new Date(surveyMeta.valid_until).toLocaleDateString('ja-JP') : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('ja-JP')
   const customerName = surveyMeta.customer_name || '現地調査顧客'
@@ -15436,43 +15443,244 @@ function generateSurveyPdfHTML(estimate: any, items: any[], surveyMeta: any = {}
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>現地調査見積書 - ${estimate.estimate_number}</title>
     <style>
-        @page { size: A4; margin: 15mm; }
-        body { font-family: 'Hiragino Sans', 'Meiryo', sans-serif; font-size: 10px; color: #333; margin: 0; padding: 20px; }
-        .no-print { margin-bottom: 20px; }
-        @media print { .no-print { display: none; } body { padding: 0; } }
-        .print-button { background: #e67e22; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-right: 10px; font-size: 14px; }
-        .print-button:hover { opacity: 0.8; }
-        .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #e67e22; padding-bottom: 10px; margin-bottom: 15px; }
-        .header h1 { font-size: 24px; color: #e67e22; margin: 0; }
-        .header .survey-badge { background: #e67e22; color: white; padding: 4px 12px; border-radius: 4px; font-size: 11px; margin-top: 4px; display: inline-block; }
-        .company-logo { max-height: 60px; max-width: 200px; }
-        .top-total-box { float: right; background: linear-gradient(135deg, #fff7ed, #ffedd5); border: 2px solid #e67e22; border-radius: 8px; padding: 12px 20px; margin: 10px 0 15px; text-align: right; min-width: 240px; }
-        .top-total-label { font-size: 11px; color: #9a3412; font-weight: bold; }
-        .top-total-amount { font-size: 22px; font-weight: bold; color: #c2410c; margin: 4px 0; }
-        .top-total-sub { font-size: 9px; color: #78350f; }
-        .top-total-sub span { margin-left: 8px; }
-        .company-info { text-align: right; font-size: 9px; color: #555; margin-bottom: 15px; }
-        .estimate-info { display: flex; justify-content: space-between; margin-bottom: 15px; gap: 15px; }
-        .estimate-info > div { flex: 1; }
-        .info-box { border: 1px solid #ddd; border-radius: 5px; padding: 10px; font-size: 9px; }
-        .info-box h3 { margin: 0 0 8px 0; font-size: 11px; color: #e67e22; border-bottom: 1px solid #fed7aa; padding-bottom: 4px; }
-        .estimate-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-        .estimate-table th { background: #fdba74; color: #7c2d12; padding: 8px; font-size: 10px; text-align: left; border: 1px solid #ddd; }
-        .estimate-table td { padding: 7px 8px; border: 1px solid #ddd; font-size: 9px; }
-        .estimate-table .amount-cell { text-align: right; font-weight: bold; white-space: nowrap; }
-        .total-section { margin-top: 10px; }
-        .total-row { display: flex; justify-content: flex-end; padding: 5px 0; font-size: 10px; }
-        .total-row .label { width: 150px; text-align: right; padding-right: 15px; }
-        .total-row .value { width: 120px; text-align: right; font-weight: bold; }
-        .total-row.grand-total { border-top: 2px solid #e67e22; padding-top: 8px; margin-top: 3px; font-size: 13px; color: #c2410c; }
-        .total-row.discount { color: #dc2626; }
-        .notes-section { margin-top: 15px; border: 1px solid #ddd; border-radius: 5px; padding: 10px; font-size: 9px; }
-        .notes-section h3 { margin: 0 0 8px 0; font-size: 11px; color: #e67e22; }
-        .survey-detail { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 5px; padding: 10px; margin-bottom: 15px; font-size: 9px; }
-        .survey-detail h3 { margin: 0 0 8px 0; font-size: 11px; color: #e67e22; }
-        .survey-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
-        .survey-detail-item { display: flex; }
-        .survey-detail-item .dl { font-weight: bold; min-width: 80px; }
+        @media print {
+            body { margin: 0; }
+            .no-print { display: none; }
+            .page-break { page-break-before: always; }
+        }
+        
+        body {
+            font-family: 'MS Gothic', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            margin: 20px;
+            color: #333;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            border-bottom: 3px solid #2563eb;
+            padding-bottom: 20px;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            margin: 0;
+            color: #2563eb;
+        }
+
+        .header .survey-badge {
+            background: #2563eb;
+            color: white;
+            padding: 4px 14px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-top: 6px;
+            display: inline-block;
+        }
+
+        .company-logo {
+            max-height: 80px;
+            max-width: 200px;
+            object-fit: contain;
+        }
+        
+        .company-info {
+            text-align: right;
+            margin-bottom: 30px;
+        }
+        
+        .estimate-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+        }
+        
+        .customer-info {
+            flex: 1;
+            margin-right: 50px;
+        }
+        
+        .estimate-details {
+            flex: 1;
+        }
+        
+        .info-box {
+            border: 2px solid #e5e7eb;
+            padding: 15px;
+            margin-bottom: 20px;
+            background-color: #f9fafb;
+        }
+        
+        .info-box h3 {
+            margin: 0 0 10px 0;
+            color: #374151;
+            border-bottom: 1px solid #d1d5db;
+            padding-bottom: 5px;
+        }
+        
+        .estimate-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+        }
+        
+        .estimate-table th,
+        .estimate-table td {
+            border: 1px solid #d1d5db;
+            padding: 12px;
+            text-align: left;
+        }
+        
+        .estimate-table th {
+            background-color: #f3f4f6;
+            font-weight: bold;
+            color: #374151;
+        }
+        
+        .amount-cell {
+            text-align: right;
+            font-weight: bold;
+        }
+        
+        .total-section {
+            float: right;
+            width: 300px;
+            margin-bottom: 30px;
+        }
+        
+        .total-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .total-table th,
+        .total-table td {
+            border: 1px solid #d1d5db;
+            padding: 8px 12px;
+        }
+        
+        .total-table th {
+            background-color: #f3f4f6;
+            text-align: left;
+        }
+        
+        .total-table td {
+            text-align: right;
+            font-weight: bold;
+        }
+        
+        .grand-total {
+            background-color: #dbeafe !important;
+            font-size: 16px;
+        }
+        
+        .notes-section {
+            clear: both;
+            margin-top: 40px;
+            page-break-inside: avoid;
+        }
+        
+        .notes-section h3 {
+            color: #374151;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 5px;
+        }
+        
+        .footer {
+            margin-top: 50px;
+            text-align: center;
+            color: #6b7280;
+            font-size: 12px;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 20px;
+        }
+        
+        .no-print {
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .print-button {
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 0 10px;
+        }
+        
+        .print-button:hover {
+            background-color: #1d4ed8;
+        }
+        
+        /* 項目列を確実に左寄せに */
+        .estimate-table tbody td:first-child {
+            text-align: left !important;
+            vertical-align: top;
+        }
+        
+        /* 金額合計ボックス - ヘッダー直下右側 */
+        .top-total-box {
+            float: right;
+            border: 3px solid #2563eb;
+            padding: 12px 24px;
+            margin-bottom: 20px;
+            text-align: center;
+            min-width: 300px;
+        }
+        .top-total-label {
+            font-size: 12px;
+            color: #6b7280;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+        .top-total-amount {
+            font-size: 26px;
+            font-weight: bold;
+            color: #1e3a5f;
+        }
+        .top-total-sub {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 4px;
+        }
+        .top-total-sub span {
+            margin: 0 6px;
+        }
+
+        /* 調査内容詳細ボックス */
+        .survey-detail {
+            background-color: #eff6ff;
+            border: 2px solid #bfdbfe;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .survey-detail h3 {
+            margin: 0 0 10px 0;
+            color: #374151;
+            border-bottom: 1px solid #93c5fd;
+            padding-bottom: 5px;
+        }
+        .survey-detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            font-size: 13px;
+        }
+        .survey-detail-item {
+            display: flex;
+        }
+        .survey-detail-item .dl {
+            font-weight: bold;
+            min-width: 100px;
+            color: #374151;
+        }
     </style>
 </head>
 <body>
@@ -15483,12 +15691,13 @@ function generateSurveyPdfHTML(estimate: any, items: any[], surveyMeta: any = {}
 
     <div class="header">
         <div>
-            <h1>見 積 書</h1>
+            <h1>見積書</h1>
             <span class="survey-badge">現地調査専門</span>
         </div>
         <img src="${basicSettings.logo || COMPANY_LOGO_DATA_URI}" alt="会社ロゴ" class="company-logo" />
     </div>
     
+    <!-- 金額（税込）合計ボックス - ヘッダー直下右側 -->
     <div class="top-total-box">
         <div class="top-total-label">お見積金額（税込）</div>
         <div class="top-total-amount">¥${total.toLocaleString()}-</div>
@@ -15543,9 +15752,9 @@ function generateSurveyPdfHTML(estimate: any, items: any[], surveyMeta: any = {}
     <table class="estimate-table">
         <thead>
             <tr>
-                <th style="width: 55%">項目</th>
+                <th style="width: 45%">項目</th>
                 <th style="width: 25%">内容</th>
-                <th style="width: 20%">金額（税抜）</th>
+                <th style="width: 30%">金額（税抜）</th>
             </tr>
         </thead>
         <tbody>
@@ -15560,39 +15769,50 @@ function generateSurveyPdfHTML(estimate: any, items: any[], surveyMeta: any = {}
     </table>
     
     <div class="total-section">
-        <div class="total-row">
-            <span class="label">小計:</span>
-            <span class="value">¥${rawSubtotal.toLocaleString()}</span>
-        </div>
-        ${discountAmount > 0 ? `
-        <div class="total-row discount">
-            <span class="label">値引き:</span>
-            <span class="value">-¥${discountAmount.toLocaleString()}</span>
-        </div>
-        <div class="total-row">
-            <span class="label">値引き後小計:</span>
-            <span class="value">¥${discountedSubtotal.toLocaleString()}</span>
-        </div>
-        ` : ''}
-        <div class="total-row">
-            <span class="label">消費税（10%）:</span>
-            <span class="value">¥${tax.toLocaleString()}</span>
-        </div>
-        <div class="total-row grand-total">
-            <span class="label">合計（税込）:</span>
-            <span class="value">¥${total.toLocaleString()}</span>
-        </div>
+        <table class="total-table">
+            <tr>
+                <th>小計</th>
+                <td>¥${rawSubtotal.toLocaleString()}</td>
+            </tr>
+            ${discountAmount > 0 ? `
+            <tr style="color: #dc2626;">
+                <th>値引き</th>
+                <td>-¥${discountAmount.toLocaleString()}</td>
+            </tr>
+            <tr style="background-color: #fef3c7;">
+                <th>値引き後小計</th>
+                <td>¥${discountedSubtotal.toLocaleString()}</td>
+            </tr>
+            ` : ''}
+            <tr>
+                <th>消費税（10%）</th>
+                <td>¥${tax.toLocaleString()}</td>
+            </tr>
+            <tr class="grand-total">
+                <th>合計金額</th>
+                <td style="font-size: 18px;">¥${total.toLocaleString()}</td>
+            </tr>
+        </table>
     </div>
     
     ${estimate.notes ? `
     <div class="notes-section">
         <h3>備考</h3>
-        <p style="white-space: pre-wrap;">${estimate.notes}</p>
+        <div style="border: 1px solid #d1d5db; padding: 15px; background-color: #f9fafb; white-space: pre-wrap;">${estimate.notes}</div>
     </div>
     ` : ''}
     
-    <div style="margin-top: 20px; font-size: 8px; color: #999; text-align: center;">
-        本見積書の有効期限は発行日より30日間となります。
+    <!-- フリースペース（標準見積と同じ） -->
+    <div class="notes-section">
+        <h3>フリースペース</h3>
+        <div style="border: 1px solid #d1d5db; padding: 15px; background-color: #f9fafb; min-height: 100px;">
+            <div style="color: #9ca3af; font-style: italic;">※ 追加情報やメモをこちらにご記入ください</div>
+        </div>
+    </div>
+    
+    <div class="footer">
+        <p>本見積書は${currentDate}に作成されました。</p>
+        <p>ご質問やご不明な点がございましたら、お気軽にお問い合わせください。</p>
     </div>
 </body>
 </html>`
