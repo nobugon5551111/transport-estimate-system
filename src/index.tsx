@@ -12944,11 +12944,11 @@ app.get('/estimate/survey-only', (c) => {
   return c.render(
     <div className="min-h-screen bg-gray-50">
       {/* ヘッダー */}
-      <header className="bg-orange-600 shadow-lg">
+      <header className="bg-blue-600 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center">
-              <a href="/" className="flex items-center text-white hover:text-orange-200">
+              <a href="/" className="flex items-center text-white hover:text-blue-200">
                 <i className="fas fa-search-location text-white text-2xl mr-3"></i>
                 <h1 className="text-xl font-bold">Office M2 見積システム</h1>
               </a>
@@ -12965,7 +12965,7 @@ app.get('/estimate/survey-only', (c) => {
         <div className="bg-white rounded-lg shadow-lg p-8">
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-gray-800 mb-2">
-              <i className="fas fa-search-location text-orange-600 mr-2"></i>
+              <i className="fas fa-search-location text-blue-600 mr-2"></i>
               現地調査専門見積もり
             </h2>
             <p className="text-gray-600">家具納品前の現地調査（搬入経路・設置場所確認）の見積もりを作成します</p>
@@ -12973,9 +12973,9 @@ app.get('/estimate/survey-only', (c) => {
 
           <form id="surveyEstimateForm">
             {/* 基本情報 */}
-            <div className="bg-orange-50 rounded-lg p-6 mb-8">
+            <div className="bg-blue-50 rounded-lg p-6 mb-8">
               <h3 className="text-lg font-bold text-gray-800 mb-4">
-                <i className="fas fa-user mr-2 text-orange-600"></i>基本情報
+                <i className="fas fa-user mr-2 text-blue-600"></i>基本情報
               </h3>
               <div className="grid md:grid-cols-2 gap-6">
                 <div>
@@ -12986,7 +12986,7 @@ app.get('/estimate/survey-only', (c) => {
                     type="text" 
                     id="surveyCustomerName" 
                     required 
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="例：山田太郎 様"
                   />
                 </div>
@@ -12998,7 +12998,7 @@ app.get('/estimate/survey-only', (c) => {
                     type="text" 
                     id="surveyProjectName" 
                     required 
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="例：○○マンション 家具納品 現地調査"
                   />
                 </div>
@@ -13009,7 +13009,7 @@ app.get('/estimate/survey-only', (c) => {
                   <input 
                     type="date" 
                     id="surveyDate" 
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
@@ -13019,18 +13019,7 @@ app.get('/estimate/survey-only', (c) => {
                   <input 
                     type="date" 
                     id="surveyValidUntil" 
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    調査先住所
-                  </label>
-                  <input 
-                    type="text" 
-                    id="surveyAddress" 
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    placeholder="例：大阪市中央区○○町1-2-3"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -13048,7 +13037,7 @@ app.get('/estimate/survey-only', (c) => {
                   調査員人数 <span className="text-red-500">*</span>
                 </label>
                 <div className="grid md:grid-cols-2 gap-4">
-                  <label className="relative flex cursor-pointer rounded-lg border bg-white p-4 shadow-sm focus:outline-none hover:border-orange-400 transition-all" id="label-oneman">
+                  <label className="relative flex cursor-pointer rounded-lg border bg-white p-4 shadow-sm focus:outline-none hover:border-blue-400 transition-all" id="label-oneman">
                     <input type="radio" name="surveyType" value="oneman" className="sr-only" onChange="updateSurveyCalc()" />
                     <div className="flex w-full items-center justify-between">
                       <div className="flex items-center">
@@ -13060,13 +13049,13 @@ app.get('/estimate/survey-only', (c) => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <span className="text-orange-600 font-bold text-lg" id="oneman-price-display">-</span>
+                        <span className="text-blue-600 font-bold text-lg" id="oneman-price-display">-</span>
                         <p className="text-xs text-gray-500">エリア別料金</p>
                       </div>
                     </div>
                   </label>
                   
-                  <label className="relative flex cursor-pointer rounded-lg border bg-white p-4 shadow-sm focus:outline-none hover:border-orange-400 transition-all" id="label-twoman">
+                  <label className="relative flex cursor-pointer rounded-lg border bg-white p-4 shadow-sm focus:outline-none hover:border-blue-400 transition-all" id="label-twoman">
                     <input type="radio" name="surveyType" value="twoman" className="sr-only" onChange="updateSurveyCalc()" />
                     <div className="flex w-full items-center justify-between">
                       <div className="flex items-center">
@@ -13078,7 +13067,7 @@ app.get('/estimate/survey-only', (c) => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <span className="text-orange-600 font-bold text-lg" id="twoman-price-display">-</span>
+                        <span className="text-blue-600 font-bold text-lg" id="twoman-price-display">-</span>
                         <p className="text-xs text-gray-500">エリア別料金</p>
                       </div>
                     </div>
@@ -13086,41 +13075,58 @@ app.get('/estimate/survey-only', (c) => {
                 </div>
               </div>
 
-              {/* エリア選択 */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  エリア選択 <span className="text-red-500">*</span>
-                </label>
-                <select 
-                  id="surveyArea" 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  onChange="updateSurveyCalc()"
-                >
-                  <option value="">エリアを選択してください</option>
-                </select>
-                <p className="text-xs text-gray-500 mt-2" id="surveyAreaRegions"></p>
-              </div>
-
-              {/* 距離入力 */}
+              {/* 郵便番号入力でエリア自動判定 */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  片道距離（km）
+                  調査先 郵便番号 <span className="text-red-500">*</span>
                 </label>
-                <div className="flex items-center space-x-3">
+                <div className="flex space-x-3">
                   <input 
-                    type="number" 
-                    id="surveyDistance" 
-                    className="w-40 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" 
-                    min="0" 
-                    max="500" 
-                    step="0.1"
-                    value="0"
-                    onChange="updateSurveyCalc()"
+                    type="text" 
+                    id="surveyPostalCode" 
+                    placeholder="例：5300001"
+                    maxLength={8}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  <span className="text-sm text-gray-600">km</span>
-                  <span className="text-xs text-gray-500">（基本車両費に20kmまで含む / 超過分: ¥150/8km）</span>
+                  <button 
+                    type="button"
+                    id="surveySearchAddressBtn"
+                    onclick="searchSurveyAddress()"
+                    className="bg-blue-500 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium"
+                  >
+                    <i className="fas fa-search mr-1"></i>住所検索
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">郵便番号を入力して「住所検索」を押すと、エリアが自動判定されます（対応: A〜Fエリア・200km圏内）</p>
+              </div>
+
+              {/* エリア自動判定結果 */}
+              <div id="surveyAutoAreaResult" className="mb-6 hidden">
+                <div id="surveyAreaResultBox" className="p-4 rounded-lg">
+                  <div className="flex items-center">
+                    <i id="surveyAreaIcon" className="fas fa-check-circle text-green-500 mr-2"></i>
+                    <span id="surveyAreaStatusText" className="font-medium text-green-800">エリア自動判定完了</span>
+                  </div>
+                  <p id="surveyAutoAreaText" className="mt-2 text-sm"></p>
                 </div>
               </div>
+
+              {/* 住所（自動入力） */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  調査先住所
+                </label>
+                <input 
+                  type="text" 
+                  id="surveyAddress" 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="郵便番号検索で自動入力されます"
+                />
+              </div>
+
+              {/* 判定されたエリア（hidden） */}
+              <input type="hidden" id="surveyArea" value="" />
+              <input type="hidden" id="surveyAreaRegions" value="" />
 
               {/* 備考 */}
               <div>
@@ -13130,41 +13136,37 @@ app.get('/estimate/survey-only', (c) => {
                 <textarea 
                   id="surveyNotes" 
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="例：搬入経路の幅・天井高確認、エレベーター有無、設置場所の寸法確認 等"
                 ></textarea>
               </div>
             </div>
 
             {/* 料金計算結果 */}
-            <div className="bg-gradient-to-r from-orange-50 to-yellow-50 rounded-lg p-6 mb-8 border-2 border-orange-200">
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 mb-8 border-2 border-blue-200">
               <h3 className="text-lg font-bold text-gray-800 mb-4">
-                <i className="fas fa-calculator mr-2 text-orange-600"></i>料金計算
+                <i className="fas fa-calculator mr-2 text-blue-600"></i>料金計算
               </h3>
               <div className="space-y-3">
-                <div className="flex justify-between items-center py-2 border-b border-orange-100">
+                <div className="flex justify-between items-center py-2 border-b border-blue-100">
                   <span className="text-gray-700">調査費（基本料金）</span>
                   <span className="font-bold text-gray-800" id="surveyCalcBase">¥0</span>
                 </div>
-                <div className="flex justify-between items-center py-2 border-b border-orange-100">
-                  <span className="text-gray-700">車両費（基本20km含む）</span>
+                <div className="flex justify-between items-center py-2 border-b border-blue-100">
+                  <span className="text-gray-700">車両費</span>
                   <span className="font-bold text-gray-800" id="surveyCalcVehicle">¥0</span>
                 </div>
-                <div className="flex justify-between items-center py-2 border-b border-orange-100">
-                  <span className="text-gray-700">距離超過料金</span>
-                  <span className="font-bold text-gray-800" id="surveyCalcDistance">¥0</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-orange-200">
+                <div className="flex justify-between items-center py-2 border-b border-blue-200">
                   <span className="text-gray-700 font-semibold">小計（税抜）</span>
                   <span className="font-bold text-gray-800 text-lg" id="surveyCalcSubtotal">¥0</span>
                 </div>
-                <div className="flex justify-between items-center py-2 border-b border-orange-100">
+                <div className="flex justify-between items-center py-2 border-b border-blue-100">
                   <span className="text-gray-700">消費税（10%）</span>
                   <span className="font-bold text-gray-800" id="surveyCalcTax">¥0</span>
                 </div>
-                <div className="flex justify-between items-center py-3 bg-orange-100 rounded-lg px-4 mt-2">
-                  <span className="text-orange-800 font-bold text-lg">合計（税込）</span>
-                  <span className="font-bold text-orange-600 text-2xl" id="surveyCalcTotal">¥0</span>
+                <div className="flex justify-between items-center py-3 bg-blue-100 rounded-lg px-4 mt-2">
+                  <span className="text-blue-800 font-bold text-lg">合計（税込）</span>
+                  <span className="font-bold text-blue-600 text-2xl" id="surveyCalcTotal">¥0</span>
                 </div>
               </div>
             </div>
@@ -13179,7 +13181,7 @@ app.get('/estimate/survey-only', (c) => {
                 <input 
                   type="number" 
                   id="surveyDiscount" 
-                  className="w-40 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" 
+                  className="w-40 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
                   min="0" 
                   step="100"
                   value="0"
@@ -13199,7 +13201,7 @@ app.get('/estimate/survey-only', (c) => {
                 <button 
                   type="button"
                   onclick="saveSurveyEstimate()"
-                  className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-8 rounded-lg transition-colors"
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition-colors"
                 >
                   <i className="fas fa-save mr-2"></i>
                   見積もりを保存
@@ -13240,6 +13242,12 @@ app.get('/estimate/survey-only', (c) => {
       <script dangerouslySetInnerHTML={{__html: `
         // エリア料金データ
         let areaPricingData = [];
+        // 現在判定されたエリア情報
+        let currentSurveyArea = null;
+        
+        // 対応エリア上限（Fエリア = 200km圏内）
+        const MAX_SURVEY_AREA = 'F';
+        const SUPPORTED_AREAS = ['A', 'B', 'C', 'D', 'E', 'F'];
         
         // 初期化
         async function initSurveyPage() {
@@ -13248,55 +13256,135 @@ app.get('/estimate/survey-only', (c) => {
             const data = await res.json();
             if (data.success && data.pricing) {
               areaPricingData = data.pricing;
-              populateAreaSelect();
             }
           } catch (e) {
             console.error('エリア料金取得エラー:', e);
           }
         }
         
-        // エリアセレクトを構築
-        function populateAreaSelect() {
-          const sel = document.getElementById('surveyArea');
-          sel.innerHTML = '<option value="">エリアを選択してください</option>';
-          areaPricingData.forEach(area => {
-            const opt = document.createElement('option');
-            opt.value = area.area_rank;
-            opt.textContent = 'エリア' + area.area_rank + '（' + area.regions + '）- 距離: ' + area.distance_km + 'km';
-            sel.appendChild(opt);
-          });
+        // 郵便番号で住所・エリア検索
+        async function searchSurveyAddress() {
+          const postalInput = document.getElementById('surveyPostalCode');
+          const addressInput = document.getElementById('surveyAddress');
+          const searchBtn = document.getElementById('surveySearchAddressBtn');
+          const resultBox = document.getElementById('surveyAutoAreaResult');
+          const areaHidden = document.getElementById('surveyArea');
+          const regionsHidden = document.getElementById('surveyAreaRegions');
+          
+          const postalCode = postalInput.value.replace(/[^\\d]/g, '');
+          
+          if (!postalCode || postalCode.length !== 7) {
+            alert('郵便番号は7桁で入力してください');
+            return;
+          }
+          
+          try {
+            searchBtn.disabled = true;
+            searchBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>検索中...';
+            
+            const response = await fetch('/api/postal-code/' + postalCode);
+            const areaResponse = await response.json();
+            
+            // 住所を自動入力
+            if (areaResponse.address) {
+              addressInput.value = areaResponse.address;
+              // 基本情報の調査先住所も同期（存在する場合のみ）
+            }
+            
+            if (areaResponse.success && areaResponse.detected) {
+              const areaRank = areaResponse.area_rank;
+              
+              // Fエリア（200km）まで対応かチェック
+              if (SUPPORTED_AREAS.includes(areaRank)) {
+                // 対応エリア内
+                areaHidden.value = areaRank;
+                
+                const areaData = areaPricingData.find(a => a.area_rank === areaRank);
+                if (areaData) {
+                  regionsHidden.value = areaData.regions;
+                  currentSurveyArea = areaData;
+                  
+                  // 料金表示を更新
+                  document.getElementById('oneman-price-display').textContent = '¥' + (areaData.survey_oneman_fee || 0).toLocaleString();
+                  document.getElementById('twoman-price-display').textContent = '¥' + (areaData.survey_twoman_fee || 0).toLocaleString();
+                }
+                
+                // 成功表示（緑）
+                const box = document.getElementById('surveyAreaResultBox');
+                box.className = 'p-4 bg-green-50 border border-green-200 rounded-lg';
+                document.getElementById('surveyAreaIcon').className = 'fas fa-check-circle text-green-500 mr-2';
+                document.getElementById('surveyAreaStatusText').className = 'font-medium text-green-800';
+                document.getElementById('surveyAreaStatusText').textContent = 'エリア自動判定完了';
+                document.getElementById('surveyAutoAreaText').innerHTML = 
+                  '<strong>' + areaRank + 'ランク</strong> - ' + (areaResponse.area_name || '') + 
+                  (areaData ? '<br><small class="text-green-600">対象地域: ' + areaData.regions + '</small>' : '');
+                resultBox.classList.remove('hidden');
+                
+                // 料金を再計算
+                updateSurveyCalc();
+              } else {
+                // 対象外エリア（G以降）
+                areaHidden.value = '';
+                currentSurveyArea = null;
+                regionsHidden.value = '';
+                
+                // 対象外表示（赤）
+                const box = document.getElementById('surveyAreaResultBox');
+                box.className = 'p-4 bg-red-50 border border-red-200 rounded-lg';
+                document.getElementById('surveyAreaIcon').className = 'fas fa-times-circle text-red-500 mr-2';
+                document.getElementById('surveyAreaStatusText').className = 'font-medium text-red-800';
+                document.getElementById('surveyAreaStatusText').textContent = '対象外エリア';
+                document.getElementById('surveyAutoAreaText').innerHTML = 
+                  '<span class="text-red-700">現地調査の対応エリアはFエリア（200km圏内）までです。</span><br>' +
+                  '<small class="text-red-600">判定結果: ' + areaRank + 'ランク（' + (areaResponse.area_name || '') + '）- 対象外</small>';
+                resultBox.classList.remove('hidden');
+                
+                // 料金をリセット
+                resetCalcDisplay();
+                
+                // 料金表示もリセット
+                document.getElementById('oneman-price-display').textContent = '-';
+                document.getElementById('twoman-price-display').textContent = '-';
+              }
+            } else {
+              // 判定失敗
+              areaHidden.value = '';
+              currentSurveyArea = null;
+              
+              const box = document.getElementById('surveyAreaResultBox');
+              box.className = 'p-4 bg-yellow-50 border border-yellow-200 rounded-lg';
+              document.getElementById('surveyAreaIcon').className = 'fas fa-exclamation-triangle text-yellow-500 mr-2';
+              document.getElementById('surveyAreaStatusText').className = 'font-medium text-yellow-800';
+              document.getElementById('surveyAreaStatusText').textContent = 'エリア判定できませんでした';
+              document.getElementById('surveyAutoAreaText').innerHTML = '<span class="text-yellow-700">郵便番号を確認して再度お試しください。</span>';
+              resultBox.classList.remove('hidden');
+              
+              resetCalcDisplay();
+            }
+          } catch (e) {
+            console.error('郵便番号検索エラー:', e);
+            alert('郵便番号検索に失敗しました: ' + e.message);
+          } finally {
+            searchBtn.disabled = false;
+            searchBtn.innerHTML = '<i class="fas fa-search mr-1"></i>住所検索';
+          }
         }
         
         // 料金計算を更新
         function updateSurveyCalc() {
           const surveyType = document.querySelector('input[name="surveyType"]:checked');
           const areaRank = document.getElementById('surveyArea').value;
-          const distance = parseFloat(document.getElementById('surveyDistance').value) || 0;
           const discount = parseInt(document.getElementById('surveyDiscount').value) || 0;
           
           // ラジオボタンの見た目更新
-          document.getElementById('label-oneman').classList.remove('border-orange-500', 'bg-orange-50');
-          document.getElementById('label-twoman').classList.remove('border-orange-500', 'bg-orange-50');
+          document.getElementById('label-oneman').classList.remove('border-blue-500', 'bg-blue-50');
+          document.getElementById('label-twoman').classList.remove('border-blue-500', 'bg-blue-50');
           if (surveyType) {
             const labelId = surveyType.value === 'oneman' ? 'label-oneman' : 'label-twoman';
-            document.getElementById(labelId).classList.add('border-orange-500', 'bg-orange-50');
+            document.getElementById(labelId).classList.add('border-blue-500', 'bg-blue-50');
           }
           
-          // エリア選択時に対応地域を表示
-          const regionsEl = document.getElementById('surveyAreaRegions');
-          const areaData = areaPricingData.find(a => a.area_rank === areaRank);
-          if (areaData) {
-            regionsEl.textContent = '対象地域: ' + areaData.regions;
-            // 選択エリアの料金を表示
-            document.getElementById('oneman-price-display').textContent = '¥' + (areaData.survey_oneman_fee || 0).toLocaleString();
-            document.getElementById('twoman-price-display').textContent = '¥' + (areaData.survey_twoman_fee || 0).toLocaleString();
-            // 距離をエリアのデフォルトに設定（ユーザーが変更していない場合）
-            if (document.getElementById('surveyDistance').value === '0' || document.getElementById('surveyDistance').value === '') {
-              document.getElementById('surveyDistance').value = areaData.distance_km;
-            }
-          } else {
-            regionsEl.textContent = '';
-          }
+          const areaData = currentSurveyArea || areaPricingData.find(a => a.area_rank === areaRank);
           
           if (!surveyType || !areaRank || !areaData) {
             resetCalcDisplay();
@@ -13308,17 +13396,11 @@ app.get('/estimate/survey-only', (c) => {
             ? (areaData.survey_oneman_fee || 20000) 
             : (areaData.survey_twoman_fee || 25000);
           
-          // 車両費（基本5,000円 - 20km含む）
+          // 車両費
           const vehicleFee = areaData.transport_vehicle_fee || 5000;
           
-          // 距離超過料金（20km超 ¥150/8km）
-          let distanceFee = 0;
-          if (distance > 20) {
-            distanceFee = Math.ceil((distance - 20) / 8) * 150;
-          }
-          
-          // 小計
-          const subtotal = baseFee + vehicleFee + distanceFee;
+          // 小計（距離超過なし）
+          const subtotal = baseFee + vehicleFee;
           const discountedSubtotal = Math.max(0, subtotal - discount);
           const tax = Math.floor(discountedSubtotal * 0.1);
           const total = discountedSubtotal + tax;
@@ -13326,14 +13408,13 @@ app.get('/estimate/survey-only', (c) => {
           // 表示更新
           document.getElementById('surveyCalcBase').textContent = '¥' + baseFee.toLocaleString();
           document.getElementById('surveyCalcVehicle').textContent = '¥' + vehicleFee.toLocaleString();
-          document.getElementById('surveyCalcDistance').textContent = distance > 20 ? '¥' + distanceFee.toLocaleString() : '¥0（20km以内）';
           document.getElementById('surveyCalcSubtotal').textContent = '¥' + discountedSubtotal.toLocaleString();
           document.getElementById('surveyCalcTax').textContent = '¥' + tax.toLocaleString();
           document.getElementById('surveyCalcTotal').textContent = '¥' + total.toLocaleString();
         }
         
         function resetCalcDisplay() {
-          ['surveyCalcBase', 'surveyCalcVehicle', 'surveyCalcDistance', 'surveyCalcSubtotal', 'surveyCalcTax', 'surveyCalcTotal'].forEach(id => {
+          ['surveyCalcBase', 'surveyCalcVehicle', 'surveyCalcSubtotal', 'surveyCalcTax', 'surveyCalcTotal'].forEach(id => {
             document.getElementById(id).textContent = '¥0';
           });
         }
@@ -13344,26 +13425,22 @@ app.get('/estimate/survey-only', (c) => {
           const projectName = document.getElementById('surveyProjectName').value.trim();
           const surveyType = document.querySelector('input[name="surveyType"]:checked');
           const areaRank = document.getElementById('surveyArea').value;
+          const postalCode = (document.getElementById('surveyPostalCode').value || '').replace(/[^\\d]/g, '');
           
           if (!customerName) { alert('顧客名を入力してください'); return; }
           if (!projectName) { alert('案件名を入力してください'); return; }
           if (!surveyType) { alert('調査員人数（ワンマン/ツーマン）を選択してください'); return; }
-          if (!areaRank) { alert('エリアを選択してください'); return; }
+          if (!areaRank) { alert('郵便番号を入力してエリア判定を行ってください'); return; }
           
-          const areaData = areaPricingData.find(a => a.area_rank === areaRank);
-          const distance = parseFloat(document.getElementById('surveyDistance').value) || 0;
+          const areaData = currentSurveyArea || areaPricingData.find(a => a.area_rank === areaRank);
           const discount = parseInt(document.getElementById('surveyDiscount').value) || 0;
           
           const baseFee = surveyType.value === 'oneman' 
             ? (areaData.survey_oneman_fee || 20000) 
             : (areaData.survey_twoman_fee || 25000);
           const vehicleFee = areaData.transport_vehicle_fee || 5000;
-          let distanceFee = 0;
-          if (distance > 20) {
-            distanceFee = Math.ceil((distance - 20) / 8) * 150;
-          }
           
-          const subtotal = baseFee + vehicleFee + distanceFee;
+          const subtotal = baseFee + vehicleFee;
           const discountedSubtotal = Math.max(0, subtotal - discount);
           const tax = Math.floor(discountedSubtotal * 0.1);
           const total = discountedSubtotal + tax;
@@ -13374,14 +13451,15 @@ app.get('/estimate/survey-only', (c) => {
             survey_date: document.getElementById('surveyDate').value,
             valid_until: document.getElementById('surveyValidUntil').value,
             address: document.getElementById('surveyAddress').value,
+            postal_code: postalCode,
             survey_type: surveyType.value,
             survey_people: surveyType.value === 'oneman' ? 1 : 2,
             area_rank: areaRank,
-            area_regions: areaData.regions,
-            distance_km: distance,
+            area_regions: document.getElementById('surveyAreaRegions').value || (areaData ? areaData.regions : ''),
+            distance_km: 0,
             base_fee: baseFee,
             vehicle_fee: vehicleFee,
-            distance_fee: distanceFee,
+            distance_fee: 0,
             subtotal: subtotal,
             discount_amount: discount,
             discounted_subtotal: discountedSubtotal,
@@ -13504,14 +13582,9 @@ app.post('/api/estimates/survey', async (c) => {
         },
         {
           name: '車両費',
-          detail: '基本20km含む',
+          detail: '',
           amount: data.vehicle_fee
         },
-        ...(data.distance_fee > 0 ? [{
-          name: '距離超過料金',
-          detail: `${data.distance_km}km（20km超過分）`,
-          amount: data.distance_fee
-        }] : []),
         ...(discountAmount > 0 ? [{
           name: '値引き',
           detail: '',
@@ -13523,9 +13596,10 @@ app.post('/api/estimates/survey', async (c) => {
         survey_people: data.survey_people,
         area_rank: data.area_rank,
         area_regions: data.area_regions,
-        distance_km: data.distance_km,
+        distance_km: 0,
         survey_date: data.survey_date,
         address: data.address,
+        postal_code: data.postal_code || '',
         customer_name: data.customer_name,
         project_name: data.project_name,
         valid_until: data.valid_until
@@ -15744,8 +15818,8 @@ function generateSurveyPdfHTML(estimate: any, items: any[], surveyMeta: any = {}
         <div class="survey-detail-grid">
             <div class="survey-detail-item"><span class="dl">調査形態:</span> ${surveyTypeLabel}</div>
             <div class="survey-detail-item"><span class="dl">エリア:</span> ${areaLabel}（${surveyMeta.area_regions || ''}）</div>
-            <div class="survey-detail-item"><span class="dl">距離:</span> ${surveyMeta.distance_km || 0} km</div>
             <div class="survey-detail-item"><span class="dl">調査目的:</span> 搬入経路・設置場所確認</div>
+            ${surveyMeta.address ? `<div class="survey-detail-item"><span class="dl">調査先:</span> ${surveyMeta.address}</div>` : ''}
         </div>
     </div>
     
