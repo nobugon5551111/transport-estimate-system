@@ -1630,8 +1630,6 @@ const Step3Implementation = {
     
     setPrice(`${prefix}Ancillary_road_permit_price`, pricing.road_permit_fee || 0);
     setPrice(`${prefix}Ancillary_transport_vehicle_price`, pricing.transport_vehicle_fee || 0);
-    setPrice(`${prefix}Ancillary_survey_twoman_price`, pricing.survey_twoman_fee || 0);
-    setPrice(`${prefix}Ancillary_survey_oneman_price`, pricing.survey_oneman_fee || 0);
     
     // 高速代込みアイコン
     const hwIcon = document.getElementById(`${prefix}Ancillary_highway_icon`);
@@ -1666,8 +1664,6 @@ const Step3Implementation = {
     
     check(`${prefix}Ancillary_road_permit`, '道路許可', pricing.road_permit_fee || 0);
     check(`${prefix}Ancillary_transport_vehicle`, '車両輸送', pricing.transport_vehicle_fee || 0);
-    check(`${prefix}Ancillary_survey_twoman`, '下見（2名）', pricing.survey_twoman_fee || 0);
-    check(`${prefix}Ancillary_survey_oneman`, '下見（1名）', pricing.survey_oneman_fee || 0);
     
     // 付帯費用小計を表示
     const subtotalEl = document.getElementById(`${prefix}AncillarySubtotal`);
@@ -2837,10 +2833,6 @@ const Step5Implementation = {
     }
 
     // 各サービスの値を取得
-    // 現地調査
-    const siteSurveyPeople = parseInt(document.getElementById('site_survey_people').value) || 0;
-    const siteSurveyDistance = parseFloat(document.getElementById('site_survey_distance').value) || 0;
-    
     const parkingOfficerHours = parseFloat(document.getElementById('parking_officer_hours').value) || 0;
     const transportVehicles = parseInt(document.getElementById('transport_vehicles').value) || 0;
     const transportDistanceType = document.querySelector('input[name="transport_distance_type"]:checked')?.value || '20km';
@@ -2875,48 +2867,8 @@ const Step5Implementation = {
     // 各費用計算（安全なアクセス）
     const rates = Step5Implementation.serviceRates || {};
     
-    // 現地調査費用計算
-    let siteSurveyBaseCost = 0;
-    let siteSurveyVehicleCost = 0;
-    let siteSurveyDistanceCost = 0;
-    let siteSurveyTotalCost = 0;
-    
-    if (siteSurveyPeople > 0) {
-      // 基本調査料金
-      siteSurveyBaseCost = siteSurveyPeople === 1 ? 
-        (rates['site_survey.survey_1_person'] || rates.survey_1_person || 20000) : 
-        (rates['site_survey.survey_2_person'] || rates.survey_2_person || 25000);
-      
-      // 基本車両費（20km以内含む）
-      siteSurveyVehicleCost = rates['site_survey.vehicle_base'] || rates.vehicle_base || 5000;
-      
-      // 追加距離料金計算（20km超過分、8kmごとに150円）
-      const baseDistance = rates['site_survey.distance_base'] || rates.distance_base || 20;
-      const distanceUnit = rates['site_survey.distance_unit'] || rates.distance_unit || 8;
-      const distanceRate = rates['site_survey.distance_rate'] || rates.distance_rate || 150;
-      
-      if (siteSurveyDistance > baseDistance) {
-        const extraDistance = siteSurveyDistance - baseDistance;
-        siteSurveyDistanceCost = Math.round((extraDistance / distanceUnit) * distanceRate);
-      }
-      
-      siteSurveyTotalCost = siteSurveyBaseCost + siteSurveyVehicleCost + siteSurveyDistanceCost;
-      
-      // UIに表示
-      document.getElementById('survey-base-cost').textContent = siteSurveyBaseCost.toLocaleString();
-      document.getElementById('survey-vehicle-cost').textContent = siteSurveyVehicleCost.toLocaleString();
-      document.getElementById('survey-distance-cost').textContent = siteSurveyDistanceCost.toLocaleString();
-      document.getElementById('survey-total-cost').textContent = siteSurveyTotalCost.toLocaleString();
-    } else {
-      // なしの場合はすべて0にリセット
-      document.getElementById('survey-base-cost').textContent = '0';
-      document.getElementById('survey-vehicle-cost').textContent = '0';
-      document.getElementById('survey-distance-cost').textContent = '0';
-      document.getElementById('survey-total-cost').textContent = '0';
-    }
-    
     const costs = {
-      site_survey: siteSurveyTotalCost,
+      site_survey: 0,
       parking_officer: parkingOfficerHours * (rates.parking_officer_hourly || 2500),
       transport_vehicle: 0,
       waste_disposal: (rates.waste_disposal && rates.waste_disposal[wasteDisposal]) || 0,
@@ -2999,12 +2951,12 @@ const Step5Implementation = {
     // サービス情報を保存（total_costが確実に数値になるようにする）
     
     Step5Implementation.currentServicesInfo = {
-      site_survey_people: siteSurveyPeople,
-      site_survey_distance: siteSurveyDistance,
-      site_survey_base_cost: siteSurveyBaseCost,
-      site_survey_vehicle_cost: siteSurveyVehicleCost,
-      site_survey_distance_cost: siteSurveyDistanceCost,
-      site_survey_cost: costs.site_survey || 0,
+      site_survey_people: 0,
+      site_survey_distance: 0,
+      site_survey_base_cost: 0,
+      site_survey_vehicle_cost: 0,
+      site_survey_distance_cost: 0,
+      site_survey_cost: 0,
       parking_officer_hours: parkingOfficerHours,
       parking_officer_cost: costs.parking_officer || 0,
       transport_vehicles: transportVehicles,
@@ -3736,7 +3688,6 @@ const Step6Implementation = {
 
     // 各サービス項目の詳細チェック（デバッグ情報付き）
     console.log('🔍 サービス項目詳細チェック:', {
-      site_survey_cost: services.site_survey_cost,
       parking_officer_cost: services.parking_officer_cost,
       transport_cost: services.transport_cost,
       waste_disposal_cost: services.waste_disposal_cost,
@@ -3749,8 +3700,7 @@ const Step6Implementation = {
     });
 
     // 何らかのサービス項目があるかチェック（より詳細に）
-    const hasAnyService = services.site_survey_cost > 0 ||
-                         services.parking_officer_cost > 0 ||
+    const hasAnyService = services.parking_officer_cost > 0 ||
                          services.transport_cost > 0 ||
                          services.waste_disposal_cost > 0 ||
                          services.protection_cost > 0 ||
@@ -3781,26 +3731,7 @@ const Step6Implementation = {
     const details = [];
     let totalServicesCost = 0;
     
-    // 1. 現地調査（新機能）
-    if (services.site_survey_people > 0 || services.site_survey_cost > 0) {
-      const peopleText = services.site_survey_people === 1 ? '1人' : services.site_survey_people === 2 ? '2人' : 'なし';
-      const distanceText = services.site_survey_distance || 0;
-      details.push(`<div class="flex justify-between px-4 py-2">
-        <span>現地調査 ${peopleText} (${distanceText}km)</span>
-        <span>${Utils.formatCurrency(services.site_survey_cost)}</span>
-      </div>`);
-      totalServicesCost += services.site_survey_cost;
-      console.log('🔍 現地調査:', { 
-        people: services.site_survey_people, 
-        distance: services.site_survey_distance,
-        base_cost: services.site_survey_base_cost,
-        vehicle_cost: services.site_survey_vehicle_cost,
-        distance_cost: services.site_survey_distance_cost,
-        total_cost: services.site_survey_cost 
-      });
-    }
-    
-    // 2. 駐車対策員（マスター単価連携）
+    // 1. 駐車対策員（マスター単価連携）
     if (services.parking_officer_hours > 0 || services.parking_officer_cost > 0) {
       const masterRate = serviceMasterRates.parking_officer_hourly_rate;
       const calculatedCost = services.parking_officer_hours * masterRate;
@@ -4174,18 +4105,6 @@ const Step6Implementation = {
     lineItems.staff.subtotal = finalStaffCost;
 
     // 3. サービス費用明細
-    // 現地調査（最初に表示）
-    if (services.site_survey_people > 0 && services.site_survey_cost > 0) {
-      const peopleText = services.site_survey_people === 1 ? '1人' : services.site_survey_people === 2 ? '2人' : 'なし';
-      lineItems.services.items.push({
-        description: `現地調査 ${peopleText}（${services.site_survey_distance || 0}km）`,
-        detail: `調査料金 ¥${(services.site_survey_base_cost || 0).toLocaleString()} + 車両費 ¥${(services.site_survey_vehicle_cost || 0).toLocaleString()} + 追加距離 ¥${(services.site_survey_distance_cost || 0).toLocaleString()}`,
-        quantity: 1,
-        unit_price: services.site_survey_cost,
-        amount: services.site_survey_cost
-      });
-    }
-    
     if (services.parking_officer_hours > 0 && services.parking_officer_cost > 0) {
       const hourlyRate = services.parking_officer_cost / services.parking_officer_hours;
       lineItems.services.items.push({
@@ -6112,18 +6031,6 @@ if (typeof MasterManagement === 'undefined') {
               <td class="border border-green-300 px-3 py-2">
                 <div class="flex items-center justify-end gap-1">
                   <span class="text-xs text-green-700">¥</span>
-                  <input type="number" id="konsai_survey2_${row.rank}" class="form-input text-sm text-right w-24" min="0" step="100" value="${row.survey_twoman_fee}" />
-                </div>
-              </td>
-              <td class="border border-green-300 px-3 py-2">
-                <div class="flex items-center justify-end gap-1">
-                  <span class="text-xs text-green-700">¥</span>
-                  <input type="number" id="konsai_survey1_${row.rank}" class="form-input text-sm text-right w-24" min="0" step="100" value="${row.survey_oneman_fee}" />
-                </div>
-              </td>
-              <td class="border border-green-300 px-3 py-2">
-                <div class="flex items-center justify-end gap-1">
-                  <span class="text-xs text-green-700">¥</span>
                   <input type="number" id="konsai_oneman_${row.rank}" class="form-input text-sm text-right w-24" min="0" step="1000" value="${row.oneman_discount_amount}" />
                 </div>
               </td>
@@ -6331,8 +6238,6 @@ if (typeof MasterManagement === 'undefined') {
         const priceEl = document.getElementById(`konsai_price_${rank}`);
         const roadPermitEl = document.getElementById(`konsai_road_permit_${rank}`);
         const transportEl = document.getElementById(`konsai_transport_${rank}`);
-        const survey2El = document.getElementById(`konsai_survey2_${rank}`);
-        const survey1El = document.getElementById(`konsai_survey1_${rank}`);
         const onemanEl = document.getElementById(`konsai_oneman_${rank}`);
         
         if (priceEl) {
@@ -6340,8 +6245,8 @@ if (typeof MasterManagement === 'undefined') {
             price: parseInt(priceEl.value) || 0,
             road_permit_fee: parseInt(roadPermitEl?.value) || 0,
             transport_vehicle_fee: parseInt(transportEl?.value) || 0,
-            survey_twoman_fee: parseInt(survey2El?.value) || 0,
-            survey_oneman_fee: parseInt(survey1El?.value) || 0,
+            survey_twoman_fee: 0,
+            survey_oneman_fee: 0,
             oneman_discount_amount: parseInt(onemanEl?.value) || 15000,
             overtime_fee: 7000
           };
