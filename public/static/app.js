@@ -873,13 +873,20 @@ if (typeof EstimateFlowImplementation === 'undefined') {
       };
       
       // セッションストレージにデータを保存
+      // estimate_typeをURLパラメータから取得して保存
+      const urlParams = new URLSearchParams(window.location.search);
+      const estimateType = urlParams.get('type') || sessionStorage.getItem('estimate_type') || 'standard_a';
+      sessionStorage.setItem('estimate_type', estimateType);
+      
       sessionStorage.setItem('estimateFlow', JSON.stringify({
         step: 2,
         customer: customerWithContact,
-        project: EstimateFlowImplementation.selectedProject
+        project: EstimateFlowImplementation.selectedProject,
+        estimate_type: estimateType
       }));
       
       console.log('✅ 見積ごとの担当者を保存:', contactPerson);
+      console.log('📋 見積タイプ:', estimateType);
       
       // STEP2ページに遷移
       window.location.href = '/estimate/step2';
@@ -1524,7 +1531,8 @@ const Step3Implementation = {
     try {
       // チャーター便料金（distance_area_pricing）
       try {
-        const dedResp = await fetch(`/api/distance-area-pricing?area_rank=${area}`);
+        const planType = Step3Implementation.flowData.estimate_type === 'standard_b' ? 'B' : 'A';
+        const dedResp = await fetch(`/api/distance-area-pricing?area_rank=${area}&plan_type=${planType}`);
         const dedData = await dedResp.json();
         if (dedData.success && dedData.pricing) {
           Step3Implementation.dedicatedPricing = dedData.pricing;
@@ -1562,7 +1570,8 @@ const Step3Implementation = {
       }
       
       // 混載便料金（konsai_pricing by area）
-      const konResp = await fetch(`/api/konsai-pricing/by-area?area_rank=${area}`);
+      const konPlanType = Step3Implementation.flowData.estimate_type === 'standard_b' ? 'B' : 'A';
+      const konResp = await fetch(`/api/konsai-pricing/by-area?area_rank=${area}&plan_type=${konPlanType}`);
       const konData = await konResp.json();
       if (konData.success) {
         if (konData.out_of_area) {
@@ -3441,7 +3450,7 @@ const Step6Implementation = {
           } catch (e) {
             // distance_area_pricingからフォールバック
             try {
-              const distResp = await API.get(`/distance-area-pricing?area_rank=${vehicle.area}`);
+              const distResp = await API.get(`/distance-area-pricing?area_rank=${vehicle.area}&plan_type=${Step6Implementation.estimateData.estimate_type === 'standard_b' ? 'B' : 'A'}`);
               if (distResp.success && distResp.pricing) {
                 const dedPrice = distResp.pricing.dedicated_price_1;
                 const dedTotal = dedPrice * vehicle.vehicle_dedicated_count;
@@ -3467,7 +3476,7 @@ const Step6Implementation = {
             }
           } catch (e) {
             try {
-              const distResp = await API.get(`/distance-area-pricing?area_rank=${vehicle.area}`);
+              const distResp = await API.get(`/distance-area-pricing?area_rank=${vehicle.area}&plan_type=${Step6Implementation.estimateData.estimate_type === 'standard_b' ? 'B' : 'A'}`);
               if (distResp.success && distResp.pricing) {
                 const chaPrice = distResp.pricing.charter_2t_price_1;
                 const chaTotal = chaPrice * vehicle.vehicle_charter_count;
@@ -3481,7 +3490,7 @@ const Step6Implementation = {
         // distance_area_pricingの付帯費用（輸送車両費、道路許可費等）
         if (vehicle.vehicle_dedicated_count > 0 || vehicle.vehicle_charter_count > 0) {
           try {
-            const distResp = await API.get(`/distance-area-pricing?area_rank=${vehicle.area}`);
+            const distResp = await API.get(`/distance-area-pricing?area_rank=${vehicle.area}&plan_type=${Step6Implementation.estimateData.estimate_type === 'standard_b' ? 'B' : 'A'}`);
             if (distResp.success && distResp.pricing) {
               const p = distResp.pricing;
               if (p.transport_vehicle_fee > 0) {
@@ -4591,7 +4600,8 @@ const Step6Implementation = {
         // メタ情報
         notes: Step6Implementation.estimateData.services?.notes || '',
         user_id: currentUser,
-        created_by_name: window._currentUser?.userName || '担当者未設定'
+        created_by_name: window._currentUser?.userName || '担当者未設定',
+        estimate_type: Step6Implementation.estimateData.estimate_type || sessionStorage.getItem('estimate_type') || 'standard_a'
       };
 
       // undefined値をチェックして除去
@@ -5499,6 +5509,25 @@ document.addEventListener('DOMContentLoaded', () => {
   if (currentPath.includes('/estimate')) {
     EstimateFlow.updateUI();
     
+    // ステップヘッダーを見積タイプに応じて更新
+    const headerLabel = document.getElementById('stepHeaderLabel');
+    if (headerLabel && currentPath.match(/\/estimate\/step[1-6]/)) {
+      const estimateType = sessionStorage.getItem('estimate_type') || new URLSearchParams(window.location.search).get('type') || 'standard_a';
+      const stepNum = currentPath.match(/step(\d)/)?.[1] || '1';
+      let typeLabel = '標準見積A';
+      if (estimateType === 'standard_b') typeLabel = '標準見積B';
+      headerLabel.textContent = `${typeLabel} 作成 - STEP ${stepNum}`;
+      
+      // Bプランの場合、ヘッダー色をtealに変更
+      if (estimateType === 'standard_b') {
+        const headerEl = document.querySelector('header');
+        if (headerEl) {
+          headerEl.classList.remove('bg-blue-600');
+          headerEl.classList.add('bg-teal-600');
+        }
+      }
+    }
+    
     // STEP2の初期化
     if (currentPath === '/estimate/step2') {
       Step2Implementation.initialize();
@@ -5960,13 +5989,30 @@ if (typeof MasterManagement === 'undefined') {
   },
 
   // 車両設定表示
-  displayVehicleSettings: async () => {
-    console.log('🚛 車両設定表示（チャーター便・混載便）');
+  displayVehicleSettings: async (planType) => {
+    const currentPlan = planType || MasterManagement._currentPlan || 'A';
+    MasterManagement._currentPlan = currentPlan;
+    console.log(`🚛 車両設定表示（プラン${currentPlan}）`);
     
-    // チャーター便料金を取得・表示
+    // プランボタンのUI更新
+    const planABtn = document.getElementById('planABtn');
+    const planBBtn = document.getElementById('planBBtn');
+    const planLabel = document.getElementById('currentPlanLabel');
+    if (planABtn && planBBtn) {
+      if (currentPlan === 'A') {
+        planABtn.className = 'px-4 py-2 text-sm font-medium bg-blue-600 text-white';
+        planBBtn.className = 'px-4 py-2 text-sm font-medium bg-white text-gray-700 hover:bg-gray-50';
+      } else {
+        planABtn.className = 'px-4 py-2 text-sm font-medium bg-white text-gray-700 hover:bg-gray-50';
+        planBBtn.className = 'px-4 py-2 text-sm font-medium bg-teal-600 text-white';
+      }
+    }
+    if (planLabel) planLabel.textContent = `現在: プラン${currentPlan}`;
+    
+    // チャーター便料金を取得・表示（plan_type指定）
     try {
-      const dedicatedRes = await API.get('/dedicated-pricing');
-      if (dedicatedRes.success && dedicatedRes.data) {
+      const dedicatedRes = await API.get(`/distance-area-pricing?plan_type=${currentPlan}`);
+      if (dedicatedRes.success && dedicatedRes.pricing) {
         const tableBody = document.getElementById('dedicatedPricingTable');
         if (tableBody) {
           const areaLabels = {
@@ -5980,28 +6026,54 @@ if (typeof MasterManagement === 'undefined') {
             'H': 'H（特別遠距離）',
             'I': 'I（最遠距離）'
           };
-          tableBody.innerHTML = dedicatedRes.data.map(row => `
+          tableBody.innerHTML = dedicatedRes.pricing.map(row => `
             <tr class="hover:bg-orange-100">
-              <td class="border border-orange-300 px-3 py-2 text-sm font-medium">${areaLabels[row.area] || row.area}</td>
+              <td class="border border-orange-300 px-3 py-2 text-sm font-medium">${areaLabels[row.area_rank] || row.area_rank}</td>
               <td class="border border-orange-300 px-3 py-2">
                 <div class="flex items-center justify-end gap-1">
                   <span class="text-sm text-orange-700">¥</span>
-                  <input type="number" id="dedicated_price_${row.area}" class="form-input text-sm text-right w-28" min="0" step="1000" value="${row.price}" />
+                  <input type="number" id="dedicated_price_${row.area_rank}" class="form-input text-sm text-right w-28" min="0" step="1000" value="${row.dedicated_price_1}" />
                 </div>
               </td>
             </tr>
           `).join('');
         }
       } else {
-        console.warn('⚠️ チャーター便料金取得失敗');
+        // フォールバック: dedicated-pricing APIから取得
+        try {
+          const fallbackRes = await API.get('/dedicated-pricing');
+          if (fallbackRes.success && fallbackRes.data) {
+            const tableBody = document.getElementById('dedicatedPricingTable');
+            if (tableBody) {
+              const areaLabels = {
+                'A': 'A（大阪市内・京都市内・神戸市内）', 'B': 'B（関西近郊主要都市）',
+                'C': 'C（近畿圏）', 'D': 'D（中距離）', 'E': 'E（長距離）',
+                'F': 'F（遠距離）', 'G': 'G（超遠距離）', 'H': 'H（特別遠距離）', 'I': 'I（最遠距離）'
+              };
+              tableBody.innerHTML = fallbackRes.data.map(row => `
+                <tr class="hover:bg-orange-100">
+                  <td class="border border-orange-300 px-3 py-2 text-sm font-medium">${areaLabels[row.area] || row.area}</td>
+                  <td class="border border-orange-300 px-3 py-2">
+                    <div class="flex items-center justify-end gap-1">
+                      <span class="text-sm text-orange-700">¥</span>
+                      <input type="number" id="dedicated_price_${row.area}" class="form-input text-sm text-right w-28" min="0" step="1000" value="${row.price}" />
+                    </div>
+                  </td>
+                </tr>
+              `).join('');
+            }
+          }
+        } catch (e2) {
+          console.warn('⚠️ チャーター便料金フォールバックも失敗');
+        }
       }
     } catch (error) {
       console.error('❌ チャーター便料金取得エラー:', error);
     }
     
-    // 混載便料金を取得・表示
+    // 混載便料金を取得・表示（plan_type指定）
     try {
-      const konsaiRes = await API.get('/konsai-pricing');
+      const konsaiRes = await API.get(`/konsai-pricing?plan_type=${currentPlan}`);
       if (konsaiRes.success && (konsaiRes.data || konsaiRes.pricing)) {
         const konsaiData = konsaiRes.data || konsaiRes.pricing;
         const tableBody = document.getElementById('konsaiPricingTable');
@@ -6216,23 +6288,32 @@ if (typeof MasterManagement === 'undefined') {
     try {
       let successCount = 0;
       let errorCount = 0;
+      const currentPlan = MasterManagement._currentPlan || 'A';
 
-      // チャーター便料金の保存
+      // チャーター便料金の保存（distance_area_pricing更新）
       const dedicatedAreas = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
       for (const area of dedicatedAreas) {
         const input = document.getElementById(`dedicated_price_${area}`);
         if (input && input.value) {
-          const res = await API.put(`/dedicated-pricing/${area}`, { price: parseInt(input.value) || 0 });
-          if (res.success) {
-            successCount++;
-          } else {
+          try {
+            const res = await API.put(`/dedicated-pricing/${area}`, { 
+              price: parseInt(input.value) || 0,
+              plan_type: currentPlan
+            });
+            if (res.success) {
+              successCount++;
+            } else {
+              errorCount++;
+              console.error(`❌ チャーター便${area}エリア保存失敗:`, res.error);
+            }
+          } catch (e) {
             errorCount++;
-            console.error(`❌ チャーター便${area}エリア保存失敗:`, res.error);
+            console.error(`❌ チャーター便${area}エリア保存エラー:`, e);
           }
         }
       }
 
-      // 混載便料金の保存
+      // 混載便料金の保存（plan_type指定）
       const konsaiRanks = ['A', 'B', 'C', 'D', 'E', 'F'];
       for (const rank of konsaiRanks) {
         const priceEl = document.getElementById(`konsai_price_${rank}`);
@@ -6248,7 +6329,8 @@ if (typeof MasterManagement === 'undefined') {
             survey_twoman_fee: 0,
             survey_oneman_fee: 0,
             oneman_discount_amount: parseInt(onemanEl?.value) || 15000,
-            overtime_fee: 7000
+            overtime_fee: 7000,
+            plan_type: currentPlan
           };
           const res = await API.put(`/konsai-pricing/${rank}`, data);
           if (res.success) {
@@ -6261,7 +6343,7 @@ if (typeof MasterManagement === 'undefined') {
       }
 
       if (errorCount === 0) {
-        Utils.showSuccess(`車両料金設定を保存しました（${successCount}件更新）`);
+        Utils.showSuccess(`プラン${currentPlan}の車両料金設定を保存しました（${successCount}件更新）`);
       } else {
         Utils.showError(`一部の保存に失敗しました（成功: ${successCount}件、失敗: ${errorCount}件）`);
       }
@@ -7778,6 +7860,17 @@ window.saveVehicleSettings = async () => {
   } catch (error) {
     console.error('❌ 車両設定保存エラー:', error);
     Utils.showError('車両設定の保存中にエラーが発生しました: ' + error.message);
+  }
+};
+
+// プランA/B切替
+window.switchPricingPlan = async (plan) => {
+  console.log(`🔄 プラン${plan}に切替`);
+  const masterMgmt = window.MasterManagement || MasterManagement;
+  if (masterMgmt) {
+    masterMgmt._vehicleDisplayed = false;
+    await masterMgmt.displayVehicleSettings(plan);
+    masterMgmt._vehicleDisplayed = true;
   }
 };
 
@@ -9368,6 +9461,7 @@ const EstimateManagement = {
           </td>
           <td class="px-6 py-4 whitespace-nowrap">
             <div class="text-sm font-medium text-gray-900">${estimate.estimate_number}</div>
+            <div class="mt-1">${EstimateManagement.getEstimateTypeBadge(estimate)}</div>
           </td>
           <td class="px-6 py-4 whitespace-nowrap">
             <div class="text-sm text-gray-900">${customerName}</div>
@@ -9473,11 +9567,40 @@ const EstimateManagement = {
       'initial': { label: '初回コンタクト', class: 'bg-gray-100 text-gray-800' },
       'quote_sent': { label: '見積書送信済み', class: 'bg-yellow-100 text-yellow-800' },
       'under_consideration': { label: '受注検討中', class: 'bg-blue-100 text-blue-800' },
+      'order_day': { label: '受注（昼間）', class: 'bg-green-100 text-green-800' },
+      'order_night': { label: '受注（夜間）', class: 'bg-purple-100 text-purple-800' },
       'order': { label: '受注', class: 'bg-green-100 text-green-800' },
+      'completed': { label: '完了', class: 'bg-green-200 text-green-900' },
       'failed': { label: '失注', class: 'bg-red-100 text-red-800' },
+      'cancelled': { label: 'キャンセル', class: 'bg-gray-200 text-gray-600' },
       'unknown': { label: '不明', class: 'bg-gray-100 text-gray-800' }
     };
     return configs[status] || configs.unknown;
+  },
+
+  // 見積タイプバッジ取得
+  getEstimateTypeBadge: (estimate) => {
+    const et = estimate.estimate_type || '';
+    if (et === 'standard_b') {
+      return '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-teal-100 text-teal-800">標準B</span>';
+    } else if (et === 'standard_a' || estimate.estimate_number?.startsWith('EST-A-') || estimate.estimate_number?.startsWith('EST-')) {
+      return '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">標準A</span>';
+    } else if (et === 'free' || estimate.estimate_number?.startsWith('FREE-')) {
+      return '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">フリー</span>';
+    } else if (et === 'survey' || estimate.estimate_number?.startsWith('SURVEY-')) {
+      return '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">現地調査</span>';
+    }
+    return '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">標準</span>';
+  },
+
+  // 見積タイプ判定ヘルパー
+  getEstimateType: (estimate) => {
+    if (estimate.estimate_type) return estimate.estimate_type;
+    if (estimate.estimate_number?.startsWith('EST-B-')) return 'standard_b';
+    if (estimate.estimate_number?.startsWith('EST-A-') || estimate.estimate_number?.startsWith('EST-')) return 'standard_a';
+    if (estimate.estimate_number?.startsWith('FREE-')) return 'free';
+    if (estimate.estimate_number?.startsWith('SURVEY-')) return 'survey';
+    return 'standard_a';
   },
 
   // データフィルタリング
@@ -9487,6 +9610,7 @@ const EstimateManagement = {
     const statusFilter = document.getElementById('estimateStatusFilter')?.value || '';
     const amountFilter = document.getElementById('estimateAmountFilter')?.value || '';
     const dateFilter = document.getElementById('estimateDateFilter')?.value || '';
+    const typeFilter = document.getElementById('estimateTypeFilter')?.value || '';
 
     return EstimateManagement.estimatesData.filter(estimate => {
       // 関連データを取得
@@ -9514,7 +9638,10 @@ const EstimateManagement = {
       // 日付フィルタ
       const matchesDate = EstimateManagement.matchesDateFilter(estimate.created_at, dateFilter);
 
-      return matchesSearch && matchesCustomer && matchesStatus && matchesAmount && matchesDate;
+      // タイプフィルタ
+      const matchesType = !typeFilter || EstimateManagement.getEstimateType(estimate) === typeFilter;
+
+      return matchesSearch && matchesCustomer && matchesStatus && matchesAmount && matchesDate && matchesType;
     });
   },
 

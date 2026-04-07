@@ -2989,6 +2989,8 @@ app.get('/api/status-options', async (c) => {
       { value: 'initial', label: '初回コンタクト' },
       { value: 'quote_sent', label: '見積書送信済み' },
       { value: 'under_consideration', label: '受注検討中' },
+      { value: 'order_day', label: '受注（昼間）' },
+      { value: 'order_night', label: '受注（夜間）' },
       { value: 'order', label: '受注' },
       { value: 'completed', label: '完了' },
       { value: 'failed', label: '失注' },
@@ -3384,30 +3386,32 @@ app.get('/api/distance-area-pricing', async (c) => {
   try {
     const { env } = c
     const areaRank = c.req.query('area_rank')
+    const planType = c.req.query('plan_type') || 'A'
     
     if (areaRank) {
-      // 特定ランクの料金取得
+      // 特定ランクの料金取得（plan_type指定）
       const pricing = await env.DB.prepare(`
         SELECT * FROM distance_area_pricing 
-        WHERE area_rank = ? 
+        WHERE area_rank = ? AND plan_type = ?
         ORDER BY effective_date DESC 
         LIMIT 1
-      `).bind(areaRank).first()
+      `).bind(areaRank, planType).first()
       
       if (!pricing) {
-        return c.json({ error: `ランク${areaRank}の料金データが見つかりません` }, 404)
+        return c.json({ error: `ランク${areaRank}（プラン${planType}）の料金データが見つかりません` }, 404)
       }
       
       return c.json({ success: true, pricing })
     }
     
-    // 全ランクの料金一覧取得
+    // 全ランクの料金一覧取得（plan_type指定）
     const { results } = await env.DB.prepare(`
       SELECT * FROM distance_area_pricing 
+      WHERE plan_type = ?
       ORDER BY distance_km ASC
-    `).all()
+    `).bind(planType).all()
     
-    return c.json({ success: true, pricing: results || [] })
+    return c.json({ success: true, pricing: results || [], plan_type: planType })
   } catch (error) {
     console.error('距離ベース料金取得エラー:', error)
     return c.json({ error: '料金データの取得に失敗しました' }, 500)
@@ -3423,25 +3427,26 @@ app.get('/api/konsai-pricing', async (c) => {
   try {
     const { env } = c
     const rank = c.req.query('rank')
+    const planType = c.req.query('plan_type') || 'A'
     
     if (rank) {
       const pricing = await env.DB.prepare(`
-        SELECT * FROM konsai_pricing WHERE rank = ? LIMIT 1
-      `).bind(rank.toUpperCase()).first()
+        SELECT * FROM konsai_pricing WHERE rank = ? AND plan_type = ? LIMIT 1
+      `).bind(rank.toUpperCase(), planType).first()
       
       if (!pricing) {
-        return c.json({ success: false, error: `混載便ランク${rank}の料金が見つかりません` }, 404)
+        return c.json({ success: false, error: `混載便ランク${rank}（プラン${planType}）の料金が見つかりません` }, 404)
       }
       
       return c.json({ success: true, pricing })
     }
     
-    // 全ランク取得
+    // 全ランク取得（plan_type指定）
     const { results } = await env.DB.prepare(`
-      SELECT * FROM konsai_pricing ORDER BY rank ASC
-    `).all()
+      SELECT * FROM konsai_pricing WHERE plan_type = ? ORDER BY rank ASC
+    `).bind(planType).all()
     
-    return c.json({ success: true, pricing: results || [] })
+    return c.json({ success: true, pricing: results || [], plan_type: planType })
   } catch (error) {
     console.error('混載便料金取得エラー:', error)
     return c.json({ success: false, error: '混載便料金の取得に失敗しました' }, 500)
@@ -3473,12 +3478,14 @@ app.get('/api/konsai-pricing/by-area', async (c) => {
     // A〜F はそのまま混載便ランクとして使用
     const konsaiRank = upper
     
+    const planType = c.req.query('plan_type') || 'A'
+    
     const pricing = await env.DB.prepare(`
-      SELECT * FROM konsai_pricing WHERE rank = ? LIMIT 1
-    `).bind(konsaiRank).first()
+      SELECT * FROM konsai_pricing WHERE rank = ? AND plan_type = ? LIMIT 1
+    `).bind(konsaiRank, planType).first()
     
     if (!pricing) {
-      return c.json({ success: false, error: `混載便ランク${konsaiRank}の料金が見つかりません` }, 404)
+      return c.json({ success: false, error: `混載便ランク${konsaiRank}（プラン${planType}）の料金が見つかりません` }, 404)
     }
     
     return c.json({ 
@@ -3486,6 +3493,7 @@ app.get('/api/konsai-pricing/by-area', async (c) => {
       out_of_area: false,
       original_rank: upper,
       konsai_rank: konsaiRank,
+      plan_type: planType,
       pricing
     })
   } catch (error) {
@@ -3541,6 +3549,7 @@ app.put('/api/konsai-pricing/:rank', async (c) => {
     const { env } = c
     const rank = c.req.param('rank').toUpperCase()
     const data = await c.req.json()
+    const planType = data.plan_type || 'A'
     
     const result = await env.DB.prepare(`
       UPDATE konsai_pricing SET
@@ -3552,7 +3561,7 @@ app.put('/api/konsai-pricing/:rank', async (c) => {
         survey_oneman_fee = ?,
         oneman_discount_amount = ?,
         updated_at = CURRENT_TIMESTAMP
-      WHERE rank = ?
+      WHERE rank = ? AND plan_type = ?
     `).bind(
       data.price,
       data.overtime_fee || 7000,
@@ -3561,10 +3570,11 @@ app.put('/api/konsai-pricing/:rank', async (c) => {
       data.survey_twoman_fee,
       data.survey_oneman_fee,
       data.oneman_discount_amount || 15000,
-      rank
+      rank,
+      planType
     ).run()
     
-    return c.json({ success: true, message: `混載便${rank}ランクの料金を更新しました` })
+    return c.json({ success: true, message: `混載便${rank}ランク（プラン${planType}）の料金を更新しました` })
   } catch (error) {
     console.error('混載便料金更新エラー:', error)
     return c.json({ success: false, error: '混載便料金の更新に失敗しました' }, 500)
@@ -3594,44 +3604,47 @@ app.put('/api/dedicated-pricing/:area', async (c) => {
     const { env } = c
     const area = c.req.param('area').toUpperCase()
     const data = await c.req.json()
+    const planType = data.plan_type || 'A'
     
-    // 1. vehicle_pricing テーブルを更新
-    const existing = await env.DB.prepare(`
-      SELECT id FROM vehicle_pricing 
-      WHERE vehicle_type = '専属便' AND operation_type = '終日' AND area = ?
-    `).bind(area).first()
-    
-    if (existing) {
-      await env.DB.prepare(`
-        UPDATE vehicle_pricing SET price = ?, updated_at = CURRENT_TIMESTAMP
+    // 1. vehicle_pricing テーブルを更新（プランAのみ - 後方互換）
+    if (planType === 'A') {
+      const existing = await env.DB.prepare(`
+        SELECT id FROM vehicle_pricing 
         WHERE vehicle_type = '専属便' AND operation_type = '終日' AND area = ?
-      `).bind(data.price, area).run()
-    } else {
-      await env.DB.prepare(`
-        INSERT INTO vehicle_pricing (vehicle_type, operation_type, area, price, user_id, created_at, updated_at)
-        VALUES ('専属便', '終日', ?, ?, 'system', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      `).bind(area, data.price).run()
+      `).bind(area).first()
+      
+      if (existing) {
+        await env.DB.prepare(`
+          UPDATE vehicle_pricing SET price = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE vehicle_type = '専属便' AND operation_type = '終日' AND area = ?
+        `).bind(data.price, area).run()
+      } else {
+        await env.DB.prepare(`
+          INSERT INTO vehicle_pricing (vehicle_type, operation_type, area, price, user_id, created_at, updated_at)
+          VALUES ('専属便', '終日', ?, ?, 'system', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `).bind(area, data.price).run()
+      }
     }
     
-    // 2. distance_area_pricing テーブルも同期更新（見積画面Step3が参照するテーブル）
+    // 2. distance_area_pricing テーブルも同期更新（plan_type指定）
     try {
       const distPricing = await env.DB.prepare(`
-        SELECT id FROM distance_area_pricing WHERE area_rank = ?
-      `).bind(area).first()
+        SELECT id FROM distance_area_pricing WHERE area_rank = ? AND plan_type = ?
+      `).bind(area, planType).first()
       
       if (distPricing) {
         await env.DB.prepare(`
           UPDATE distance_area_pricing 
           SET dedicated_price_1 = ?, updated_at = CURRENT_TIMESTAMP
-          WHERE area_rank = ?
-        `).bind(data.price, area).run()
-        console.log(`distance_area_pricing ${area}ランクも同期更新: ¥${data.price}`)
+          WHERE area_rank = ? AND plan_type = ?
+        `).bind(data.price, area, planType).run()
+        console.log(`distance_area_pricing ${area}ランク（プラン${planType}）同期更新: ¥${data.price}`)
       }
     } catch (syncError) {
-      console.warn(`distance_area_pricing同期更新スキップ（${area}）:`, syncError)
+      console.warn(`distance_area_pricing同期更新スキップ（${area}プラン${planType}）:`, syncError)
     }
     
-    return c.json({ success: true, message: `チャーター便${area}エリアの料金を更新しました` })
+    return c.json({ success: true, message: `チャーター便${area}エリア（プラン${planType}）の料金を更新しました` })
   } catch (error) {
     console.error('チャーター便料金更新エラー:', error)
     return c.json({ success: false, error: 'チャーター便料金の更新に失敗しました' }, 500)
@@ -4119,7 +4132,7 @@ app.get('/estimate/step1', (c) => {
               </a>
             </div>
             <div className="text-white">
-              <span className="text-sm">標準見積作成 - STEP 1</span>
+              <span className="text-sm" id="stepHeaderLabel">標準見積作成 - STEP 1</span>
             </div>
           </div>
         </div>
@@ -4437,7 +4450,7 @@ app.get('/estimate/step2', (c) => {
               </a>
             </div>
             <div className="text-white">
-              <span className="text-sm">新規見積作成 - STEP 2</span>
+              <span className="text-sm" id="stepHeaderLabel">新規見積作成 - STEP 2</span>
             </div>
           </div>
         </div>
@@ -5351,7 +5364,7 @@ app.get('/estimate/step3', (c) => {
               </a>
             </div>
             <div className="text-white">
-              <span className="text-sm">新規見積作成 - STEP 3</span>
+              <span className="text-sm" id="stepHeaderLabel">新規見積作成 - STEP 3</span>
             </div>
           </div>
         </div>
@@ -5883,7 +5896,7 @@ app.get('/estimate/step4', (c) => {
               </a>
             </div>
             <div className="text-white">
-              <span className="text-sm">新規見積作成 - STEP 4</span>
+              <span className="text-sm" id="stepHeaderLabel">新規見積作成 - STEP 4</span>
             </div>
           </div>
         </div>
@@ -6366,7 +6379,7 @@ app.get('/estimate/step5', (c) => {
               </a>
             </div>
             <div className="text-white">
-              <span className="text-sm">新規見積作成 - STEP 5</span>
+              <span className="text-sm" id="stepHeaderLabel">新規見積作成 - STEP 5</span>
             </div>
           </div>
         </div>
@@ -6988,7 +7001,7 @@ app.get('/estimate/step6', (c) => {
               </a>
             </div>
             <div className="text-white">
-              <span className="text-sm">新規見積作成 - STEP 6</span>
+              <span className="text-sm" id="stepHeaderLabel">新規見積作成 - STEP 6</span>
             </div>
           </div>
         </div>
@@ -7456,10 +7469,14 @@ app.post('/api/estimates', async (c) => {
       }, 400)
     }
     
-    // 見積番号を生成（EST-YYYY-XXX形式）
+    // 見積タイプ判定（standard_a / standard_b）
+    const estimateType = data.estimate_type || 'standard_a'
+    const planLabel = estimateType === 'standard_b' ? 'B' : 'A'
+    
+    // 見積番号を生成（EST-A-YYYY-XXX / EST-B-YYYY-XXX形式）
     const now = new Date()
     const year = now.getFullYear()
-    const estimateNumber = `EST-${year}-${String(Date.now()).slice(-3)}`
+    const estimateNumber = `EST-${planLabel}-${year}-${String(Date.now()).slice(-3)}`
     
     // セッションからユーザー情報取得
     const sessionInfo = await verifySession(c)
@@ -7489,13 +7506,14 @@ app.post('/api/estimates', async (c) => {
         vehicle_dedicated_unit_price, vehicle_charter_unit_price,
         external_contractor_cost, 
         uses_multiple_vehicles, notes, line_items_json, created_by_name, customer_contact_person,
-        delivery_distance_km, transport_vehicle_fee, road_permit_fee, survey_fee, oneman_discount_applied
+        delivery_distance_km, transport_vehicle_fee, road_permit_fee, survey_fee, oneman_discount_applied,
+        estimate_type
       ) VALUES (
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
         ?, ?, ?, ?, ?, ?, 
         ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `).bind(
       data.customer_id,
@@ -7558,7 +7576,8 @@ app.post('/api/estimates', async (c) => {
       data.transport_vehicle_fee || 0,
       data.road_permit_fee || 0,
       data.survey_fee || 0,
-      data.oneman_discount_applied || 0
+      data.oneman_discount_applied || 0,
+      estimateType
     ).run()
     
     console.log('見積保存結果:', result)
@@ -7979,6 +7998,28 @@ app.get('/masters', (c) => {
             <div id="vehicle-content" className="master-content hidden">
               <div className="space-y-6">
                 <h3 className="text-lg font-medium text-gray-900">車両料金設定</h3>
+                
+                {/* プランA/B切替 */}
+                <div className="flex items-center gap-4 p-4 bg-gray-100 rounded-lg">
+                  <span className="text-sm font-medium text-gray-700">料金プラン:</span>
+                  <div className="flex rounded-lg overflow-hidden border border-gray-300">
+                    <button 
+                      id="planABtn" 
+                      onclick="switchPricingPlan('A')" 
+                      className="px-4 py-2 text-sm font-medium bg-blue-600 text-white"
+                    >
+                      プランA（標準）
+                    </button>
+                    <button 
+                      id="planBBtn" 
+                      onclick="switchPricingPlan('B')" 
+                      className="px-4 py-2 text-sm font-medium bg-white text-gray-700 hover:bg-gray-50"
+                    >
+                      プランB
+                    </button>
+                  </div>
+                  <span id="currentPlanLabel" className="text-xs text-gray-500">現在: プランA</span>
+                </div>
                 
                 {/* チャーター便料金設定 */}
                 <div className="bg-orange-50 p-6 rounded-lg">
@@ -9942,8 +9983,29 @@ app.get('/estimates', (c) => {
                   <option value="initial">初回コンタクト</option>
                   <option value="quote_sent">見積書送信済み</option>
                   <option value="under_consideration">受注検討中</option>
+                  <option value="order_day">受注（昼間）</option>
+                  <option value="order_night">受注（夜間）</option>
                   <option value="order">受注</option>
+                  <option value="completed">完了</option>
                   <option value="failed">失注</option>
+                  <option value="cancelled">キャンセル</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  見積タイプ
+                </label>
+                <select
+                  id="estimateTypeFilter"
+                  className="form-select"
+                  onChange="EstimateManagement.filterEstimates()"
+                >
+                  <option value="">すべてのタイプ</option>
+                  <option value="standard_a">標準見積A</option>
+                  <option value="standard_b">標準見積B</option>
+                  <option value="free">フリー見積</option>
+                  <option value="survey">現地調査</option>
                 </select>
               </div>
               
@@ -12445,83 +12507,94 @@ app.get('/estimate/type-select', (c) => {
       </header>
 
       {/* メインコンテンツ */}
-      <main className="max-w-4xl mx-auto py-8 px-4">
+      <main className="max-w-6xl mx-auto py-8 px-4">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold text-gray-800 mb-4">見積もり作成方式を選択してください</h2>
           <p className="text-gray-600">お客様の状況に合わせて適切な見積もり方式をお選びください</p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8">
-          {/* 標準見積もり */}
-          <div className="bg-white rounded-lg shadow-lg p-8 hover:shadow-xl transition-shadow">
-            <div className="text-center mb-6">
-              <div className="bg-blue-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
-                <i className="fas fa-clipboard-list text-blue-600 text-3xl"></i>
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* 標準見積もりA */}
+          <div className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow border-t-4 border-blue-600">
+            <div className="text-center mb-4">
+              <div className="bg-blue-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-3">
+                <i className="fas fa-clipboard-list text-blue-600 text-2xl"></i>
               </div>
-              <h3 className="text-2xl font-bold text-gray-800 mb-2">標準見積もり</h3>
-              <p className="text-gray-600">関西エリア内の輸送サービス</p>
+              <h3 className="text-xl font-bold text-gray-800 mb-1">標準見積もりA</h3>
+              <span className="inline-block bg-blue-600 text-white text-xs px-2 py-0.5 rounded">プランA</span>
+              <p className="text-gray-600 text-sm mt-2">標準料金体系</p>
             </div>
 
-            <div className="mb-6">
-              <h4 className="font-semibold text-gray-800 mb-3">対象サービス：</h4>
-              <ul className="text-sm text-gray-600 space-y-2">
-                <li><i className="fas fa-check text-green-500 mr-2"></i>車両輸送（4t車、大型車等）</li>
-                <li><i className="fas fa-check text-green-500 mr-2"></i>作業員派遣</li>
-                <li><i className="fas fa-check text-green-500 mr-2"></i>梱包・養生作業</li>
-                <li><i className="fas fa-check text-green-500 mr-2"></i>エリア：大阪・京都・兵庫</li>
-              </ul>
-            </div>
-
-            <div className="mb-6">
-              <h4 className="font-semibold text-gray-800 mb-3">特徴：</h4>
-              <ul className="text-sm text-gray-600 space-y-1">
-                <li>• 事前設定された料金体系</li>
-                <li>• エリア別料金自動計算</li>
-                <li>• 詳細な内訳表示</li>
+            <div className="mb-4">
+              <ul className="text-xs text-gray-600 space-y-1">
+                <li><i className="fas fa-check text-blue-500 mr-1"></i>車両輸送（4t車、大型車等）</li>
+                <li><i className="fas fa-check text-blue-500 mr-1"></i>作業員派遣・梱包養生</li>
+                <li><i className="fas fa-check text-blue-500 mr-1"></i>エリア別料金自動計算</li>
+                <li><i className="fas fa-check text-blue-500 mr-1"></i>標準マスター料金適用</li>
               </ul>
             </div>
 
             <button 
-              onclick="window.location.href='/estimate/step1?type=standard'" 
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg transition-colors"
+              onclick="window.location.href='/estimate/step1?type=standard_a'" 
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors text-sm"
             >
               <i className="fas fa-arrow-right mr-2"></i>
-              標準見積もりで進む
+              標準Aで進む
+            </button>
+          </div>
+
+          {/* 標準見積もりB */}
+          <div className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow border-t-4 border-teal-600">
+            <div className="text-center mb-4">
+              <div className="bg-teal-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-3">
+                <i className="fas fa-clipboard-list text-teal-600 text-2xl"></i>
+              </div>
+              <h3 className="text-xl font-bold text-gray-800 mb-1">標準見積もりB</h3>
+              <span className="inline-block bg-teal-600 text-white text-xs px-2 py-0.5 rounded">プランB</span>
+              <p className="text-gray-600 text-sm mt-2">別料金体系</p>
+            </div>
+
+            <div className="mb-4">
+              <ul className="text-xs text-gray-600 space-y-1">
+                <li><i className="fas fa-check text-teal-500 mr-1"></i>車両輸送（4t車、大型車等）</li>
+                <li><i className="fas fa-check text-teal-500 mr-1"></i>作業員派遣・梱包養生</li>
+                <li><i className="fas fa-check text-teal-500 mr-1"></i>エリア別料金自動計算</li>
+                <li><i className="fas fa-check text-teal-500 mr-1"></i>プランB専用マスター料金</li>
+              </ul>
+            </div>
+
+            <button 
+              onclick="window.location.href='/estimate/step1?type=standard_b'" 
+              className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-4 rounded-lg transition-colors text-sm"
+            >
+              <i className="fas fa-arrow-right mr-2"></i>
+              標準Bで進む
             </button>
           </div>
 
           {/* フリー見積もり */}
-          <div className="bg-white rounded-lg shadow-lg p-8 hover:shadow-xl transition-shadow">
-            <div className="text-center mb-6">
-              <div className="bg-green-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
-                <i className="fas fa-edit text-green-600 text-3xl"></i>
+          <div className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow border-t-4 border-green-600">
+            <div className="text-center mb-4">
+              <div className="bg-green-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-3">
+                <i className="fas fa-edit text-green-600 text-2xl"></i>
               </div>
-              <h3 className="text-2xl font-bold text-gray-800 mb-2">フリー見積もり</h3>
-              <p className="text-gray-600">エリア外・特殊案件向け</p>
+              <h3 className="text-xl font-bold text-gray-800 mb-1">フリー見積もり</h3>
+              <span className="inline-block bg-green-600 text-white text-xs px-2 py-0.5 rounded">自由入力</span>
+              <p className="text-gray-600 text-sm mt-2">エリア外・特殊案件向け</p>
             </div>
 
-            <div className="mb-6">
-              <h4 className="font-semibold text-gray-800 mb-3">対象ケース：</h4>
-              <ul className="text-sm text-gray-600 space-y-2">
-                <li><i className="fas fa-check text-green-500 mr-2"></i>関西エリア外の輸送</li>
-                <li><i className="fas fa-check text-green-500 mr-2"></i>特殊機材・車両</li>
-                <li><i className="fas fa-check text-green-500 mr-2"></i>カスタムサービス</li>
-                <li><i className="fas fa-check text-green-500 mr-2"></i>個別料金設定が必要</li>
-              </ul>
-            </div>
-
-            <div className="mb-6">
-              <h4 className="font-semibold text-gray-800 mb-3">特徴：</h4>
-              <ul className="text-sm text-gray-600 space-y-1">
-                <li>• 項目・料金を自由入力</li>
-                <li>• 最大20項目まで対応</li>
-                <li>• 税込み計算自動対応</li>
+            <div className="mb-4">
+              <ul className="text-xs text-gray-600 space-y-1">
+                <li><i className="fas fa-check text-green-500 mr-1"></i>項目・料金を自由入力</li>
+                <li><i className="fas fa-check text-green-500 mr-1"></i>最大20項目まで対応</li>
+                <li><i className="fas fa-check text-green-500 mr-1"></i>特殊案件・個別料金</li>
+                <li><i className="fas fa-check text-green-500 mr-1"></i>税込み計算自動対応</li>
               </ul>
             </div>
 
             <button 
               onclick="window.location.href='/estimate/free-form?type=free'" 
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg transition-colors"
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition-colors text-sm"
             >
               <i className="fas fa-arrow-right mr-2"></i>
               フリー見積もりで進む
@@ -12529,37 +12602,28 @@ app.get('/estimate/type-select', (c) => {
           </div>
 
           {/* 現地調査専門見積もり */}
-          <div className="bg-white rounded-lg shadow-lg p-8 hover:shadow-xl transition-shadow">
-            <div className="text-center mb-6">
-              <div className="bg-orange-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
-                <i className="fas fa-search-location text-orange-600 text-3xl"></i>
+          <div className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow border-t-4 border-orange-500">
+            <div className="text-center mb-4">
+              <div className="bg-orange-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-3">
+                <i className="fas fa-search-location text-orange-600 text-2xl"></i>
               </div>
-              <h3 className="text-2xl font-bold text-gray-800 mb-2">現地調査専門</h3>
-              <p className="text-gray-600">調査のみの単体見積もり</p>
+              <h3 className="text-xl font-bold text-gray-800 mb-1">現地調査専門</h3>
+              <span className="inline-block bg-orange-500 text-white text-xs px-2 py-0.5 rounded">調査専用</span>
+              <p className="text-gray-600 text-sm mt-2">調査のみの単体見積もり</p>
             </div>
 
-            <div className="mb-6">
-              <h4 className="font-semibold text-gray-800 mb-3">対象ケース：</h4>
-              <ul className="text-sm text-gray-600 space-y-2">
-                <li><i className="fas fa-check text-orange-500 mr-2"></i>家具納品前の現地調査</li>
-                <li><i className="fas fa-check text-orange-500 mr-2"></i>搬入経路・設置場所の確認</li>
-                <li><i className="fas fa-check text-orange-500 mr-2"></i>ワンマン / ツーマン選択</li>
-                <li><i className="fas fa-check text-orange-500 mr-2"></i>エリア別料金自動計算</li>
-              </ul>
-            </div>
-
-            <div className="mb-6">
-              <h4 className="font-semibold text-gray-800 mb-3">特徴：</h4>
-              <ul className="text-sm text-gray-600 space-y-1">
-                <li>• 調査費のみの単体見積書を発行</li>
-                <li>• エリアA〜Fの料金体系に対応</li>
-                <li>• 車両費・距離超過料金を自動計算</li>
+            <div className="mb-4">
+              <ul className="text-xs text-gray-600 space-y-1">
+                <li><i className="fas fa-check text-orange-500 mr-1"></i>家具納品前の現地調査</li>
+                <li><i className="fas fa-check text-orange-500 mr-1"></i>搬入経路・設置場所確認</li>
+                <li><i className="fas fa-check text-orange-500 mr-1"></i>ワンマン・ツーマン選択</li>
+                <li><i className="fas fa-check text-orange-500 mr-1"></i>郵便番号エリア自動判定</li>
               </ul>
             </div>
 
             <button 
               onclick="window.location.href='/estimate/survey-only'" 
-              className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-4 px-6 rounded-lg transition-colors"
+              className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-lg transition-colors text-sm"
             >
               <i className="fas fa-arrow-right mr-2"></i>
               現地調査見積もりで進む
@@ -12568,7 +12632,7 @@ app.get('/estimate/type-select', (c) => {
         </div>
 
         {/* 戻るボタン */}
-        <div className="text-center mt-8">
+        <div className="text-center mt-8 pb-8">
           <a href="/" className="text-gray-600 hover:text-gray-800">
             <i className="fas fa-arrow-left mr-2"></i>
             トップページに戻る
@@ -13941,7 +14005,7 @@ app.get('/estimate/:id', async (c) => {
           <div class="text-center mb-8">
             <h1 class="text-3xl font-bold text-gray-800 mb-2">見 積 書</h1>
             <p class="text-gray-600">見積番号: ${estimate.estimate_number}</p>
-            <span class="inline-block bg-blue-600 text-white text-xs px-3 py-1 rounded mt-2">標準見積もり</span>
+            <span class="inline-block ${estimate.estimate_type === 'standard_b' ? 'bg-teal-600' : 'bg-blue-600'} text-white text-xs px-3 py-1 rounded mt-2">${estimate.estimate_type === 'standard_b' ? '標準見積もりB' : '標準見積もりA'}</span>
           </div>
 
           <!-- 合計金額 -->
@@ -17223,6 +17287,8 @@ app.get('/api/status-options', (c) => {
     { value: 'initial', label: '初回コンタクト', color: 'blue', description: '最初の問い合わせ段階' },
     { value: 'quote_sent', label: '見積書送信済み', color: 'yellow', description: '見積書を送信し、返答待ち' },
     { value: 'under_consideration', label: '受注検討中', color: 'orange', description: '顧客が検討中、追加フォロー必要' },
+    { value: 'order_day', label: '受注（昼間）', color: 'green', description: '昼間作業の正式受注' },
+    { value: 'order_night', label: '受注（夜間）', color: 'green', description: '夜間作業の正式受注' },
     { value: 'order', label: '受注', color: 'green', description: '正式受注、作業開始準備' },
     { value: 'completed', label: '完了', color: 'green', description: '作業完了、支払い確認済み' },
     { value: 'failed', label: '失注', color: 'red', description: '受注に至らず終了' },
