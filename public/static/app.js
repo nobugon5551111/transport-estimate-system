@@ -5667,31 +5667,46 @@ if (typeof MasterManagement === 'undefined') {
     try {
       console.log('🚀 MasterManagement initialization started');
       
-      // マスタ設定データを取得（一回のみ）
-      if (!MasterManagement.masterSettings) {
-        try {
-          await MasterManagement.loadMasterSettings();
-          console.log('✅ Master settings loaded');
-        } catch (error) {
-          console.error('❌ マスタ設定読み込みエラー:', error);
-        }
-      }
+      // マスタ設定とエリア設定を並行取得（タイムアウト付き）
+      const settingsPromise = !MasterManagement.masterSettings 
+        ? MasterManagement.loadMasterSettings().then(() => console.log('✅ Master settings loaded')).catch(e => console.error('❌ マスタ設定読み込みエラー:', e))
+        : Promise.resolve();
       
-      // エリア設定データを取得（一回のみ）
-      if (!MasterManagement.areaSettings) {
-        try {
-          await MasterManagement.loadAreaSettings();
-          console.log('✅ Area settings loaded');
-        } catch (error) {
-          console.error('❌ エリア設定読み込みエラー:', error);
-        }
-      }
+      const areaPromise = !MasterManagement.areaSettings
+        ? MasterManagement.loadAreaSettings().then(() => console.log('✅ Area settings loaded')).catch(e => console.error('❌ エリア設定読み込みエラー:', e))
+        : Promise.resolve();
       
-      // 初期表示（データロード完了後）
+      // 両方を並行で待つ（10秒タイムアウト付き）
+      let timedOut = false;
+      const timeoutId = setTimeout(() => {
+        timedOut = true;
+      }, 10000);
+      await Promise.race([
+        Promise.allSettled([settingsPromise, areaPromise]).then(() => {
+          clearTimeout(timeoutId);
+        }),
+        new Promise(resolve => setTimeout(() => {
+          console.warn('⚠️ マスタ設定読み込みタイムアウト（10秒）- 取得済みデータで表示を続行');
+          resolve();
+        }, 10000))
+      ]);
+      
+      // 初期表示（データロード完了後 or タイムアウト後）
+      console.log('📋 初期タブ表示開始 - masterSettings:', !!MasterManagement.masterSettings, ', areaSettings:', !!MasterManagement.areaSettings);
+      
+      // スタッフ・エリアタブを表示
       MasterManagement.switchTab('staff-area');
+      
+      // 車両設定もバックグラウンドで事前読み込み（表示は非表示だがデータ準備）
+      MasterManagement.displayVehicleSettings().catch(e => console.warn('⚠️ 車両設定事前読み込みエラー:', e));
+      
       console.log('✅ MasterManagement initialization completed');
       MasterManagement._initialized = true;
       
+    } catch (initError) {
+      console.error('❌ MasterManagement初期化エラー:', initError);
+      // エラーでも初期タブ表示を試みる
+      try { MasterManagement.switchTab('staff-area'); } catch(e) {}
     } finally {
       MasterManagement._initializing = false;
     }
@@ -5741,36 +5756,27 @@ if (typeof MasterManagement === 'undefined') {
 
     MasterManagement.currentTab = tabName;
 
-    // タブ固有の初期化処理（一回のみ実行）
+    // タブ固有の表示処理（毎回実行してデータを確実に表示）
     switch (tabName) {
       case 'staff-area':
-        if (!MasterManagement._staffAreaDisplayed) {
-          MasterManagement.displayStaffAreaSettings();
-          MasterManagement._staffAreaDisplayed = true;
-        }
+        console.log('📋 スタッフ・エリアタブ表示');
+        MasterManagement.displayStaffAreaSettings();
+        MasterManagement._staffAreaDisplayed = true;
         break;
       case 'vehicle':
-        if (!MasterManagement._vehicleDisplayed) {
-          MasterManagement.displayVehicleSettings();
-          MasterManagement._vehicleDisplayed = true;
-        }
+        console.log('🚛 車両タブ表示');
+        MasterManagement.displayVehicleSettings();
+        MasterManagement._vehicleDisplayed = true;
         break;
       case 'services':
-        console.log('🔧 Services tab activated');
-        if (!MasterManagement._servicesDisplayed) {
-          console.log('🔧 First time display, calling displayServicesSettings');
-          MasterManagement.displayServicesSettings();
-          MasterManagement._servicesDisplayed = true;
-        } else {
-          console.log('🔧 Services already displayed, skipping');
-        }
+        console.log('🔧 サービスタブ表示');
+        MasterManagement.displayServicesSettings();
+        MasterManagement._servicesDisplayed = true;
         break;
       case 'customers':
-        // 顧客マスター表示処理
         MasterManagement.displayCustomersContent();
         break;
       case 'projects':
-        // 案件マスター表示処理
         MasterManagement.displayProjectsContent();
         break;
     }
@@ -5848,14 +5854,31 @@ if (typeof MasterManagement === 'undefined') {
         });
       }
 
-      // スタッフ料金データをUIに反映
+      // スタッフ料金データをUIに反映（入力フィールド＋表示ラベル）
       if (settings.staff_rates) {
+        const fmt = (v) => Number(v).toLocaleString();
+        // rate-display用のキーマッピング
+        const labelMap = {
+          'supervisor': 'rate-display-supervisor',
+          'leader': 'rate-display-leader',
+          'm2_half_day': 'rate-display-m2-half',
+          'm2_full_day': 'rate-display-m2-full',
+          'temp_half_day': 'rate-display-temp-half',
+          'temp_full_day': 'rate-display-temp-full'
+        };
         Object.entries(settings.staff_rates).forEach(([key, value]) => {
+          // 入力フィールドに値を設定
           const elementId = `rate_${key}`;
           const element = document.getElementById(elementId);
           if (element) {
             element.value = value;
             console.log(`✅ Updated ${elementId}: ${value}`);
+          }
+          // rate-display-* ラベルも同時に更新
+          const labelId = labelMap[key];
+          if (labelId && value != null) {
+            document.querySelectorAll(`[id="${labelId}"]`).forEach(el => { el.textContent = fmt(value); });
+            console.log(`✅ Updated label ${labelId}: ${fmt(value)}`);
           }
         });
       }
@@ -5911,18 +5934,36 @@ if (typeof MasterManagement === 'undefined') {
   // エリア設定データ読み込み
   loadAreaSettings: async () => {
     try {
+      console.log('📡 エリア設定API呼び出し開始');
       const response = await API.get('/area-settings');
+      console.log('📡 エリア設定APIレスポンス:', JSON.stringify(response).substring(0, 200));
       if (response.success) {
-        MasterManagement.areaSettings = response.data;
+        // APIは {success, areas: [...]} を返す（response.data ではない）
+        MasterManagement.areaSettings = response.areas || response.data || [];
+        console.log('✅ エリア設定取得成功:', (MasterManagement.areaSettings || []).length, '件');
+      } else {
+        console.warn('⚠️ エリア設定APIが success=false を返しました');
+        MasterManagement.areaSettings = [];
       }
     } catch (error) {
       console.error('エリア設定読み込みエラー:', error);
+      MasterManagement.areaSettings = [];
     }
   },
 
   // スタッフ・エリア設定表示
   displayStaffAreaSettings: () => {
-    if (!MasterManagement.masterSettings) return;
+    if (!MasterManagement.masterSettings) {
+      console.warn('⚠️ displayStaffAreaSettings: masterSettings未ロード、500ms後にリトライ');
+      setTimeout(() => {
+        if (MasterManagement.masterSettings) {
+          MasterManagement.displayStaffAreaSettings();
+        } else {
+          console.error('❌ displayStaffAreaSettings: masterSettingsがロードされませんでした');
+        }
+      }, 500);
+      return;
+    }
 
     const settings = MasterManagement.masterSettings;
     
@@ -6007,11 +6048,13 @@ if (typeof MasterManagement === 'undefined') {
   displayVehicleSettings: async (planType) => {
     const currentPlan = planType || MasterManagement._currentPlan || 'A';
     MasterManagement._currentPlan = currentPlan;
-    console.log(`🚛 車両設定表示（プラン${currentPlan}）`);
+    console.log(`🚛 車両設定表示開始（プラン${currentPlan}）`);
     
     // チャーター便料金を取得・表示（plan_type指定）
     try {
+      console.log('📡 チャーター便料金API呼び出し...');
       const dedicatedRes = await API.get(`/distance-area-pricing?plan_type=${currentPlan}`);
+      console.log('📡 チャーター便料金API応答:', dedicatedRes?.success, '件数:', dedicatedRes?.pricing?.length);
       if (dedicatedRes.success && dedicatedRes.pricing) {
         const tableBody = document.getElementById('dedicatedPricingTable');
         if (tableBody) {
@@ -6073,7 +6116,9 @@ if (typeof MasterManagement === 'undefined') {
     
     // 混載便料金を取得・表示（plan_type指定）
     try {
+      console.log('📡 混載便料金API呼び出し...');
       const konsaiRes = await API.get(`/konsai-pricing?plan_type=${currentPlan}`);
+      console.log('📡 混載便料金API応答:', konsaiRes?.success, '件数:', (konsaiRes?.data || konsaiRes?.pricing || []).length);
       if (konsaiRes.success && (konsaiRes.data || konsaiRes.pricing)) {
         const konsaiData = konsaiRes.data || konsaiRes.pricing;
         const tableBody = document.getElementById('konsaiPricingTable');
