@@ -157,6 +157,12 @@ if (typeof estimateFlow === 'undefined') {
   };
 }
 
+// estimate_typeからplan_type(A/B)を導出するヘルパー
+function getCurrentPlanType() {
+  const estimateType = sessionStorage.getItem('estimate_type') || 'standard_a';
+  return estimateType === 'standard_b' ? 'B' : 'A';
+}
+
 // ユーティリティ関数（重複宣言を防ぐため条件付き）
 if (typeof Utils === 'undefined') {
   const Utils = {
@@ -2165,8 +2171,9 @@ const Step4Implementation = {
     }
 
     try {
-      // スタッフ単価を取得
-      const ratesResponse = await API.get('/staff-rates');
+      // スタッフ単価を取得（プラン別）
+      const planType = getCurrentPlanType();
+      const ratesResponse = await API.get(`/staff-rates?plan_type=${planType}`);
       if (ratesResponse.success && ratesResponse.data) {
         Step4Implementation.staffRates = ratesResponse.data.staffRates;
         console.log('✅ STEP4: スタッフ単価取得完了:', Step4Implementation.staffRates);
@@ -2638,8 +2645,9 @@ const Step5Implementation = {
     Step5Implementation.flowData = flowData;
 
     try {
-      // サービス料金を取得
-      const ratesResponse = await API.get('/service-rates');
+      // サービス料金を取得（プラン別）
+      const planType = getCurrentPlanType();
+      const ratesResponse = await API.get(`/service-rates?plan_type=${planType}`);
       if (ratesResponse.success) {
         // APIレスポンスをSTEP5が期待する構造に変換
         // ✅ 複合キー（composite keys）を使用してマスターデータから正確に読み込む
@@ -3116,7 +3124,8 @@ function resolveStaffRates(dbRates) {
 // APIからスタッフ単価を取得して resolveStaffRates で正規化する
 async function fetchResolvedStaffRates() {
   try {
-    const resp = await API.get('/staff-rates');
+    const planType = getCurrentPlanType();
+    const resp = await API.get(`/staff-rates?plan_type=${planType}`);
     if (resp.success && resp.data && resp.data.staffRates) {
       return resolveStaffRates(resp.data.staffRates);
     }
@@ -3253,9 +3262,10 @@ const Step6Implementation = {
     // 見積作成担当者名を追加
     Step6Implementation.estimateData.created_by_name = window._currentUser?.userName || '担当者未設定';
 
-    // サービスレートを取得（buildLineItems用）
+    // サービスレートを取得（buildLineItems用・プラン別）
+    const planType = getCurrentPlanType();
     try {
-      const ratesResponse = await API.get('/service-rates');
+      const ratesResponse = await API.get(`/service-rates?plan_type=${planType}`);
       if (ratesResponse.success) {
         const apiData = ratesResponse.data;
         Step5Implementation.serviceRates = {
@@ -3668,8 +3678,9 @@ const Step6Implementation = {
     };
 
     try {
-      console.log('📊 STEP6: サービス単価マスターデータ取得開始');
-      const ratesResponse = await API.get('/service-rates');
+      const planType = getCurrentPlanType();
+      console.log(`📊 STEP6: サービス単価マスターデータ取得開始（プラン${planType}）`);
+      const ratesResponse = await API.get(`/service-rates?plan_type=${planType}`);
       if (ratesResponse.success && ratesResponse.data) {
         serviceMasterRates = { ...serviceMasterRates, ...ratesResponse.data };
         console.log('✅ STEP6: サービス単価マスター取得完了:', serviceMasterRates);
@@ -4034,8 +4045,9 @@ const Step6Implementation = {
     }
     lineItems.vehicle.subtotal = finalVehicleCost;
 
-    // 2. スタッフ費用明細（STEP6表示と同じ構造）
-    const staffRatesPromise = API.get('/staff-rates');
+    // 2. スタッフ費用明細（STEP6表示と同じ構造・プラン別）
+    const planType = getCurrentPlanType();
+    const staffRatesPromise = API.get(`/staff-rates?plan_type=${planType}`);
     staffRatesPromise.then(ratesResponse => {
       let staffRates;
       if (ratesResponse.success && ratesResponse.data && ratesResponse.data.staffRates) {
@@ -5764,10 +5776,11 @@ if (typeof MasterManagement === 'undefined') {
     }
   },
 
-  // マスタ設定データ読み込み
+  // マスタ設定データ読み込み（プランA/B対応）
   loadMasterSettings: async (forceRefresh = false) => {
     try {
-      const response = await API.get('/master-settings');
+      const currentPlan = MasterManagement._currentPlan || 'A';
+      const response = await API.get(`/master-settings?plan_type=${currentPlan}`);
       if (response.success) {
         MasterManagement.masterSettings = response.data;
         
@@ -5798,14 +5811,16 @@ if (typeof MasterManagement === 'undefined') {
       return;
     }
     
-    // データが既に入力されている場合は上書きしない（ユーザー入力保護）
-    // 初回ロード時のみAPIデータを反映、それ以降はユーザーデータを保護
-    const testElement = document.getElementById('rate_supervisor');
-    const hasExistingData = testElement && testElement.value && testElement.value !== '0' && testElement.value !== '';
-    
-    if (hasExistingData && MasterManagement._dataPopulated) {
-      console.log('🛡️ User data protection: skipping populate to prevent overwrite');
-      return;
+    // プラン切替時は常にデータを再反映する
+    if (!MasterManagement._planSwitching) {
+      // データが既に入力されている場合は上書きしない（ユーザー入力保護）
+      const testElement = document.getElementById('rate_supervisor');
+      const hasExistingData = testElement && testElement.value && testElement.value !== '0' && testElement.value !== '';
+      
+      if (hasExistingData && MasterManagement._dataPopulated) {
+        console.log('🛡️ User data protection: skipping populate to prevent overwrite');
+        return;
+      }
     }
     
     MasterManagement._isPopulating = true;
@@ -5988,26 +6003,11 @@ if (typeof MasterManagement === 'undefined') {
     areaTable.innerHTML = html;
   },
 
-  // 車両設定表示
+  // 車両設定表示（グローバルプラン使用）
   displayVehicleSettings: async (planType) => {
     const currentPlan = planType || MasterManagement._currentPlan || 'A';
     MasterManagement._currentPlan = currentPlan;
     console.log(`🚛 車両設定表示（プラン${currentPlan}）`);
-    
-    // プランボタンのUI更新
-    const planABtn = document.getElementById('planABtn');
-    const planBBtn = document.getElementById('planBBtn');
-    const planLabel = document.getElementById('currentPlanLabel');
-    if (planABtn && planBBtn) {
-      if (currentPlan === 'A') {
-        planABtn.className = 'px-4 py-2 text-sm font-medium bg-blue-600 text-white';
-        planBBtn.className = 'px-4 py-2 text-sm font-medium bg-white text-gray-700 hover:bg-gray-50';
-      } else {
-        planABtn.className = 'px-4 py-2 text-sm font-medium bg-white text-gray-700 hover:bg-gray-50';
-        planBBtn.className = 'px-4 py-2 text-sm font-medium bg-teal-600 text-white';
-      }
-    }
-    if (planLabel) planLabel.textContent = `現在: プラン${currentPlan}`;
     
     // チャーター便料金を取得・表示（plan_type指定）
     try {
@@ -6409,10 +6409,15 @@ if (typeof MasterManagement === 'undefined') {
         }
       };
 
+      // 現在のプランタイプを追加
+      apiData.plan_type = MasterManagement._currentPlan || 'A';
+      console.log(`📤 サービス設定保存（プラン${apiData.plan_type}）:`, apiData);
+
       const response = await API.post('/master-settings', apiData);
       
       if (response.success) {
-        Utils.showSuccess('サービス料金設定を保存しました');
+        const plan = MasterManagement._currentPlan || 'A';
+        Utils.showSuccess(`プラン${plan}のサービス料金設定を保存しました`);
         // 保存後は強制的にデータを再読み込みして最新値を反映
         MasterManagement._dataPopulated = false; // フラグをリセット
         MasterManagement._servicesDisplayed = false; // サービス表示フラグもリセット
@@ -6448,16 +6453,18 @@ if (typeof MasterManagement === 'undefined') {
         temp_half_day: getInputValue('rate_temp_half_day')
       };
 
-      // APIの形式に合わせてデータを変換
+      // APIの形式に合わせてデータを変換（プランタイプ含む）
+      const currentPlan = MasterManagement._currentPlan || 'A';
       const apiData = {
-        staff_rates: staffData
+        staff_rates: staffData,
+        plan_type: currentPlan
       };
 
-      console.log('📤 送信データ:', apiData);
+      console.log(`📤 送信データ（プラン${currentPlan}）:`, apiData);
       const response = await API.post('/master-settings', apiData);
       
       if (response.success) {
-        Utils.showSuccess('スタッフ料金設定を保存しました');
+        Utils.showSuccess(`プラン${currentPlan}のスタッフ料金設定を保存しました`);
         await MasterManagement.loadMasterSettings(true);
       } else {
         Utils.showError('保存に失敗しました: ' + response.error);
@@ -7863,15 +7870,72 @@ window.saveVehicleSettings = async () => {
   }
 };
 
-// プランA/B切替
-window.switchPricingPlan = async (plan) => {
-  console.log(`🔄 プラン${plan}に切替`);
+// グローバルプランA/B切替（全タブに影響）
+window.switchGlobalPlan = async (plan) => {
+  console.log(`🔄 グローバルプラン${plan}に切替`);
   const masterMgmt = window.MasterManagement || MasterManagement;
-  if (masterMgmt) {
-    masterMgmt._vehicleDisplayed = false;
-    await masterMgmt.displayVehicleSettings(plan);
-    masterMgmt._vehicleDisplayed = true;
+  if (!masterMgmt) return;
+  
+  masterMgmt._currentPlan = plan;
+  
+  // グローバルプランボタンのUI更新
+  const planABtn = document.getElementById('globalPlanABtn');
+  const planBBtn = document.getElementById('globalPlanBBtn');
+  const planLabel = document.getElementById('globalPlanLabel');
+  if (planABtn && planBBtn) {
+    if (plan === 'A') {
+      planABtn.className = 'px-5 py-2 text-sm font-bold bg-blue-600 text-white transition-colors';
+      planBBtn.className = 'px-5 py-2 text-sm font-bold bg-white text-gray-700 hover:bg-gray-50 transition-colors';
+      if (planLabel) {
+        planLabel.className = 'text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1 rounded-full';
+        planLabel.innerHTML = '<i class="fas fa-check-circle mr-1"></i>現在: プランA';
+      }
+    } else {
+      planABtn.className = 'px-5 py-2 text-sm font-bold bg-white text-gray-700 hover:bg-gray-50 transition-colors';
+      planBBtn.className = 'px-5 py-2 text-sm font-bold bg-teal-600 text-white transition-colors';
+      if (planLabel) {
+        planLabel.className = 'text-sm font-medium text-teal-600 bg-teal-50 px-3 py-1 rounded-full';
+        planLabel.innerHTML = '<i class="fas fa-check-circle mr-1"></i>現在: プランB';
+      }
+    }
   }
+  
+  // プラン切替フラグを設定（データ保護を一時無効化）
+  masterMgmt._planSwitching = true;
+  masterMgmt._dataPopulated = false;
+  
+  // マスター設定をプラン別で再読み込み
+  await masterMgmt.loadMasterSettings(true);
+  
+  // 表示済みフラグをリセットして全タブを再読み込み対象に
+  masterMgmt._staffAreaDisplayed = false;
+  masterMgmt._vehicleDisplayed = false;
+  masterMgmt._servicesDisplayed = false;
+  
+  // 現在のタブを再読み込み
+  const currentTab = masterMgmt.currentTab || 'staff-area';
+  switch (currentTab) {
+    case 'staff-area':
+      masterMgmt.displayStaffAreaSettings();
+      masterMgmt._staffAreaDisplayed = true;
+      break;
+    case 'vehicle':
+      await masterMgmt.displayVehicleSettings(plan);
+      masterMgmt._vehicleDisplayed = true;
+      break;
+    case 'services':
+      masterMgmt.displayServicesSettings();
+      masterMgmt._servicesDisplayed = true;
+      break;
+  }
+  
+  masterMgmt._planSwitching = false;
+  Utils.showSuccess(`プラン${plan}のマスターデータを読み込みました`);
+};
+
+// 旧switchPricingPlan互換（グローバルプランに統合）
+window.switchPricingPlan = async (plan) => {
+  await window.switchGlobalPlan(plan);
 };
 
 window.saveServicesSettings = async () => {

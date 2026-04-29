@@ -2279,13 +2279,15 @@ app.get('/api/dashboard/stats', async (c) => {
 app.get('/api/staff-rates', async (c) => {
   try {
     const { env } = c
+    const planType = c.req.query('plan_type') || 'A'
     
-    // staff_ratesテーブルからスタッフ単価を取得（最新データを優先）
+    // staff_ratesテーブルからスタッフ単価を取得（プラン別・最新データを優先）
     const rates = await env.DB.prepare(`
       SELECT staff_type, rate 
       FROM staff_rates
+      WHERE plan_type = ?
       ORDER BY updated_at DESC, staff_type
-    `).all()
+    `).bind(planType).all()
     
     // 重複を除去して最新のものだけを使用
     const uniqueRates = {}
@@ -2304,7 +2306,8 @@ app.get('/api/staff-rates', async (c) => {
     
     return c.json({ 
       success: true,
-      data: { staffRates }
+      data: { staffRates },
+      plan_type: planType
     })
   } catch (error) {
     console.error('スタッフ単価取得エラー:', error)
@@ -2317,20 +2320,21 @@ app.get('/api/service-rates', async (c) => {
   try {
     const { env } = c
     const userId = c.req.header('X-User-ID')
+    const planType = c.req.query('plan_type') || 'A'
 
     if (!userId) {
       return c.json({ error: 'ユーザーIDが必要です' }, 400)
     }
 
-    console.log('サービス単価マスター取得開始:', userId)
+    console.log('サービス単価マスター取得開始:', userId, 'プラン:', planType)
 
-    // master_settingsからサービス単価を取得
+    // master_settingsからサービス単価を取得（プラン別）
     const serviceRates = await env.DB.prepare(`
       SELECT subcategory, key, value, data_type, description 
       FROM master_settings 
-      WHERE category = 'service'
+      WHERE category = 'service' AND plan_type = ?
       ORDER BY subcategory, key
-    `).all()
+    `).bind(planType).all()
 
     const rates = {}
     if (serviceRates.results && serviceRates.results.length > 0) {
@@ -2367,13 +2371,14 @@ app.get('/api/debug/service-rates', async (c) => {
   try {
     const { env } = c
     
-    // master_settingsからサービス単価を取得
+    const planType = c.req.query('plan_type') || 'A'
+    // master_settingsからサービス単価を取得（プラン別）
     const serviceRates = await env.DB.prepare(`
       SELECT subcategory, key, value, data_type, description 
       FROM master_settings 
-      WHERE category = 'service'
+      WHERE category = 'service' AND plan_type = ?
       ORDER BY subcategory, key
-    `).all()
+    `).bind(planType).all()
 
     const rates = {}
     if (serviceRates.results && serviceRates.results.length > 0) {
@@ -2392,7 +2397,8 @@ app.get('/api/debug/service-rates', async (c) => {
       success: true,
       data: rates,
       raw_results: serviceRates.results,
-      count: serviceRates.results ? serviceRates.results.length : 0
+      count: serviceRates.results ? serviceRates.results.length : 0,
+      plan_type: planType
     })
 
   } catch (error) {
@@ -2401,14 +2407,15 @@ app.get('/api/debug/service-rates', async (c) => {
   }
 })
 
-// API: スタッフ単価保存・更新
+// API: スタッフ単価保存・更新（プランA/B対応）
 app.post('/api/master-staff-rates', async (c) => {
   try {
     const { env } = c
     const data = await c.req.json()
     const userId = c.req.header('X-User-ID') || 'test-user-001'
+    const planType = data.plan_type || 'A'
     
-    console.log('💾 スタッフ単価保存データ:', data)
+    console.log('💾 スタッフ単価保存データ:', data, 'プラン:', planType)
     
     // 各スタッフ単価を更新または挿入
     const staffRateUpdates = [
@@ -2421,11 +2428,11 @@ app.post('/api/master-staff-rates', async (c) => {
     ]
     
     for (const update of staffRateUpdates) {
-      // 既存レコードをチェック
+      // 既存レコードをチェック（プラン別）
       const existing = await env.DB.prepare(`
         SELECT id FROM master_settings 
-        WHERE category = 'staff' AND subcategory = 'pricing' AND key = ? AND user_id = ?
-      `).bind(update.key, userId).first()
+        WHERE category = 'staff' AND subcategory = 'pricing' AND key = ? AND user_id = ? AND plan_type = ?
+      `).bind(update.key, userId, planType).first()
       
       if (existing) {
         // 更新
@@ -2437,16 +2444,16 @@ app.post('/api/master-staff-rates', async (c) => {
       } else {
         // 新規挿入
         await env.DB.prepare(`
-          INSERT INTO master_settings (category, subcategory, key, value, data_type, description, user_id, created_at, updated_at)
-          VALUES ('staff', 'pricing', ?, ?, 'number', ?, ?, datetime('now'), datetime('now'))
-        `).bind(update.key, update.value.toString(), update.description, userId).run()
+          INSERT INTO master_settings (category, subcategory, key, value, data_type, description, user_id, plan_type, created_at, updated_at)
+          VALUES ('staff', 'pricing', ?, ?, 'number', ?, ?, ?, datetime('now'), datetime('now'))
+        `).bind(update.key, update.value.toString(), update.description, userId, planType).run()
       }
     }
     
-    console.log('✅ スタッフ単価保存完了')
+    console.log(`✅ スタッフ単価保存完了（プラン${planType}）`)
     return c.json({ 
       success: true, 
-      message: 'スタッフ単価を保存しました' 
+      message: `プラン${planType}のスタッフ単価を保存しました` 
     })
   } catch (error) {
     console.error('スタッフ単価保存エラー:', error)
@@ -6856,21 +6863,22 @@ app.get('/estimate/step5', (c) => {
   )
 })
 
-// サービス料金取得API
+// サービス料金取得API（プランA/B対応）
 app.get('/api/service-rates', async (c) => {
   const userId = c.req.header('X-User-ID') || 'test-user-001'
+  const planType = c.req.query('plan_type') || 'A'
   
   try {
     const { env } = c
     
-    // データベースからサービス料金を取得
+    // データベースからサービス料金を取得（プラン別）
     const result = await env.DB.prepare(`
       SELECT subcategory, key, value 
       FROM master_settings 
-      WHERE category = 'service'
+      WHERE category = 'service' AND plan_type = ?
       AND user_id = ?
       ORDER BY subcategory, key
-    `).bind(userId).all()
+    `).bind(planType, userId).all()
     
     // Step5実装に適合した形式でサービス料金を構築
     const serviceRates = {
@@ -7844,6 +7852,38 @@ app.get('/masters', (c) => {
 
         {/* タブナビゲーション */}
         <div className="bg-white shadow rounded-lg">
+          {/* グローバル プランA/B切替 */}
+          <div className="flex items-center justify-between px-6 pt-4 pb-2 border-b border-gray-100">
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-semibold text-gray-700">
+                <i className="fas fa-layer-group mr-1"></i>
+                料金プラン:
+              </span>
+              <div className="flex rounded-lg overflow-hidden border-2 border-gray-300 shadow-sm">
+                <button 
+                  id="globalPlanABtn" 
+                  onclick="switchGlobalPlan('A')" 
+                  className="px-5 py-2 text-sm font-bold bg-blue-600 text-white transition-colors"
+                >
+                  <i className="fas fa-file-invoice mr-1"></i>
+                  プランA（標準）
+                </button>
+                <button 
+                  id="globalPlanBBtn" 
+                  onclick="switchGlobalPlan('B')" 
+                  className="px-5 py-2 text-sm font-bold bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <i className="fas fa-file-invoice mr-1"></i>
+                  プランB
+                </button>
+              </div>
+            </div>
+            <span id="globalPlanLabel" className="text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
+              <i className="fas fa-check-circle mr-1"></i>
+              現在: プランA
+            </span>
+          </div>
+
           <div className="border-b border-gray-200">
             <nav className="flex space-x-8 px-6">
               <button 
@@ -7998,28 +8038,6 @@ app.get('/masters', (c) => {
             <div id="vehicle-content" className="master-content hidden">
               <div className="space-y-6">
                 <h3 className="text-lg font-medium text-gray-900">車両料金設定</h3>
-                
-                {/* プランA/B切替 */}
-                <div className="flex items-center gap-4 p-4 bg-gray-100 rounded-lg">
-                  <span className="text-sm font-medium text-gray-700">料金プラン:</span>
-                  <div className="flex rounded-lg overflow-hidden border border-gray-300">
-                    <button 
-                      id="planABtn" 
-                      onclick="switchPricingPlan('A')" 
-                      className="px-4 py-2 text-sm font-medium bg-blue-600 text-white"
-                    >
-                      プランA（標準）
-                    </button>
-                    <button 
-                      id="planBBtn" 
-                      onclick="switchPricingPlan('B')" 
-                      className="px-4 py-2 text-sm font-medium bg-white text-gray-700 hover:bg-gray-50"
-                    >
-                      プランB
-                    </button>
-                  </div>
-                  <span id="currentPlanLabel" className="text-xs text-gray-500">現在: プランA</span>
-                </div>
                 
                 {/* チャーター便料金設定 */}
                 <div className="bg-orange-50 p-6 rounded-lg">
@@ -8608,10 +8626,11 @@ app.get('/masters', (c) => {
 
 // 重複APIエンドポイント削除 - 12359行目のエンドポイントを使用
 
-// マスタ設定保存API
+// マスタ設定保存API（プランA/B対応）
 app.post('/api/master-settings', async (c) => {
   const userId = c.req.header('X-User-ID') || 'test-user-001'
   const data = await c.req.json()
+  const planType = data.plan_type || 'A'
   
   try {
     const { env } = c
@@ -8719,24 +8738,37 @@ app.post('/api/master-settings', async (c) => {
       })
     }
     
-    // データベースに一括更新（UPSERT）
+    // データベースに一括更新（UPSERT）- プラン別
     for (const update of updates) {
-      await env.DB.prepare(`
-        INSERT OR REPLACE INTO master_settings 
-        (category, subcategory, key, value, data_type, description, user_id, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      `).bind(
-        update.category,
-        update.subcategory,
-        update.key,
-        update.value,
-        update.data_type,
-        update.description,
-        userId
-      ).run()
+      // プラン依存カテゴリ（staff, service, vehicle）はplan_type付きで保存
+      // システムカテゴリはプラン共通（'A'固定）
+      const effectivePlan = (update.category === 'system') ? 'A' : planType
+      
+      const existing = await env.DB.prepare(`
+        SELECT id FROM master_settings 
+        WHERE category = ? AND subcategory = ? AND key = ? AND user_id = ? AND plan_type = ?
+      `).bind(update.category, update.subcategory, update.key, userId, effectivePlan).first()
+      
+      if (existing) {
+        await env.DB.prepare(`
+          UPDATE master_settings 
+          SET value = ?, data_type = ?, description = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).bind(update.value, update.data_type, update.description, existing.id).run()
+      } else {
+        await env.DB.prepare(`
+          INSERT INTO master_settings 
+          (category, subcategory, key, value, data_type, description, user_id, plan_type, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `).bind(
+          update.category, update.subcategory, update.key,
+          update.value, update.data_type, update.description,
+          userId, effectivePlan
+        ).run()
+      }
     }
     
-    // スタッフ単価をstaff_ratesテーブルにも同期（全ユーザー共通なのでsystem固定）
+    // スタッフ単価をstaff_ratesテーブルにも同期（プラン別）
     if (data.staff_rates) {
       const staffTypeMapping = {
         supervisor: 'supervisor',
@@ -8750,11 +8782,11 @@ app.post('/api/master-settings', async (c) => {
       for (const [key, value] of Object.entries(data.staff_rates)) {
         const staffType = staffTypeMapping[key]
         if (staffType) {
-          // 既存レコードを確認（user_idに関係なく最新のものを更新）
+          // 既存レコードを確認（プラン別）
           const existing = await env.DB.prepare(`
-            SELECT id FROM staff_rates WHERE staff_type = ?
+            SELECT id FROM staff_rates WHERE staff_type = ? AND plan_type = ?
             ORDER BY updated_at DESC LIMIT 1
-          `).bind(staffType).first()
+          `).bind(staffType, planType).first()
           
           if (existing) {
             // 更新
@@ -8766,9 +8798,9 @@ app.post('/api/master-settings', async (c) => {
           } else {
             // 新規挿入
             await env.DB.prepare(`
-              INSERT INTO staff_rates (staff_type, rate, user_id, created_at, updated_at)
-              VALUES (?, ?, 'system', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            `).bind(staffType, value).run()
+              INSERT INTO staff_rates (staff_type, rate, user_id, plan_type, created_at, updated_at)
+              VALUES (?, ?, 'system', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            `).bind(staffType, value, planType).run()
           }
         }
       }
@@ -18099,18 +18131,24 @@ app.get('/customers', (c) => {
 // API エンドポイント
 // ==============================================
 
-// マスタ設定APIエンドポイント
+// マスタ設定APIエンドポイント（プランA/B対応）
 app.get('/api/master-settings', async (c) => {
   try {
     const { env } = c;
+    const planType = c.req.query('plan_type') || 'A';
     
-    // マスタ設定データを取得（最新データを優先）
+    // マスタ設定データを取得（プラン別、最新データを優先）
+    // staff/service/vehicleカテゴリはplan_type別、systemはプラン共通('A')
     const result = await env.DB.prepare(`
       SELECT DISTINCT category, subcategory, key, value, data_type, MAX(updated_at) as updated_at
       FROM master_settings 
+      WHERE (
+        (category IN ('staff', 'service', 'vehicle') AND plan_type = ?)
+        OR (category = 'system' AND plan_type = 'A')
+      )
       GROUP BY category, subcategory, key
       ORDER BY category, subcategory, key
-    `).all();
+    `).bind(planType).all();
 
     if (result.success && result.results) {
       // データを階層構造に変換（フロントエンドとの互換性確保）
