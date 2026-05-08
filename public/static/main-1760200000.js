@@ -2538,31 +2538,32 @@ const Step5Implementation = {
   updateServicesCost: () => {
     if (!Step5Implementation.serviceRates) {
       console.warn('サービスレートが取得できていません。デフォルト値を使用します。');
-      // ユーザー指定のデフォルトサービスレートを設定
+      // マスター現在値に合わせたデフォルトサービスレートを設定
       Step5Implementation.serviceRates = {
-        parking_officer_hourly: 2500,
-        transport_vehicle_20km: 15000, // 20km圏内一律
-        transport_vehicle_per_km: 150,  // 距離指定（¥150/km）
+        parking_officer_hourly: 3000,
+        transport_vehicle_20km: 5000,
+        transport_vehicle_per_km: 100,
         waste_disposal: {
           'none': 0,
-          'small': 8000,   // 小 ¥8,000
-          'medium': 15000, // 中 ¥15,000
-          'large': 25000   // 大 ¥25,000
+          'small': 5000,
+          'medium': 10000,
+          'large': 20000
         },
-        protection_work_base: 5000, // 基本料金¥5,000
-        protection_work_floor: 0,   // フロア単価（基本料金に含む）
+        protection_work_base: 5000,
+        protection_work_floor: 3000,
         material_collection: {
           'none': 0,
-          'few': 6000,   // 少 ¥6,000
-          'medium': 12000, // 中 ¥12,000
-          'many': 20000    // 多 ¥20,000
+          'few': 3000,
+          'medium': 8000,
+          'many': 15000
         },
-        construction_m2_staff: 12500, // M2スタッフ単価
+        construction_m2_staff: 8000,
         work_time_multiplier: {
           'normal': 1.0,
-          'early': 1.2,
+          'early': 1.25,
           'late': 1.3,
-          'night': 1.5,
+          'night': 1.25,
+          'midnight': 1.5,
           'holiday': 1.3
         }
       };
@@ -3583,12 +3584,12 @@ const Step6Implementation = {
         // スタッフ費用の確実な設定（複数のフォールバック）
         staff_cost: Step6Implementation.estimateData.staff.total_cost || 
                    Step6Implementation.estimateData.staff.staff_cost || 
-                   ((Step6Implementation.estimateData.staff.supervisor_count || 0) * 25000 +
-                    (Step6Implementation.estimateData.staff.leader_count || 0) * 22000 +
-                    (Step6Implementation.estimateData.staff.m2_staff_half_day || 0) * 8500 +
-                    (Step6Implementation.estimateData.staff.m2_staff_full_day || 0) * 15000 +
-                    (Step6Implementation.estimateData.staff.temp_staff_half_day || 0) * 7500 +
-                    (Step6Implementation.estimateData.staff.temp_staff_full_day || 0) * 13500),
+                   ((Step6Implementation.estimateData.staff.supervisor_count || 0) * 50000 +
+                    (Step6Implementation.estimateData.staff.leader_count || 0) * 30000 +
+                    (Step6Implementation.estimateData.staff.m2_staff_half_day || 0) * 20000 +
+                    (Step6Implementation.estimateData.staff.m2_staff_full_day || 0) * 18000 +
+                    (Step6Implementation.estimateData.staff.temp_staff_half_day || 0) * 10000 +
+                    (Step6Implementation.estimateData.staff.temp_staff_full_day || 0) * 17000),
         
         // サービス情報
         ...(Step6Implementation.estimateData.services || {}),
@@ -4250,12 +4251,12 @@ if (typeof MasterManagement === 'undefined') {
       if (element) element.value = value;
     };
 
-    setInputValue('rate_supervisor', settings.staff_rates?.supervisor || 15000);
-    setInputValue('rate_leader', settings.staff_rates?.leader || 12000);
-    setInputValue('rate_m2_half_day', settings.staff_rates?.m2_half_day || 6000);
-    setInputValue('rate_m2_full_day', settings.staff_rates?.m2_full_day || 10000);
-    setInputValue('rate_temp_half_day', settings.staff_rates?.temp_half_day || 5500);
-    setInputValue('rate_temp_full_day', settings.staff_rates?.temp_full_day || 9500);
+    setInputValue('rate_supervisor', settings.staff_rates?.supervisor || 50000);
+    setInputValue('rate_leader', settings.staff_rates?.leader || 30000);
+    setInputValue('rate_m2_half_day', settings.staff_rates?.m2_half_day || 20000);
+    setInputValue('rate_m2_full_day', settings.staff_rates?.m2_full_day || 18000);
+    setInputValue('rate_temp_half_day', settings.staff_rates?.temp_half_day || 10000);
+    setInputValue('rate_temp_full_day', settings.staff_rates?.temp_full_day || 17000);
 
     // エリア設定一覧を表示
     MasterManagement.displayAreaList();
@@ -4524,12 +4525,12 @@ if (typeof MasterManagement === 'undefined') {
       };
 
       const staffData = {
-        supervisor_rate: getInputValue('rate_supervisor') || 15000,
-        leader_rate: getInputValue('rate_leader') || 12000,
-        m2_staff_half_day_rate: getInputValue('rate_m2_half_day') || 6000,
-        m2_staff_full_day_rate: getInputValue('rate_m2_full_day') || 10000,
-        temp_staff_half_day_rate: getInputValue('rate_temp_half_day') || 5500,
-        temp_staff_full_day_rate: getInputValue('rate_temp_full_day') || 9500
+        supervisor_rate: getInputValue('rate_supervisor') || 50000,
+        leader_rate: getInputValue('rate_leader') || 30000,
+        m2_staff_half_day_rate: getInputValue('rate_m2_half_day') || 20000,
+        m2_staff_full_day_rate: getInputValue('rate_m2_full_day') || 18000,
+        temp_staff_half_day_rate: getInputValue('rate_temp_half_day') || 10000,
+        temp_staff_full_day_rate: getInputValue('rate_temp_full_day') || 17000
       };
 
       // 既存のAPIの形式に合わせてデータを変換

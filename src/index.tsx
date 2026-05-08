@@ -11755,12 +11755,12 @@ function compareStaffConfiguration(current: any, recommended: any) {
   }
 
   const fields = [
-    { key: 'supervisor_count', label: '監督者', cost: 15000 },
-    { key: 'leader_count', label: 'リーダー', cost: 12000 },
-    { key: 'm2_staff_full_day', label: 'M2スタッフ（終日）', cost: 10000 },
-    { key: 'm2_staff_half_day', label: '一般社員', cost: 6000 },
-    { key: 'temp_staff_full_day', label: '派遣スタッフ（終日）', cost: 9000 },
-    { key: 'temp_staff_half_day', label: '派遣スタッフ（半日）', cost: 5500 }
+    { key: 'supervisor_count', label: '監督者', cost: 50000 },
+    { key: 'leader_count', label: 'リーダー', cost: 30000 },
+    { key: 'm2_staff_full_day', label: 'M2スタッフ（終日）', cost: 18000 },
+    { key: 'm2_staff_half_day', label: '一般社員', cost: 20000 },
+    { key: 'temp_staff_full_day', label: '派遣スタッフ（終日）', cost: 17000 },
+    { key: 'temp_staff_half_day', label: '派遣スタッフ（半日）', cost: 10000 }
   ]
 
   fields.forEach(field => {

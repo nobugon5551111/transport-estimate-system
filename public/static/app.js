@@ -2182,12 +2182,12 @@ const Step4Implementation = {
       } else {
         console.warn('⚠️ STEP4: スタッフ単価取得失敗、デフォルト値を使用');
         Step4Implementation.staffRates = {
-          supervisor_rate: 15000,
-          leader_rate: 12000,
-          m2_half_day_rate: 6000,
-          m2_full_day_rate: 10000,
-          temp_half_day_rate: 5500,
-          temp_full_day_rate: 9500
+          supervisor_rate: 50000,
+          leader_rate: 30000,
+          m2_half_day_rate: 20000,
+          m2_full_day_rate: 18000,
+          temp_half_day_rate: 10000,
+          temp_full_day_rate: 17000
         };
         // デフォルト値でもフォーム表示を更新
         updateStaffRateDisplays(Step4Implementation.staffRates);
@@ -2653,46 +2653,46 @@ const Step5Implementation = {
         // ✅ 複合キー（composite keys）を使用してマスターデータから正確に読み込む
         const apiData = ratesResponse.data;
         Step5Implementation.serviceRates = {
-          parking_officer_hourly: parseFloat(apiData.hourly_rate) || 2500,
-          transport_vehicle_20km: parseFloat(apiData.base_rate_20km) || 15000,
-          transport_vehicle_per_km: parseFloat(apiData.rate_per_km) || 150,
-          fuel_per_liter: parseFloat(apiData.rate_per_liter || apiData.fuel_rate_per_liter) || 160,
+          parking_officer_hourly: parseFloat(apiData.hourly_rate) || parseFloat(apiData.parking_officer_hourly_rate) || 3000,
+          transport_vehicle_20km: parseFloat(apiData.base_rate_20km) || parseFloat(apiData.transport_vehicle_base_rate_20km) || 8000,
+          transport_vehicle_per_km: parseFloat(apiData.rate_per_km) || parseFloat(apiData.transport_vehicle_rate_per_km) || 100,
+          fuel_per_liter: parseFloat(apiData.rate_per_liter || apiData.fuel_rate_per_liter) || 150,
           waste_disposal: {
             none: 0,
-            small: parseFloat(apiData.waste_disposal_small) || 10000,
-            medium: parseFloat(apiData.waste_disposal_medium) || 15000,
-            large: parseFloat(apiData.waste_disposal_large) || 20000
+            small: parseFloat(apiData.waste_disposal_small) || parseFloat(apiData.small) || 5000,
+            medium: parseFloat(apiData.waste_disposal_medium) || parseFloat(apiData.medium) || 10000,
+            large: parseFloat(apiData.waste_disposal_large) || parseFloat(apiData.large) || 20000
           },
-          protection_work_base: parseFloat(apiData.base_rate) || 8000,
-          protection_work_per_floor: parseFloat(apiData.floor_rate) || 3000,
+          protection_work_base: parseFloat(apiData.protection_work_base_rate) || parseFloat(apiData.base_rate) || 5000,
+          protection_work_per_floor: parseFloat(apiData.protection_work_floor_rate) || parseFloat(apiData.floor_rate) || 3000,
           material_collection: {
             none: 0,
-            few: parseFloat(apiData.material_collection_few) || 5000,
-            medium: parseFloat(apiData.material_collection_medium) || 10000,
+            few: parseFloat(apiData.material_collection_few) || parseFloat(apiData.few) || 3000,
+            medium: parseFloat(apiData.material_collection_medium) || 8000,
             many: parseFloat(apiData.material_collection_many) || 15000
           },
-          construction_m2_staff: parseFloat(apiData.m2_staff_rate) || 12500,
+          construction_m2_staff: parseFloat(apiData.construction_m2_staff_rate) || parseFloat(apiData.m2_staff_rate) || 8000,
           work_time_multiplier: {
             normal: parseFloat(apiData.normal) || 1.0,
-            early: parseFloat(apiData.early) || 1.25,
-            night: parseFloat(apiData.night) || 1.25,
-            midnight: parseFloat(apiData.midnight) || 1.5
+            early: parseFloat(apiData.early) || parseFloat(apiData.work_time_early) || 1.25,
+            night: parseFloat(apiData.night) || parseFloat(apiData.work_time_night) || 1.25,
+            midnight: parseFloat(apiData.midnight) || parseFloat(apiData.work_time_midnight) || 1.5
           }
         };
         console.log('✅ サービスレート変換完了（マスターデータ使用）:', Step5Implementation.serviceRates);
         // フォーム表示をマスターデータで更新
         updateServiceRateDisplays(Step5Implementation.serviceRates);
       } else {
-        // API取得失敗時のデフォルト値を設定
+        // API取得失敗時のデフォルト値を設定（マスター現在値に合わせる）
         Step5Implementation.serviceRates = {
-          parking_officer_hourly: 2500,
-          transport_vehicle_20km: 15000,
-          transport_vehicle_per_km: 150,
-          waste_disposal: { none: 0, small: 10000, medium: 15000, large: 20000 },
+          parking_officer_hourly: 3000,
+          transport_vehicle_20km: 5000,
+          transport_vehicle_per_km: 100,
+          waste_disposal: { none: 0, small: 5000, medium: 10000, large: 20000 },
           protection_work_base: 5000,
           protection_work_per_floor: 3000,
-          material_collection: { none: 0, few: 6000, medium: 12000, many: 20000 },
-          construction_m2_staff: 12500,
+          material_collection: { none: 0, few: 3000, medium: 8000, many: 15000 },
+          construction_m2_staff: 8000,
           work_time_multiplier: { normal: 1.0, early: 1.25, night: 1.25, midnight: 1.5 }
         };
         console.warn('⚠️ サービス料金APIエラー、デフォルト値を使用します');
@@ -2700,16 +2700,16 @@ const Step5Implementation = {
         updateServiceRateDisplays(Step5Implementation.serviceRates);
       }
     } catch (error) {
-      // エラー時のデフォルト値を設定
+      // エラー時のデフォルト値を設定（マスター現在値に合わせる）
       Step5Implementation.serviceRates = {
-        parking_officer_hourly: 2500,
-        transport_vehicle_20km: 15000,
-        transport_vehicle_per_km: 150,
-        waste_disposal: { none: 0, small: 10000, medium: 15000, large: 20000 },
+        parking_officer_hourly: 3000,
+        transport_vehicle_20km: 5000,
+        transport_vehicle_per_km: 100,
+        waste_disposal: { none: 0, small: 5000, medium: 10000, large: 20000 },
         protection_work_base: 5000,
         protection_work_per_floor: 3000,
-        material_collection: { none: 0, few: 6000, medium: 12000, many: 20000 },
-        construction_m2_staff: 12500,
+        material_collection: { none: 0, few: 3000, medium: 8000, many: 15000 },
+        construction_m2_staff: 8000,
         work_time_multiplier: { normal: 1.0, early: 1.25, night: 1.25, midnight: 1.5 }
       };
       // デフォルト値でもフォーム表示を更新
@@ -2835,16 +2835,16 @@ const Step5Implementation = {
     console.log('💰 updateServicesCost実行開始');
     if (!Step5Implementation.serviceRates) {
       console.warn('⚠️ サービスレートが取得できていません。デフォルト値を使用します。');
-      // 統一されたデフォルトサービスレートを設定
+      // 統一されたデフォルトサービスレートを設定（マスター現在値に合わせる）
       Step5Implementation.serviceRates = {
-        parking_officer_hourly: 2500,
-        transport_vehicle_20km: 15000,
-        transport_vehicle_per_km: 150,
-        waste_disposal: { none: 0, small: 10000, medium: 15000, large: 20000 },
+        parking_officer_hourly: 3000,
+        transport_vehicle_20km: 5000,
+        transport_vehicle_per_km: 100,
+        waste_disposal: { none: 0, small: 5000, medium: 10000, large: 20000 },
         protection_work_base: 5000,
         protection_work_per_floor: 3000,
-        material_collection: { none: 0, few: 6000, medium: 12000, many: 20000 },
-        construction_m2_staff: 12500,
+        material_collection: { none: 0, few: 3000, medium: 8000, many: 15000 },
+        construction_m2_staff: 8000,
         work_time_multiplier: { normal: 1.0, early: 1.25, night: 1.25, midnight: 1.5 }
       };
     }
@@ -3104,9 +3104,9 @@ window.proceedToStep5 = Step4Implementation.proceedToStep5;
 // (+ 短縮形: supervisor, leader, m2_half, m2_full, temp_half, temp_full)
 // デフォルト値はマスターの初期値に合わせる
 const STAFF_RATE_DEFAULTS = {
-  supervisor: 15000, leader: 12000,
-  m2_half_day: 6000, m2_full_day: 10000,
-  temp_half_day: 5500, temp_full_day: 9500
+  supervisor: 50000, leader: 30000,
+  m2_half_day: 20000, m2_full_day: 18000,
+  temp_half_day: 10000, temp_full_day: 17000
 };
 
 function resolveStaffRates(dbRates) {
@@ -3269,30 +3269,30 @@ const Step6Implementation = {
       if (ratesResponse.success) {
         const apiData = ratesResponse.data;
         Step5Implementation.serviceRates = {
-          parking_officer_hourly: parseFloat(apiData.hourly_rate) || 2500,
-          transport_vehicle_20km: parseFloat(apiData.base_rate_20km) || 15000,
-          transport_vehicle_per_km: parseFloat(apiData.rate_per_km) || 150,
-          fuel_per_liter: parseFloat(apiData.rate_per_liter || apiData.fuel_rate_per_liter) || 160,
+          parking_officer_hourly: parseFloat(apiData.hourly_rate) || parseFloat(apiData.parking_officer_hourly_rate) || 3000,
+          transport_vehicle_20km: parseFloat(apiData.base_rate_20km) || parseFloat(apiData.transport_vehicle_base_rate_20km) || 8000,
+          transport_vehicle_per_km: parseFloat(apiData.rate_per_km) || parseFloat(apiData.transport_vehicle_rate_per_km) || 100,
+          fuel_per_liter: parseFloat(apiData.rate_per_liter || apiData.fuel_rate_per_liter) || 150,
           waste_disposal: {
             none: 0,
-            small: parseFloat(apiData.waste_disposal_small) || 10000,
-            medium: parseFloat(apiData.waste_disposal_medium) || 15000,
-            large: parseFloat(apiData.waste_disposal_large) || 20000
+            small: parseFloat(apiData.waste_disposal_small) || parseFloat(apiData.small) || 5000,
+            medium: parseFloat(apiData.waste_disposal_medium) || parseFloat(apiData.medium) || 10000,
+            large: parseFloat(apiData.waste_disposal_large) || parseFloat(apiData.large) || 20000
           },
-          protection_work_base: parseFloat(apiData.base_rate) || 8000,
-          protection_work_per_floor: parseFloat(apiData.floor_rate) || 3000,
+          protection_work_base: parseFloat(apiData.protection_work_base_rate) || parseFloat(apiData.base_rate) || 5000,
+          protection_work_per_floor: parseFloat(apiData.protection_work_floor_rate) || parseFloat(apiData.floor_rate) || 3000,
           material_collection: {
             none: 0,
-            few: parseFloat(apiData.material_collection_few) || 5000,
-            medium: parseFloat(apiData.material_collection_medium) || 10000,
+            few: parseFloat(apiData.material_collection_few) || parseFloat(apiData.few) || 3000,
+            medium: parseFloat(apiData.material_collection_medium) || 8000,
             many: parseFloat(apiData.material_collection_many) || 15000
           },
-          construction_m2_staff: parseFloat(apiData.m2_staff_rate) || 12500,
+          construction_m2_staff: parseFloat(apiData.construction_m2_staff_rate) || parseFloat(apiData.m2_staff_rate) || 8000,
           work_time_multiplier: {
             normal: parseFloat(apiData.normal) || 1.0,
-            early: parseFloat(apiData.early) || 1.25,
-            night: parseFloat(apiData.night) || 1.25,
-            midnight: parseFloat(apiData.midnight) || 1.5
+            early: parseFloat(apiData.early) || parseFloat(apiData.work_time_early) || 1.25,
+            night: parseFloat(apiData.night) || parseFloat(apiData.work_time_night) || 1.25,
+            midnight: parseFloat(apiData.midnight) || parseFloat(apiData.work_time_midnight) || 1.5
           }
         };
         console.log('✅ STEP6: サービスレート取得完了:', Step5Implementation.serviceRates);
@@ -3300,14 +3300,14 @@ const Step6Implementation = {
     } catch (error) {
       console.warn('⚠️ STEP6: サービスレート取得失敗、デフォルト値を使用:', error);
       Step5Implementation.serviceRates = {
-        parking_officer_hourly: 2500,
-        transport_vehicle_20km: 15000,
-        transport_vehicle_per_km: 150,
-        waste_disposal: { none: 0, small: 10000, medium: 15000, large: 20000 },
-        protection_work_base: 8000,
+        parking_officer_hourly: 3000,
+        transport_vehicle_20km: 5000,
+        transport_vehicle_per_km: 100,
+        waste_disposal: { none: 0, small: 5000, medium: 10000, large: 20000 },
+        protection_work_base: 5000,
         protection_work_per_floor: 3000,
-        material_collection: { none: 0, few: 5000, medium: 10000, many: 15000 },
-        construction_m2_staff: 12500,
+        material_collection: { none: 0, few: 3000, medium: 8000, many: 15000 },
+        construction_m2_staff: 8000,
         work_time_multiplier: { normal: 1.0, early: 1.25, night: 1.25, midnight: 1.5 }
       };
     }
@@ -5973,12 +5973,12 @@ if (typeof MasterManagement === 'undefined') {
       if (element) element.value = value;
     };
 
-    setInputValue('rate_supervisor', settings.staff_rates?.supervisor || 15000);
-    setInputValue('rate_leader', settings.staff_rates?.leader || 12000);
-    setInputValue('rate_m2_half_day', settings.staff_rates?.m2_half_day || 6000);
-    setInputValue('rate_m2_full_day', settings.staff_rates?.m2_full_day || 10000);
-    setInputValue('rate_temp_half_day', settings.staff_rates?.temp_half_day || 5500);
-    setInputValue('rate_temp_full_day', settings.staff_rates?.temp_full_day || 9500);
+    setInputValue('rate_supervisor', settings.staff_rates?.supervisor || 50000);
+    setInputValue('rate_leader', settings.staff_rates?.leader || 30000);
+    setInputValue('rate_m2_half_day', settings.staff_rates?.m2_half_day || 20000);
+    setInputValue('rate_m2_full_day', settings.staff_rates?.m2_full_day || 18000);
+    setInputValue('rate_temp_half_day', settings.staff_rates?.temp_half_day || 10000);
+    setInputValue('rate_temp_full_day', settings.staff_rates?.temp_full_day || 17000);
 
     // 設定画面のスタッフ料金ラベル内 rate-display-* も更新
     const fmt = (v) => Number(v).toLocaleString();
@@ -6294,15 +6294,16 @@ if (typeof MasterManagement === 'undefined') {
       };
 
       const staffData = {
-        supervisor_rate: getInputValue('rate_supervisor') || 15000,
-        leader_rate: getInputValue('rate_leader') || 12000,
-        m2_staff_half_day_rate: getInputValue('rate_m2_half_day') || 6000,
-        m2_staff_full_day_rate: getInputValue('rate_m2_full_day') || 10000,
-        temp_staff_half_day_rate: getInputValue('rate_temp_half_day') || 5500,
-        temp_staff_full_day_rate: getInputValue('rate_temp_full_day') || 9500
+        supervisor_rate: getInputValue('rate_supervisor') || 50000,
+        leader_rate: getInputValue('rate_leader') || 30000,
+        m2_staff_half_day_rate: getInputValue('rate_m2_half_day') || 20000,
+        m2_staff_full_day_rate: getInputValue('rate_m2_full_day') || 18000,
+        temp_staff_half_day_rate: getInputValue('rate_temp_half_day') || 10000,
+        temp_staff_full_day_rate: getInputValue('rate_temp_full_day') || 17000
       };
 
-      // 既存のAPIの形式に合わせてデータを変換
+      // 既存のAPIの形式に合わせてデータを変換（プランタイプ含む）
+      const currentPlan = MasterManagement._currentPlan || 'A';
       const apiData = {
         staff_rates: {
           supervisor: staffData.supervisor_rate,
@@ -6311,8 +6312,10 @@ if (typeof MasterManagement === 'undefined') {
           m2_full_day: staffData.m2_staff_full_day_rate,
           temp_half_day: staffData.temp_staff_half_day_rate,
           temp_full_day: staffData.temp_staff_full_day_rate
-        }
+        },
+        plan_type: currentPlan
       };
+      console.log(`📤 スタッフ設定保存（プラン${currentPlan}）:`, apiData);
 
       const response = await API.post('/master-settings', apiData);
       
