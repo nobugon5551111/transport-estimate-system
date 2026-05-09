@@ -6473,30 +6473,24 @@ app.get('/estimate/step5', (c) => {
           <div className="p-6">
             <div className="space-y-8">
 
-              {/* 駐車対策員 */}
+              {/* 駐禁対策員 */}
               <div className="border rounded-lg p-4">
-                <div className="flex items-center mb-4">
-                  <i className="fas fa-shield-alt text-orange-500 text-xl mr-3"></i>
-                  <h4 className="text-lg font-medium text-gray-900">駐車対策員</h4>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center">
+                    <i className="fas fa-shield-alt text-orange-500 text-xl mr-3"></i>
+                    <h4 className="text-lg font-medium text-gray-900">駐禁対策員</h4>
+                  </div>
+                  <button type="button" onclick="addParkingOfficer()" className="bg-orange-500 hover:bg-orange-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold" title="駐禁対策員を追加">
+                    <i className="fas fa-plus"></i>
+                  </button>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">作業時間</label>
-                    <div className="flex items-center space-x-3">
-                      <input 
-                        type="number" 
-                        id="parking_officer_hours" 
-                        className="form-input w-24" 
-                        min="0" 
-                        max="24" 
-                        step="0.5"
-                        value="0"
-                        onChange="updateServicesCost()"
-                      />
-                      <span className="text-sm text-gray-600">時間</span>
-                      <span className="text-xs text-gray-500">（¥<span id="rate-display-parking-officer">2,500</span>/時間）</span>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">違法駐車防止・交通整理</p>
+                <div id="parkingOfficerList">
+                  {/* 動的に追加される駐禁対策員エントリ */}
+                </div>
+                <div id="parkingOfficerTotal" className="hidden mt-3 pt-3 border-t border-orange-200">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-orange-800">駐禁対策員 小計</span>
+                    <span id="parkingOfficerTotalCost" className="text-lg font-bold text-orange-600">¥0</span>
                   </div>
                 </div>
               </div>
@@ -6883,6 +6877,12 @@ app.get('/api/service-rates', async (c) => {
     // Step5実装に適合した形式でサービス料金を構築
     const serviceRates = {
       parking_officer_hourly: 0,
+      parking_half_day: 0,
+      parking_full_day: 0,
+      parking_transport_osaka_city: 0,
+      parking_transport_osaka_suburb: 0,
+      parking_transport_kyoto: 0,
+      parking_transport_hyogo: 0,
       transport_vehicle_20km: 0,
       transport_vehicle_per_km: 0,
       fuel_per_liter: 0,
@@ -6907,6 +6907,18 @@ app.get('/api/service-rates', async (c) => {
         
         if (subcategory === 'parking_officer' && key === 'hourly_rate') {
           serviceRates.parking_officer_hourly = numericValue
+        } else if (subcategory === 'parking_officer' && key === 'half_day_rate') {
+          serviceRates.parking_half_day = numericValue
+        } else if (subcategory === 'parking_officer' && key === 'full_day_rate') {
+          serviceRates.parking_full_day = numericValue
+        } else if (subcategory === 'parking_officer' && key === 'transport_osaka_city') {
+          serviceRates.parking_transport_osaka_city = numericValue
+        } else if (subcategory === 'parking_officer' && key === 'transport_osaka_suburb') {
+          serviceRates.parking_transport_osaka_suburb = numericValue
+        } else if (subcategory === 'parking_officer' && key === 'transport_kyoto') {
+          serviceRates.parking_transport_kyoto = numericValue
+        } else if (subcategory === 'parking_officer' && key === 'transport_hyogo') {
+          serviceRates.parking_transport_hyogo = numericValue
         } else if (subcategory === 'transport_vehicle' && key === 'base_rate_20km') {
           serviceRates.transport_vehicle_20km = numericValue
         } else if (subcategory === 'transport_vehicle' && key === 'rate_per_km') {
@@ -6933,7 +6945,25 @@ app.get('/api/service-rates', async (c) => {
     
     // マスター未設定の場合のみデフォルト値を設定
     if (!serviceRates.parking_officer_hourly) {
-      serviceRates.parking_officer_hourly = 3000  // マスター値と同じ
+      serviceRates.parking_officer_hourly = 3000
+    }
+    if (!serviceRates.parking_half_day) {
+      serviceRates.parking_half_day = 11000
+    }
+    if (!serviceRates.parking_full_day) {
+      serviceRates.parking_full_day = 16000
+    }
+    if (!serviceRates.parking_transport_osaka_city) {
+      serviceRates.parking_transport_osaka_city = 1000
+    }
+    if (!serviceRates.parking_transport_osaka_suburb) {
+      serviceRates.parking_transport_osaka_suburb = 1500
+    }
+    if (!serviceRates.parking_transport_kyoto) {
+      serviceRates.parking_transport_kyoto = 2000
+    }
+    if (!serviceRates.parking_transport_hyogo) {
+      serviceRates.parking_transport_hyogo = 2000
     }
     if (!serviceRates.transport_vehicle_20km) {
       serviceRates.transport_vehicle_20km = 8000  // マスター値と同じ
@@ -8109,15 +8139,39 @@ app.get('/masters', (c) => {
                 <h3 className="text-lg font-medium text-gray-900">その他サービス料金設定</h3>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {/* 駐車対策員 */}
+                  {/* 駐禁対策員 */}
                   <div className="bg-orange-50 p-4 rounded-lg">
                     <h4 className="font-medium text-orange-900 mb-3">
                       <i className="fas fa-shield-alt mr-2"></i>
-                      駐車対策員
+                      駐禁対策員
                     </h4>
-                    <div>
-                      <label className="block text-sm text-orange-800 mb-2">時間単価（<span id="rate-display-parking-hourly">3,000</span>円/時間）</label>
-                      <input type="number" id="service_parking_officer_hourly" className="form-input" min="0" step="100" />
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm text-orange-800 mb-2">半日料金（拘束4時間）</label>
+                        <input type="number" id="service_parking_half_day" className="form-input" min="0" step="500" />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-orange-800 mb-2">終日料金（拘束8時間）</label>
+                        <input type="number" id="service_parking_full_day" className="form-input" min="0" step="500" />
+                      </div>
+                      <hr className="border-orange-200" />
+                      <p className="text-xs text-orange-700 font-medium">交通費（往復）</p>
+                      <div>
+                        <label className="block text-sm text-orange-800 mb-1">大阪市内</label>
+                        <input type="number" id="service_parking_transport_osaka_city" className="form-input" min="0" step="100" />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-orange-800 mb-1">大阪府下</label>
+                        <input type="number" id="service_parking_transport_osaka_suburb" className="form-input" min="0" step="100" />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-orange-800 mb-1">京都</label>
+                        <input type="number" id="service_parking_transport_kyoto" className="form-input" min="0" step="100" />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-orange-800 mb-1">兵庫</label>
+                        <input type="number" id="service_parking_transport_hyogo" className="form-input" min="0" step="100" />
+                      </div>
                     </div>
                   </div>
 
@@ -8681,6 +8735,12 @@ app.post('/api/master-settings', async (c) => {
     if (data.service_rates) {
       const serviceMap = {
         parking_officer_hourly: { subcategory: 'parking_officer', key: 'hourly_rate', desc: '駐車対策員時間単価（円/時間）' },
+        parking_half_day: { subcategory: 'parking_officer', key: 'half_day_rate', desc: '駐禁対策員半日料金（拘束4時間）' },
+        parking_full_day: { subcategory: 'parking_officer', key: 'full_day_rate', desc: '駐禁対策員終日料金（拘束8時間）' },
+        parking_transport_osaka_city: { subcategory: 'parking_officer', key: 'transport_osaka_city', desc: '駐禁対策員交通費・大阪市内' },
+        parking_transport_osaka_suburb: { subcategory: 'parking_officer', key: 'transport_osaka_suburb', desc: '駐禁対策員交通費・大阪府下' },
+        parking_transport_kyoto: { subcategory: 'parking_officer', key: 'transport_kyoto', desc: '駐禁対策員交通費・京都' },
+        parking_transport_hyogo: { subcategory: 'parking_officer', key: 'transport_hyogo', desc: '駐禁対策員交通費・兵庫' },
         transport_20km: { subcategory: 'transport_vehicle', key: 'base_rate_20km', desc: '人員輸送車両基本料金（20km圏内）' },
         transport_per_km: { subcategory: 'transport_vehicle', key: 'rate_per_km', desc: '人員輸送車両距離単価（円/km）' },
         fuel_per_liter: { subcategory: 'fuel', key: 'rate_per_liter', desc: '燃料費（円/L）' },

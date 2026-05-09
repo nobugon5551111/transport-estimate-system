@@ -2444,8 +2444,20 @@ const Step5Implementation = {
       Step5Implementation.currentServicesInfo = flowData.services;
       
       // フォーム値を復元
-      if (flowData.services.parking_officer_hours) {
-        document.getElementById('parking_officer_hours').value = flowData.services.parking_officer_hours;
+      if (flowData.services.parking_officer_data && flowData.services.parking_officer_data.length > 0) {
+        // 新仕様：駐禁対策員データの復元
+        if (typeof addParkingOfficer === 'function') {
+          flowData.services.parking_officer_data.forEach((officer, index) => {
+            addParkingOfficer();
+            setTimeout(() => {
+              const rateSelect = document.getElementById(`parking_rate_type_${index}`);
+              const transportSelect = document.getElementById(`parking_transport_${index}`);
+              if (rateSelect) rateSelect.value = officer.rate_type || 'half_day';
+              if (transportSelect) transportSelect.value = officer.transport_area || 'osaka_city';
+              if (typeof updateParkingOfficerCost === 'function') updateParkingOfficerCost();
+            }, 100);
+          });
+        }
       }
       if (flowData.services.transport_vehicles) {
         document.getElementById('transport_vehicles').value = flowData.services.transport_vehicles;
@@ -2540,7 +2552,12 @@ const Step5Implementation = {
       console.warn('サービスレートが取得できていません。デフォルト値を使用します。');
       // マスター現在値に合わせたデフォルトサービスレートを設定
       Step5Implementation.serviceRates = {
-        parking_officer_hourly: 3000,
+        parking_half_day: 11000,
+        parking_full_day: 16000,
+        parking_transport_osaka_city: 1000,
+        parking_transport_osaka_suburb: 1500,
+        parking_transport_kyoto: 2000,
+        parking_transport_hyogo: 2000,
         transport_vehicle_20km: 5000,
         transport_vehicle_per_km: 100,
         waste_disposal: {
@@ -2570,7 +2587,7 @@ const Step5Implementation = {
     }
 
     // 各サービスの値を取得
-    const parkingOfficerHours = parseFloat(document.getElementById('parking_officer_hours').value) || 0;
+    const parkingOfficerCost = (typeof calculateParkingOfficerTotal === 'function') ? calculateParkingOfficerTotal() : 0;
     const transportVehicles = parseInt(document.getElementById('transport_vehicles').value) || 0;
     const transportDistanceType = document.querySelector('input[name="transport_distance_type"]:checked')?.value || '20km';
     const transportDistance = parseFloat(document.getElementById('transport_distance').value) || 0;
@@ -2597,7 +2614,7 @@ const Step5Implementation = {
 
     // 各費用計算
     const costs = {
-      parking_officer: parkingOfficerHours * Step5Implementation.serviceRates.parking_officer_hourly,
+      parking_officer: parkingOfficerCost,
       transport_vehicle: 0,
       waste_disposal: Step5Implementation.serviceRates.waste_disposal[wasteDisposal] || 0,
       protection_work: 0,
@@ -2640,7 +2657,10 @@ const Step5Implementation = {
 
     // 内訳表示を生成
     const breakdown = [];
-    if (costs.parking_officer > 0) breakdown.push(`駐車対策員 ${parkingOfficerHours}時間: ${Utils.formatCurrency(costs.parking_officer)}`);
+    if (costs.parking_officer > 0) {
+      const officerCount = (typeof getParkingOfficerData === 'function') ? getParkingOfficerData().length : 0;
+      breakdown.push(`駐禁対策員 ${officerCount}人: ${Utils.formatCurrency(costs.parking_officer)}`);
+    }
     if (costs.transport_vehicle > 0) {
       const distanceText = transportDistanceType === '20km' ? '20km圏内' : `${transportDistance}km + 燃料費`;
       breakdown.push(`人員輸送車両 ${transportVehicles}台（${distanceText}）: ${Utils.formatCurrency(costs.transport_vehicle)}`);
@@ -2668,8 +2688,9 @@ const Step5Implementation = {
     // サービス情報を保存（total_costが確実に数値になるようにする）
     
     Step5Implementation.currentServicesInfo = {
-      parking_officer_hours: parkingOfficerHours,
+      parking_officer_hours: 0,
       parking_officer_cost: costs.parking_officer || 0,
+      parking_officer_data: (typeof getParkingOfficerData === 'function') ? getParkingOfficerData() : [],
       transport_vehicles: transportVehicles,
       transport_within_20km: transportDistanceType === '20km',
       transport_distance: transportDistance,
@@ -2749,6 +2770,7 @@ const Step5Implementation = {
       Step5Implementation.currentServicesInfo = {
         parking_officer_hours: 0,
         parking_officer_cost: 0,
+        parking_officer_data: [],
         transport_vehicles: 0,
         transport_within_20km: true,
         transport_distance: 0,
@@ -3073,7 +3095,8 @@ const Step6Implementation = {
 
     // サービス単価をマスターデータから取得
     let serviceMasterRates = {
-      parking_officer_hourly_rate: 2500,
+      parking_half_day_rate: 11000,
+      parking_full_day_rate: 16000,
       transport_base_rate: 5000,
       waste_disposal_small_rate: 3000,
       waste_disposal_medium_rate: 5000,
@@ -3161,16 +3184,35 @@ const Step6Implementation = {
     const details = [];
     let totalServicesCost = 0;
     
-    // 1. 駐車対策員（マスター単価連携）
-    if (services.parking_officer_hours > 0 || services.parking_officer_cost > 0) {
-      const masterRate = serviceMasterRates.parking_officer_hourly_rate;
-      const calculatedCost = services.parking_officer_hours * masterRate;
-      details.push(`<div class="flex justify-between px-4 py-2">
-        <span>駐車対策員 ${services.parking_officer_hours}時間 (¥${masterRate.toLocaleString()}/時間)</span>
-        <span>${Utils.formatCurrency(calculatedCost)}</span>
-      </div>`);
-      totalServicesCost += calculatedCost;
-      console.log('📊 駐車対策員:', { hours: services.parking_officer_hours, masterRate, calculatedCost, savedCost: services.parking_officer_cost });
+    // 1. 駐禁対策員（新仕様：複数人・タイプ別・交通費別）
+    if (services.parking_officer_cost > 0 || (services.parking_officer_data && services.parking_officer_data.length > 0)) {
+      const officerData = services.parking_officer_data || [];
+      if (officerData.length > 0) {
+        details.push(`<div class="flex justify-between px-4 py-2 font-semibold">
+          <span>駐禁対策員（${officerData.length}人）</span>
+          <span></span>
+        </div>`);
+        const rateTypeLabels = { half_day: '半日（拘束4h）', full_day: '全日（拘束8h）' };
+        const transportLabels = { osaka_city: '大阪市内', osaka_suburb: '大阪府下', kyoto: '京都', hyogo: '兵庫' };
+        officerData.forEach((officer, idx) => {
+          const typeLabel = rateTypeLabels[officer.rate_type] || officer.rate_type;
+          const transportLabel = transportLabels[officer.transport_area] || officer.transport_area;
+          const officerTotal = (officer.rate || 0) + (officer.transport_fee || 0);
+          details.push(`<div class="flex justify-between px-6 py-1 text-sm">
+            <span>${idx + 1}人目: ${typeLabel} ¥${(officer.rate || 0).toLocaleString()} + 交通費(${transportLabel}) ¥${(officer.transport_fee || 0).toLocaleString()}</span>
+            <span>${Utils.formatCurrency(officerTotal)}</span>
+          </div>`);
+        });
+        totalServicesCost += services.parking_officer_cost;
+      } else {
+        // 後方互換: 旧データ
+        totalServicesCost += services.parking_officer_cost;
+        details.push(`<div class="flex justify-between px-4 py-2">
+          <span>駐禁対策員</span>
+          <span>${Utils.formatCurrency(services.parking_officer_cost)}</span>
+        </div>`);
+      }
+      console.log('📊 駐禁対策員:', { data: officerData, cost: services.parking_officer_cost });
     }
     
     // 2. 人員輸送車両
@@ -3510,7 +3552,7 @@ const Step6Implementation = {
     if (!services || services.total_cost === 0) return '';
     
     const serviceList = [];
-    if (services.parking_officer_cost > 0) serviceList.push('駐車対策員');
+    if (services.parking_officer_cost > 0) serviceList.push('駐禁対策員');
     if (services.transport_cost > 0) serviceList.push('人員輸送車両');
     if (services.waste_disposal_cost > 0) serviceList.push('引き取り廃棄');
     if (services.protection_cost > 0) serviceList.push('養生作業');
@@ -4453,8 +4495,13 @@ if (typeof MasterManagement === 'undefined') {
     const serviceRates = settings.service_rates || {};
     const systemSettings = settings.system_settings || {};
 
-    // 駐車対策員
-    setInputValue('service_parking_officer_hourly', serviceRates.parking_officer_hourly || 3000);
+    // 駐禁対策員（新仕様）
+    setInputValue('service_parking_half_day', serviceRates.parking_half_day || 11000);
+    setInputValue('service_parking_full_day', serviceRates.parking_full_day || 16000);
+    setInputValue('service_parking_transport_osaka_city', serviceRates.parking_transport_osaka_city || 1000);
+    setInputValue('service_parking_transport_osaka_suburb', serviceRates.parking_transport_osaka_suburb || 1500);
+    setInputValue('service_parking_transport_kyoto', serviceRates.parking_transport_kyoto || 2000);
+    setInputValue('service_parking_transport_hyogo', serviceRates.parking_transport_hyogo || 2000);
     
     // 人員輸送車両
     setInputValue('service_transport_20km', serviceRates.transport_20km || 8000);
@@ -4495,7 +4542,12 @@ if (typeof MasterManagement === 'undefined') {
     };
 
     // デフォルト値を設定
-    setInputValue('service_parking_officer_hourly', 3000);
+    setInputValue('service_parking_half_day', 11000);
+    setInputValue('service_parking_full_day', 16000);
+    setInputValue('service_parking_transport_osaka_city', 1000);
+    setInputValue('service_parking_transport_osaka_suburb', 1500);
+    setInputValue('service_parking_transport_kyoto', 2000);
+    setInputValue('service_parking_transport_hyogo', 2000);
     setInputValue('service_transport_20km', 8000);
     setInputValue('service_transport_per_km', 100);
     setInputValue('service_fuel_per_liter', 150);
@@ -4617,7 +4669,12 @@ if (typeof MasterManagement === 'undefined') {
 
       // 実際のHTML IDに合わせたデータ収集
       const servicesData = {
-        parking_officer_hourly_rate: getInputValue('service_parking_officer_hourly'),
+        parking_half_day: getInputValue('service_parking_half_day'),
+        parking_full_day: getInputValue('service_parking_full_day'),
+        parking_transport_osaka_city: getInputValue('service_parking_transport_osaka_city'),
+        parking_transport_osaka_suburb: getInputValue('service_parking_transport_osaka_suburb'),
+        parking_transport_kyoto: getInputValue('service_parking_transport_kyoto'),
+        parking_transport_hyogo: getInputValue('service_parking_transport_hyogo'),
         transport_vehicle_20km_rate: getInputValue('service_transport_20km'),
         transport_vehicle_per_km_rate: getInputValue('service_transport_per_km'),
         fuel_per_liter_rate: getInputValue('service_fuel_per_liter'),
@@ -4640,7 +4697,12 @@ if (typeof MasterManagement === 'undefined') {
       // 既存のAPIの形式に合わせてデータを変換
       const apiData = {
         service_rates: {
-          parking_officer_hourly: servicesData.parking_officer_hourly_rate,
+          parking_half_day: servicesData.parking_half_day,
+          parking_full_day: servicesData.parking_full_day,
+          parking_transport_osaka_city: servicesData.parking_transport_osaka_city,
+          parking_transport_osaka_suburb: servicesData.parking_transport_osaka_suburb,
+          parking_transport_kyoto: servicesData.parking_transport_kyoto,
+          parking_transport_hyogo: servicesData.parking_transport_hyogo,
           transport_20km: servicesData.transport_vehicle_20km_rate,
           transport_per_km: servicesData.transport_vehicle_per_km_rate,
           fuel_per_liter: servicesData.fuel_per_liter_rate,
@@ -8172,10 +8234,10 @@ const EstimateManagement = {
           <div class="bg-gray-50 p-4 rounded-lg">
             <h4 class="text-lg font-medium text-gray-900 mb-4">オプションサービス</h4>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              ${estimate.parking_officer_hours > 0 ? `
+              ${estimate.parking_officer_cost > 0 ? `
                 <div>
-                  <span class="text-sm font-medium text-gray-600">駐車対策員:</span>
-                  <p class="mt-1 text-sm text-gray-900">${estimate.parking_officer_hours}時間 - ${Utils.formatCurrency(estimate.parking_officer_cost)}</p>
+                  <span class="text-sm font-medium text-gray-600">駐禁対策員:</span>
+                  <p class="mt-1 text-sm text-gray-900">${Utils.formatCurrency(estimate.parking_officer_cost)}</p>
                 </div>
               ` : ''}
               ${estimate.transport_cost > 0 ? `
@@ -8218,7 +8280,7 @@ const EstimateManagement = {
               </div>
               ${estimate.parking_officer_cost > 0 ? `
                 <div class="flex justify-between">
-                  <span class="text-sm text-gray-600">駐車対策員:</span>
+                  <span class="text-sm text-gray-600">駐禁対策員:</span>
                   <span class="text-sm font-medium text-gray-900">${Utils.formatCurrency(estimate.parking_officer_cost)}</span>
                 </div>
               ` : ''}

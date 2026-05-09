@@ -2599,6 +2599,165 @@ const Step4Implementation = {
 
 
 // STEP5: その他サービスの実装
+
+// === 駐禁対策員 管理関数 ===
+let parkingOfficerCounter = 0;
+const PARKING_RATES_DEFAULT = {
+  half_day: 11000,
+  full_day: 16000,
+  transport: {
+    osaka_city: 1000,
+    osaka_suburb: 1500,
+    kyoto: 2000,
+    hyogo: 2000
+  }
+};
+
+function getParkingRates() {
+  const rates = Step5Implementation.serviceRates || {};
+  return {
+    half_day: rates.parking_half_day || PARKING_RATES_DEFAULT.half_day,
+    full_day: rates.parking_full_day || PARKING_RATES_DEFAULT.full_day,
+    transport: {
+      osaka_city: rates.parking_transport_osaka_city || PARKING_RATES_DEFAULT.transport.osaka_city,
+      osaka_suburb: rates.parking_transport_osaka_suburb || PARKING_RATES_DEFAULT.transport.osaka_suburb,
+      kyoto: rates.parking_transport_kyoto || PARKING_RATES_DEFAULT.transport.kyoto,
+      hyogo: rates.parking_transport_hyogo || PARKING_RATES_DEFAULT.transport.hyogo
+    }
+  };
+}
+
+function addParkingOfficer() {
+  const list = document.getElementById('parkingOfficerList');
+  if (!list) return;
+  
+  const rates = getParkingRates();
+  const index = parkingOfficerCounter++;
+  
+  const entry = document.createElement('div');
+  entry.id = `parking_officer_entry_${index}`;
+  entry.className = 'flex flex-wrap items-center gap-3 p-3 bg-orange-50 rounded-lg mb-2';
+  entry.innerHTML = `
+    <span class="text-sm font-medium text-orange-800 min-w-[60px]">${index + 1}人目</span>
+    <select id="parking_type_${index}" onchange="updateParkingOfficerCost()" class="form-input text-sm w-40">
+      <option value="half_day">半日（4h）¥${rates.half_day.toLocaleString()}</option>
+      <option value="full_day">終日（8h）¥${rates.full_day.toLocaleString()}</option>
+    </select>
+    <select id="parking_transport_${index}" onchange="updateParkingOfficerCost()" class="form-input text-sm w-44">
+      <option value="osaka_city">大阪市内 ¥${rates.transport.osaka_city.toLocaleString()}</option>
+      <option value="osaka_suburb">大阪府下 ¥${rates.transport.osaka_suburb.toLocaleString()}</option>
+      <option value="kyoto">京都 ¥${rates.transport.kyoto.toLocaleString()}</option>
+      <option value="hyogo">兵庫 ¥${rates.transport.hyogo.toLocaleString()}</option>
+    </select>
+    <span id="parking_cost_${index}" class="text-sm font-bold text-orange-700 min-w-[80px]">¥${(rates.half_day + rates.transport.osaka_city).toLocaleString()}</span>
+    <button type="button" onclick="removeParkingOfficer(${index})" class="text-red-500 hover:text-red-700 ml-auto" title="削除">
+      <i class="fas fa-times-circle text-lg"></i>
+    </button>
+  `;
+  list.appendChild(entry);
+  
+  updateParkingOfficerCost();
+}
+
+function removeParkingOfficer(index) {
+  const entry = document.getElementById(`parking_officer_entry_${index}`);
+  if (entry) entry.remove();
+  updateParkingOfficerCost();
+}
+
+function getParkingOfficerData() {
+  const list = document.getElementById('parkingOfficerList');
+  if (!list) return [];
+  
+  const entries = list.querySelectorAll('[id^="parking_officer_entry_"]');
+  const rates = getParkingRates();
+  const data = [];
+  
+  entries.forEach(entry => {
+    const idMatch = entry.id.match(/parking_officer_entry_(\d+)/);
+    if (!idMatch) return;
+    const idx = idMatch[1];
+    const typeSelect = document.getElementById(`parking_type_${idx}`);
+    const transportSelect = document.getElementById(`parking_transport_${idx}`);
+    if (!typeSelect || !transportSelect) return;
+    
+    const type = typeSelect.value;
+    const transportArea = transportSelect.value;
+    const baseRate = type === 'full_day' ? rates.full_day : rates.half_day;
+    const transportRate = rates.transport[transportArea] || 0;
+    
+    data.push({
+      type,
+      type_label: type === 'full_day' ? '終日（8h）' : '半日（4h）',
+      transport_area: transportArea,
+      transport_area_label: { osaka_city: '大阪市内', osaka_suburb: '大阪府下', kyoto: '京都', hyogo: '兵庫' }[transportArea] || transportArea,
+      base_rate: baseRate,
+      transport_rate: transportRate,
+      total: baseRate + transportRate
+    });
+  });
+  
+  return data;
+}
+
+function calculateParkingOfficerTotal() {
+  const data = getParkingOfficerData();
+  return data.reduce((sum, officer) => sum + officer.total, 0);
+}
+
+function updateParkingOfficerCost() {
+  const data = getParkingOfficerData();
+  const rates = getParkingRates();
+  
+  // 各人の個別コスト表示を更新
+  const list = document.getElementById('parkingOfficerList');
+  if (list) {
+    const entries = list.querySelectorAll('[id^="parking_officer_entry_"]');
+    entries.forEach(entry => {
+      const idMatch = entry.id.match(/parking_officer_entry_(\d+)/);
+      if (!idMatch) return;
+      const idx = idMatch[1];
+      const typeSelect = document.getElementById(`parking_type_${idx}`);
+      const transportSelect = document.getElementById(`parking_transport_${idx}`);
+      const costSpan = document.getElementById(`parking_cost_${idx}`);
+      if (!typeSelect || !transportSelect || !costSpan) return;
+      
+      const baseRate = typeSelect.value === 'full_day' ? rates.full_day : rates.half_day;
+      const transportRate = rates.transport[transportSelect.value] || 0;
+      costSpan.textContent = `¥${(baseRate + transportRate).toLocaleString()}`;
+    });
+  }
+  
+  // 小計表示
+  const totalCost = calculateParkingOfficerTotal();
+  const totalSection = document.getElementById('parkingOfficerTotal');
+  const totalCostEl = document.getElementById('parkingOfficerTotalCost');
+  
+  if (totalSection && totalCostEl) {
+    if (data.length > 0) {
+      totalSection.classList.remove('hidden');
+      totalCostEl.textContent = `¥${totalCost.toLocaleString()}`;
+    } else {
+      totalSection.classList.add('hidden');
+    }
+  }
+  
+  // サービス費用全体を再計算
+  if (typeof Step5Implementation !== 'undefined' && Step5Implementation.updateServicesCost) {
+    // 再帰呼び出し防止
+    if (!updateParkingOfficerCost._updating) {
+      updateParkingOfficerCost._updating = true;
+      Step5Implementation.updateServicesCost();
+      updateParkingOfficerCost._updating = false;
+    }
+  }
+}
+
+// グローバル公開
+window.addParkingOfficer = addParkingOfficer;
+window.removeParkingOfficer = removeParkingOfficer;
+window.updateParkingOfficerCost = updateParkingOfficerCost;
+
 const Step5Implementation = {
   currentServicesInfo: null,
   serviceRates: null,
@@ -2653,7 +2812,14 @@ const Step5Implementation = {
         // ✅ 複合キー（composite keys）を使用してマスターデータから正確に読み込む
         const apiData = ratesResponse.data;
         Step5Implementation.serviceRates = {
-          parking_officer_hourly: parseFloat(apiData.hourly_rate) || parseFloat(apiData.parking_officer_hourly_rate) || 3000,
+          // 駐禁対策員（新仕様）
+          parking_half_day: parseFloat(apiData.parking_half_day) || parseFloat(apiData.parking_officer_half_day_rate) || parseFloat(apiData.half_day_rate) || 11000,
+          parking_full_day: parseFloat(apiData.parking_full_day) || parseFloat(apiData.parking_officer_full_day_rate) || parseFloat(apiData.full_day_rate) || 16000,
+          parking_transport_osaka_city: parseFloat(apiData.parking_transport_osaka_city) || parseFloat(apiData.parking_officer_transport_osaka_city) || 1000,
+          parking_transport_osaka_suburb: parseFloat(apiData.parking_transport_osaka_suburb) || parseFloat(apiData.parking_officer_transport_osaka_suburb) || 1500,
+          parking_transport_kyoto: parseFloat(apiData.parking_transport_kyoto) || parseFloat(apiData.parking_officer_transport_kyoto) || 2000,
+          parking_transport_hyogo: parseFloat(apiData.parking_transport_hyogo) || parseFloat(apiData.parking_officer_transport_hyogo) || 2000,
+          // その他
           transport_vehicle_20km: parseFloat(apiData.base_rate_20km) || parseFloat(apiData.transport_vehicle_base_rate_20km) || 8000,
           transport_vehicle_per_km: parseFloat(apiData.rate_per_km) || parseFloat(apiData.transport_vehicle_rate_per_km) || 100,
           fuel_per_liter: parseFloat(apiData.rate_per_liter || apiData.fuel_rate_per_liter) || 150,
@@ -2685,7 +2851,12 @@ const Step5Implementation = {
       } else {
         // API取得失敗時のデフォルト値を設定（マスター現在値に合わせる）
         Step5Implementation.serviceRates = {
-          parking_officer_hourly: 3000,
+          parking_half_day: 11000,
+          parking_full_day: 16000,
+          parking_transport_osaka_city: 1000,
+          parking_transport_osaka_suburb: 1500,
+          parking_transport_kyoto: 2000,
+          parking_transport_hyogo: 2000,
           transport_vehicle_20km: 5000,
           transport_vehicle_per_km: 100,
           waste_disposal: { none: 0, small: 5000, medium: 10000, large: 20000 },
@@ -2702,7 +2873,12 @@ const Step5Implementation = {
     } catch (error) {
       // エラー時のデフォルト値を設定（マスター現在値に合わせる）
       Step5Implementation.serviceRates = {
-        parking_officer_hourly: 3000,
+        parking_half_day: 11000,
+        parking_full_day: 16000,
+        parking_transport_osaka_city: 1000,
+        parking_transport_osaka_suburb: 1500,
+        parking_transport_kyoto: 2000,
+        parking_transport_hyogo: 2000,
         transport_vehicle_20km: 5000,
         transport_vehicle_per_km: 100,
         waste_disposal: { none: 0, small: 5000, medium: 10000, large: 20000 },
@@ -2740,8 +2916,25 @@ const Step5Implementation = {
       Step5Implementation.currentServicesInfo = flowData.services;
       
       // フォーム値を復元
-      if (flowData.services.parking_officer_hours) {
-        document.getElementById('parking_officer_hours').value = flowData.services.parking_officer_hours;
+      // 駐禁対策員データの復元
+      if (flowData.services.parking_officer_data && flowData.services.parking_officer_data.length > 0) {
+        flowData.services.parking_officer_data.forEach((officer, index) => {
+          if (index === 0) {
+            addParkingOfficer(); // 最初の1人を追加
+          } else {
+            addParkingOfficer(); // 追加の人を追加
+          }
+        });
+        // 値を復元
+        setTimeout(() => {
+          flowData.services.parking_officer_data.forEach((officer, index) => {
+            const typeSelect = document.getElementById(`parking_type_${index}`);
+            const transportSelect = document.getElementById(`parking_transport_${index}`);
+            if (typeSelect) typeSelect.value = officer.type || 'half_day';
+            if (transportSelect) transportSelect.value = officer.transport_area || 'osaka_city';
+          });
+          updateParkingOfficerCost();
+        }, 100);
       }
       if (flowData.services.transport_vehicles) {
         document.getElementById('transport_vehicles').value = flowData.services.transport_vehicles;
@@ -2837,7 +3030,12 @@ const Step5Implementation = {
       console.warn('⚠️ サービスレートが取得できていません。デフォルト値を使用します。');
       // 統一されたデフォルトサービスレートを設定（マスター現在値に合わせる）
       Step5Implementation.serviceRates = {
-        parking_officer_hourly: 3000,
+        parking_half_day: 11000,
+        parking_full_day: 16000,
+        parking_transport_osaka_city: 1000,
+        parking_transport_osaka_suburb: 1500,
+        parking_transport_kyoto: 2000,
+        parking_transport_hyogo: 2000,
         transport_vehicle_20km: 5000,
         transport_vehicle_per_km: 100,
         waste_disposal: { none: 0, small: 5000, medium: 10000, large: 20000 },
@@ -2849,8 +3047,10 @@ const Step5Implementation = {
       };
     }
 
+    // === 駐禁対策員の費用計算（新仕様） ===
+    const parkingOfficerCost = calculateParkingOfficerTotal();
+
     // 各サービスの値を取得
-    const parkingOfficerHours = parseFloat(document.getElementById('parking_officer_hours').value) || 0;
     const transportVehicles = parseInt(document.getElementById('transport_vehicles').value) || 0;
     const transportDistanceType = document.querySelector('input[name="transport_distance_type"]:checked')?.value || '20km';
     const transportDistance = parseFloat(document.getElementById('transport_distance').value) || 0;
@@ -2886,7 +3086,7 @@ const Step5Implementation = {
     
     const costs = {
       site_survey: 0,
-      parking_officer: parkingOfficerHours * (rates.parking_officer_hourly || 2500),
+      parking_officer: parkingOfficerCost,
       transport_vehicle: 0,
       waste_disposal: (rates.waste_disposal && rates.waste_disposal[wasteDisposal]) || 0,
       protection_work: 0,
@@ -2940,7 +3140,11 @@ const Step5Implementation = {
     // 内訳表示を生成
     const breakdown = [];
     if (costs.site_survey > 0) breakdown.push(`現地調査 ${siteSurveyPeople}人（${siteSurveyDistance}km）: ${Utils.formatCurrency(costs.site_survey)}`);
-    if (costs.parking_officer > 0) breakdown.push(`駐車対策員 ${parkingOfficerHours}時間: ${Utils.formatCurrency(costs.parking_officer)}`);
+    if (costs.parking_officer > 0) {
+      const officerData = getParkingOfficerData();
+      const officerCount = officerData.length;
+      breakdown.push(`駐禁対策員 ${officerCount}人: ${Utils.formatCurrency(costs.parking_officer)}`);
+    }
     if (costs.transport_vehicle > 0) {
       const distanceText = transportDistanceType === '20km' ? '20km圏内' : `${transportDistance}km + 燃料費`;
       breakdown.push(`人員輸送車両 ${transportVehicles}台（${distanceText}）: ${Utils.formatCurrency(costs.transport_vehicle)}`);
@@ -2974,8 +3178,9 @@ const Step5Implementation = {
       site_survey_vehicle_cost: 0,
       site_survey_distance_cost: 0,
       site_survey_cost: 0,
-      parking_officer_hours: parkingOfficerHours,
+      parking_officer_hours: 0,
       parking_officer_cost: costs.parking_officer || 0,
+      parking_officer_data: getParkingOfficerData(),
       transport_vehicles: transportVehicles,
       transport_within_20km: transportDistanceType === '20km',
       transport_distance: transportDistance,
@@ -3055,6 +3260,7 @@ const Step5Implementation = {
       Step5Implementation.currentServicesInfo = {
         parking_officer_hours: 0,
         parking_officer_cost: 0,
+        parking_officer_data: [],
         transport_vehicles: 0,
         transport_within_20km: true,
         transport_distance: 0,
@@ -3165,7 +3371,8 @@ function updateServiceRateDisplays(rates) {
   if (!rates) return;
   const fmt = (v) => Number(v).toLocaleString();
   const simple = {
-    'rate-display-parking-officer':  rates.parking_officer_hourly,
+    'rate-display-parking-half-day':  rates.parking_half_day,
+    'rate-display-parking-full-day':  rates.parking_full_day,
     'rate-display-transport-20km':   rates.transport_vehicle_20km,
     'rate-display-transport-km':     rates.transport_vehicle_per_km,
     'rate-display-protection-base':  rates.protection_work_base,
@@ -3269,7 +3476,14 @@ const Step6Implementation = {
       if (ratesResponse.success) {
         const apiData = ratesResponse.data;
         Step5Implementation.serviceRates = {
-          parking_officer_hourly: parseFloat(apiData.hourly_rate) || parseFloat(apiData.parking_officer_hourly_rate) || 3000,
+          // 駐禁対策員（新仕様）
+          parking_half_day: parseFloat(apiData.parking_half_day) || parseFloat(apiData.parking_officer_half_day_rate) || parseFloat(apiData.half_day_rate) || 11000,
+          parking_full_day: parseFloat(apiData.parking_full_day) || parseFloat(apiData.parking_officer_full_day_rate) || parseFloat(apiData.full_day_rate) || 16000,
+          parking_transport_osaka_city: parseFloat(apiData.parking_transport_osaka_city) || parseFloat(apiData.parking_officer_transport_osaka_city) || 1000,
+          parking_transport_osaka_suburb: parseFloat(apiData.parking_transport_osaka_suburb) || parseFloat(apiData.parking_officer_transport_osaka_suburb) || 1500,
+          parking_transport_kyoto: parseFloat(apiData.parking_transport_kyoto) || parseFloat(apiData.parking_officer_transport_kyoto) || 2000,
+          parking_transport_hyogo: parseFloat(apiData.parking_transport_hyogo) || parseFloat(apiData.parking_officer_transport_hyogo) || 2000,
+          // その他
           transport_vehicle_20km: parseFloat(apiData.base_rate_20km) || parseFloat(apiData.transport_vehicle_base_rate_20km) || 8000,
           transport_vehicle_per_km: parseFloat(apiData.rate_per_km) || parseFloat(apiData.transport_vehicle_rate_per_km) || 100,
           fuel_per_liter: parseFloat(apiData.rate_per_liter || apiData.fuel_rate_per_liter) || 150,
@@ -3300,7 +3514,12 @@ const Step6Implementation = {
     } catch (error) {
       console.warn('⚠️ STEP6: サービスレート取得失敗、デフォルト値を使用:', error);
       Step5Implementation.serviceRates = {
-        parking_officer_hourly: 3000,
+        parking_half_day: 11000,
+        parking_full_day: 16000,
+        parking_transport_osaka_city: 1000,
+        parking_transport_osaka_suburb: 1500,
+        parking_transport_kyoto: 2000,
+        parking_transport_hyogo: 2000,
         transport_vehicle_20km: 5000,
         transport_vehicle_per_km: 100,
         waste_disposal: { none: 0, small: 5000, medium: 10000, large: 20000 },
@@ -3662,7 +3881,8 @@ const Step6Implementation = {
 
     // サービス単価をマスターデータから取得
     let serviceMasterRates = {
-      parking_officer_hourly_rate: 2500,
+      parking_half_day_rate: 11000,
+      parking_full_day_rate: 16000,
       transport_base_rate: 5000,
       waste_disposal_small_rate: 3000,
       waste_disposal_medium_rate: 5000,
@@ -3751,16 +3971,35 @@ const Step6Implementation = {
     const details = [];
     let totalServicesCost = 0;
     
-    // 1. 駐車対策員（マスター単価連携）
-    if (services.parking_officer_hours > 0 || services.parking_officer_cost > 0) {
-      const masterRate = serviceMasterRates.parking_officer_hourly_rate;
-      const calculatedCost = services.parking_officer_hours * masterRate;
-      details.push(`<div class="flex justify-between px-4 py-2">
-        <span>駐車対策員 ${services.parking_officer_hours}時間 (¥${masterRate.toLocaleString()}/時間)</span>
-        <span>${Utils.formatCurrency(calculatedCost)}</span>
-      </div>`);
-      totalServicesCost += calculatedCost;
-      console.log('📊 駐車対策員:', { hours: services.parking_officer_hours, masterRate, calculatedCost, savedCost: services.parking_officer_cost });
+    // 1. 駐禁対策員（新仕様：複数人・タイプ別・交通費別）
+    if (services.parking_officer_cost > 0 || (services.parking_officer_data && services.parking_officer_data.length > 0)) {
+      const officerData = services.parking_officer_data || [];
+      if (officerData.length > 0) {
+        details.push(`<div class="flex justify-between px-4 py-2 font-semibold">
+          <span>駐禁対策員（${officerData.length}人）</span>
+          <span></span>
+        </div>`);
+        const rateTypeLabels = { half_day: '半日（拘束4h）', full_day: '全日（拘束8h）' };
+        const transportLabels = { osaka_city: '大阪市内', osaka_suburb: '大阪府下', kyoto: '京都', hyogo: '兵庫' };
+        officerData.forEach((officer, idx) => {
+          const typeLabel = rateTypeLabels[officer.rate_type] || officer.rate_type;
+          const transportLabel = transportLabels[officer.transport_area] || officer.transport_area;
+          const officerTotal = (officer.rate || 0) + (officer.transport_fee || 0);
+          details.push(`<div class="flex justify-between px-6 py-1 text-sm">
+            <span>${idx + 1}人目: ${typeLabel} ¥${(officer.rate || 0).toLocaleString()} + 交通費(${transportLabel}) ¥${(officer.transport_fee || 0).toLocaleString()}</span>
+            <span>${Utils.formatCurrency(officerTotal)}</span>
+          </div>`);
+        });
+        totalServicesCost += services.parking_officer_cost;
+      } else {
+        // 後方互換: 旧データ（時間×単価）
+        totalServicesCost += services.parking_officer_cost;
+        details.push(`<div class="flex justify-between px-4 py-2">
+          <span>駐禁対策員</span>
+          <span>${Utils.formatCurrency(services.parking_officer_cost)}</span>
+        </div>`);
+      }
+      console.log('📊 駐禁対策員:', { data: officerData, cost: services.parking_officer_cost });
     }
     
     // 2. 人員輸送車両
@@ -4126,15 +4365,32 @@ const Step6Implementation = {
     lineItems.staff.subtotal = finalStaffCost;
 
     // 3. サービス費用明細
-    if (services.parking_officer_hours > 0 && services.parking_officer_cost > 0) {
-      const hourlyRate = services.parking_officer_cost / services.parking_officer_hours;
-      lineItems.services.items.push({
-        description: `駐車対策員 ${services.parking_officer_hours}時間`,
-        detail: `@ ¥${Math.round(hourlyRate).toLocaleString()}`,
-        quantity: services.parking_officer_hours,
-        unit_price: Math.round(hourlyRate),
-        amount: services.parking_officer_cost
-      });
+    if (services.parking_officer_cost > 0 || (services.parking_officer_data && services.parking_officer_data.length > 0)) {
+      const officerData = services.parking_officer_data || [];
+      if (officerData.length > 0) {
+        const rateTypeLabels = { half_day: '半日（拘束4h）', full_day: '全日（拘束8h）' };
+        const transportLabels = { osaka_city: '大阪市内', osaka_suburb: '大阪府下', kyoto: '京都', hyogo: '兵庫' };
+        officerData.forEach((officer, idx) => {
+          const typeLabel = rateTypeLabels[officer.rate_type] || officer.rate_type;
+          const transportLabel = transportLabels[officer.transport_area] || officer.transport_area;
+          const officerTotal = (officer.rate || 0) + (officer.transport_fee || 0);
+          lineItems.services.items.push({
+            description: `駐禁対策員${idx + 1} ${typeLabel} + 交通費(${transportLabel})`,
+            detail: `¥${(officer.rate || 0).toLocaleString()} + ¥${(officer.transport_fee || 0).toLocaleString()}`,
+            quantity: 1,
+            unit_price: officerTotal,
+            amount: officerTotal
+          });
+        });
+      } else {
+        lineItems.services.items.push({
+          description: `駐禁対策員`,
+          detail: '',
+          quantity: 1,
+          unit_price: services.parking_officer_cost,
+          amount: services.parking_officer_cost
+        });
+      }
     }
     
     if (services.transport_vehicles > 0 && services.transport_cost > 0) {
@@ -6204,8 +6460,13 @@ if (typeof MasterManagement === 'undefined') {
     const serviceRates = settings.service_rates || {};
     const systemSettings = settings.system_settings || {};
 
-    // 駐車対策員
-    setInputValue('service_parking_officer_hourly', serviceRates.parking_officer_hourly || 3000);
+    // 駐禁対策員（新仕様）
+    setInputValue('service_parking_half_day', serviceRates.parking_half_day || 11000);
+    setInputValue('service_parking_full_day', serviceRates.parking_full_day || 16000);
+    setInputValue('service_parking_transport_osaka_city', serviceRates.parking_transport_osaka_city || 1000);
+    setInputValue('service_parking_transport_osaka_suburb', serviceRates.parking_transport_osaka_suburb || 1500);
+    setInputValue('service_parking_transport_kyoto', serviceRates.parking_transport_kyoto || 2000);
+    setInputValue('service_parking_transport_hyogo', serviceRates.parking_transport_hyogo || 2000);
     
     // 人員輸送車両
     setInputValue('service_transport_20km', serviceRates.transport_20km || 8000);
@@ -6243,7 +6504,8 @@ if (typeof MasterManagement === 'undefined') {
       if (val == null) return;
       document.querySelectorAll(`[id="${id}"]`).forEach(el => { el.textContent = fmt(val); });
     };
-    updateLabel('rate-display-parking-hourly', serviceRates.parking_officer_hourly);
+    updateLabel('rate-display-parking-half-day', serviceRates.parking_half_day);
+    updateLabel('rate-display-parking-full-day', serviceRates.parking_full_day);
     updateLabel('rate-display-transport-20km', serviceRates.transport_20km);
     updateLabel('rate-display-transport-km', serviceRates.transport_per_km);
     updateLabel('rate-display-fuel', serviceRates.fuel_per_liter);
@@ -6264,7 +6526,14 @@ if (typeof MasterManagement === 'undefined') {
     };
 
     // デフォルト値を設定
-    setInputValue('service_parking_officer_hourly', 3000);
+    // 駐禁対策員（新仕様）
+    setInputValue('service_parking_half_day', 11000);
+    setInputValue('service_parking_full_day', 16000);
+    setInputValue('service_parking_transport_osaka_city', 1000);
+    setInputValue('service_parking_transport_osaka_suburb', 1500);
+    setInputValue('service_parking_transport_kyoto', 2000);
+    setInputValue('service_parking_transport_hyogo', 2000);
+    // 人員輸送車両
     setInputValue('service_transport_20km', 8000);
     setInputValue('service_transport_per_km', 100);
     setInputValue('service_fuel_per_liter', 150);
@@ -6409,9 +6678,16 @@ if (typeof MasterManagement === 'undefined') {
         return element ? (element.type === 'number' ? parseFloat(element.value) || 0 : element.value) : 0;
       };
 
-      // 実際のHTML IDに合わせたデータ収集
+      // 実際のHTML IDに合わせたデータ収集（新・駐禁対策員仕様）
       const servicesData = {
-        parking_officer_hourly_rate: getInputValue('service_parking_officer_hourly'),
+        // 駐禁対策員（新仕様）
+        parking_half_day: getInputValue('service_parking_half_day'),
+        parking_full_day: getInputValue('service_parking_full_day'),
+        parking_transport_osaka_city: getInputValue('service_parking_transport_osaka_city'),
+        parking_transport_osaka_suburb: getInputValue('service_parking_transport_osaka_suburb'),
+        parking_transport_kyoto: getInputValue('service_parking_transport_kyoto'),
+        parking_transport_hyogo: getInputValue('service_parking_transport_hyogo'),
+        // 人員輸送車両
         transport_vehicle_20km_rate: getInputValue('service_transport_20km'),
         transport_vehicle_per_km_rate: getInputValue('service_transport_per_km'),
         fuel_per_liter_rate: getInputValue('service_fuel_per_liter'),
@@ -6434,7 +6710,14 @@ if (typeof MasterManagement === 'undefined') {
       // 既存のAPIの形式に合わせてデータを変換
       const apiData = {
         service_rates: {
-          parking_officer_hourly: servicesData.parking_officer_hourly_rate,
+          // 駐禁対策員（新仕様）
+          parking_half_day: servicesData.parking_half_day,
+          parking_full_day: servicesData.parking_full_day,
+          parking_transport_osaka_city: servicesData.parking_transport_osaka_city,
+          parking_transport_osaka_suburb: servicesData.parking_transport_osaka_suburb,
+          parking_transport_kyoto: servicesData.parking_transport_kyoto,
+          parking_transport_hyogo: servicesData.parking_transport_hyogo,
+          // その他サービス
           transport_20km: servicesData.transport_vehicle_20km_rate,
           transport_per_km: servicesData.transport_vehicle_per_km_rate,
           fuel_per_liter: servicesData.fuel_per_liter_rate,
