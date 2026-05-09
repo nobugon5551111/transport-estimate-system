@@ -2450,9 +2450,9 @@ const Step5Implementation = {
           flowData.services.parking_officer_data.forEach((officer, index) => {
             addParkingOfficer();
             setTimeout(() => {
-              const rateSelect = document.getElementById(`parking_rate_type_${index}`);
+              const rateSelect = document.getElementById(`parking_type_${index}`);
               const transportSelect = document.getElementById(`parking_transport_${index}`);
-              if (rateSelect) rateSelect.value = officer.rate_type || 'half_day';
+              if (rateSelect) rateSelect.value = officer.rate_type || officer.type || 'half_day';
               if (transportSelect) transportSelect.value = officer.transport_area || 'osaka_city';
               if (typeof updateParkingOfficerCost === 'function') updateParkingOfficerCost();
             }, 100);
@@ -3195,11 +3195,14 @@ const Step6Implementation = {
         const rateTypeLabels = { half_day: '半日（拘束4h）', full_day: '全日（拘束8h）' };
         const transportLabels = { osaka_city: '大阪市内', osaka_suburb: '大阪府下', kyoto: '京都', hyogo: '兵庫' };
         officerData.forEach((officer, idx) => {
-          const typeLabel = rateTypeLabels[officer.rate_type] || officer.rate_type;
+          const rateType = officer.rate_type || officer.type;
+          const typeLabel = rateTypeLabels[rateType] || rateType || '不明';
           const transportLabel = transportLabels[officer.transport_area] || officer.transport_area;
-          const officerTotal = (officer.rate || 0) + (officer.transport_fee || 0);
+          const baseRate = officer.rate || officer.base_rate || 0;
+          const transportFee = officer.transport_fee || officer.transport_rate || 0;
+          const officerTotal = officer.total || (baseRate + transportFee);
           details.push(`<div class="flex justify-between px-6 py-1 text-sm">
-            <span>${idx + 1}人目: ${typeLabel} ¥${(officer.rate || 0).toLocaleString()} + 交通費(${transportLabel}) ¥${(officer.transport_fee || 0).toLocaleString()}</span>
+            <span>${idx + 1}人目: ${typeLabel} ¥${baseRate.toLocaleString()} + 交通費(${transportLabel}) ¥${transportFee.toLocaleString()}</span>
             <span>${Utils.formatCurrency(officerTotal)}</span>
           </div>`);
         });

@@ -3982,11 +3982,15 @@ const Step6Implementation = {
         const rateTypeLabels = { half_day: '半日（拘束4h）', full_day: '全日（拘束8h）' };
         const transportLabels = { osaka_city: '大阪市内', osaka_suburb: '大阪府下', kyoto: '京都', hyogo: '兵庫' };
         officerData.forEach((officer, idx) => {
-          const typeLabel = rateTypeLabels[officer.rate_type] || officer.rate_type;
+          // getParkingOfficerData() が返すキー: type, base_rate, transport_area, transport_rate, total
+          const rateType = officer.rate_type || officer.type;
+          const typeLabel = rateTypeLabels[rateType] || rateType || '不明';
           const transportLabel = transportLabels[officer.transport_area] || officer.transport_area;
-          const officerTotal = (officer.rate || 0) + (officer.transport_fee || 0);
+          const baseRate = officer.rate || officer.base_rate || 0;
+          const transportFee = officer.transport_fee || officer.transport_rate || 0;
+          const officerTotal = officer.total || (baseRate + transportFee);
           details.push(`<div class="flex justify-between px-6 py-1 text-sm">
-            <span>${idx + 1}人目: ${typeLabel} ¥${(officer.rate || 0).toLocaleString()} + 交通費(${transportLabel}) ¥${(officer.transport_fee || 0).toLocaleString()}</span>
+            <span>${idx + 1}人目: ${typeLabel} ¥${baseRate.toLocaleString()} + 交通費(${transportLabel}) ¥${transportFee.toLocaleString()}</span>
             <span>${Utils.formatCurrency(officerTotal)}</span>
           </div>`);
         });
@@ -4371,12 +4375,15 @@ const Step6Implementation = {
         const rateTypeLabels = { half_day: '半日（拘束4h）', full_day: '全日（拘束8h）' };
         const transportLabels = { osaka_city: '大阪市内', osaka_suburb: '大阪府下', kyoto: '京都', hyogo: '兵庫' };
         officerData.forEach((officer, idx) => {
-          const typeLabel = rateTypeLabels[officer.rate_type] || officer.rate_type;
+          const rateType = officer.rate_type || officer.type;
+          const typeLabel = rateTypeLabels[rateType] || rateType || '不明';
           const transportLabel = transportLabels[officer.transport_area] || officer.transport_area;
-          const officerTotal = (officer.rate || 0) + (officer.transport_fee || 0);
+          const baseRate = officer.rate || officer.base_rate || 0;
+          const transportFee = officer.transport_fee || officer.transport_rate || 0;
+          const officerTotal = officer.total || (baseRate + transportFee);
           lineItems.services.items.push({
             description: `駐禁対策員${idx + 1} ${typeLabel} + 交通費(${transportLabel})`,
-            detail: `¥${(officer.rate || 0).toLocaleString()} + ¥${(officer.transport_fee || 0).toLocaleString()}`,
+            detail: `¥${baseRate.toLocaleString()} + ¥${transportFee.toLocaleString()}`,
             quantity: 1,
             unit_price: officerTotal,
             amount: officerTotal
