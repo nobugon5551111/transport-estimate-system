@@ -18237,6 +18237,18 @@ app.get('/api/master-settings', async (c) => {
         } else if (row.category === 'service') {
           if (row.subcategory === 'parking_officer' && row.key === 'hourly_rate') {
             settings.service_rates['parking_officer_hourly'] = value;
+          } else if (row.subcategory === 'parking_officer' && row.key === 'half_day_rate') {
+            settings.service_rates['parking_half_day'] = value;
+          } else if (row.subcategory === 'parking_officer' && row.key === 'full_day_rate') {
+            settings.service_rates['parking_full_day'] = value;
+          } else if (row.subcategory === 'parking_officer' && row.key === 'transport_osaka_city') {
+            settings.service_rates['parking_transport_osaka_city'] = value;
+          } else if (row.subcategory === 'parking_officer' && row.key === 'transport_osaka_suburb') {
+            settings.service_rates['parking_transport_osaka_suburb'] = value;
+          } else if (row.subcategory === 'parking_officer' && row.key === 'transport_kyoto') {
+            settings.service_rates['parking_transport_kyoto'] = value;
+          } else if (row.subcategory === 'parking_officer' && row.key === 'transport_hyogo') {
+            settings.service_rates['parking_transport_hyogo'] = value;
           } else if (row.subcategory === 'transport_vehicle' && row.key === 'base_rate_20km') {
             settings.service_rates['transport_20km'] = value;
           } else if (row.subcategory === 'transport_vehicle' && row.key === 'rate_per_km') {
