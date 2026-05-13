@@ -16317,9 +16317,23 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
     <title>見積書 - ${estimate.estimate_number}</title>
     <style>
         @media print {
-            body { margin: 0; padding: 8mm 10mm; }
+            body { margin: 0; padding: 8mm 10mm 14mm 10mm; }
             .no-print { display: none !important; }
             .page-break { page-break-before: always; }
+            /* ページ番号フッター: 全ページ下部に固定表示 */
+            #pageFooter {
+                display: block !important;
+                position: fixed;
+                bottom: 2mm;
+                left: 10mm;
+                right: 10mm;
+                text-align: center;
+                font-size: 8px;
+                color: #aaa;
+                font-family: 'Hiragino Sans', 'Meiryo', sans-serif;
+                border-top: 0.5px solid #ddd;
+                padding-top: 1mm;
+            }
         }
         
         * { box-sizing: border-box; }
@@ -17187,16 +17201,34 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
         </p>
     </div>
 
+    <!-- ページ番号フッター（印刷時のみ表示: 1/1 形式） -->
+    <div id="pageFooter" style="display:none;"></div>
+
     <script>
-        // 印刷時のページ設定
-        window.addEventListener('beforeprint', function() {
-            document.body.style.margin = '0';
-        });
-        
-        window.addEventListener('afterprint', function() {
-            document.body.style.margin = '20px';
-        });
+    (function(){
+        var estNum = '${(estimate.estimate_number || "見積書").replace(/'/g, "\\'")}';
+        // body高さからページ数を推定してフッターテキストを設定
+        function updateFooter() {
+            var PAGE_H = 1020; // A4印刷領域の推定高さ(px)
+            var bodyH = document.body.scrollHeight;
+            var total = Math.max(1, Math.ceil(bodyH / PAGE_H));
+            var footer = document.getElementById('pageFooter');
+            if (footer) {
+                // position:fixed は全ページに同じテキストを表示
+                // 1ページ: "EST-XXXX  1 / 1"
+                // 複数ページ: "EST-XXXX  全Nページ" (各ページ個別番号は不可)
+                if (total === 1) {
+                    footer.textContent = estNum + '\u3000\u3000' + '1 / 1';
+                } else {
+                    footer.textContent = estNum + '\u3000\u3000' + '\u5168' + total + '\u30DA\u30FC\u30B8';
+                }
+            }
+        }
+        updateFooter();
+        window.addEventListener('beforeprint', updateFooter);
+    })();
     </script>
+
 </body>
 </html>
   `.trim()
