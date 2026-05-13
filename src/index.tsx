@@ -16317,16 +16317,18 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
     <title>見積書 - ${estimate.estimate_number}</title>
     <style>
         @media print {
-            body { margin: 0; }
-            .no-print { display: none; }
+            body { margin: 0; padding: 8mm 10mm; }
+            .no-print { display: none !important; }
             .page-break { page-break-before: always; }
         }
         
+        * { box-sizing: border-box; }
+        
         body {
-            font-family: 'MS Gothic', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', monospace;
-            font-size: 14px;
-            line-height: 1.6;
-            margin: 20px;
+            font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', 'MS Gothic', sans-serif;
+            font-size: 10.5px;
+            line-height: 1.35;
+            margin: 12px;
             color: #333;
         }
         
@@ -16334,101 +16336,159 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 30px;
-            border-bottom: 3px solid #2563eb;
-            padding-bottom: 20px;
+            margin-bottom: 6px;
+            border-bottom: 2.5px solid #2563eb;
+            padding-bottom: 6px;
         }
         
         .header h1 {
-            font-size: 28px;
+            font-size: 22px;
             margin: 0;
             color: #2563eb;
+            letter-spacing: 6px;
         }
 
         .company-logo {
-            max-height: 80px;
-            max-width: 200px;
+            max-height: 50px;
+            max-width: 150px;
             object-fit: contain;
         }
         
-        .company-info {
-            text-align: right;
-            margin-bottom: 30px;
-        }
-        
-        .estimate-info {
+        /* === ヘッダー直下: 左=お客様+見積詳細、右=合計+会社情報 === */
+        .top-row {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 30px;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 8px;
+        }
+        .top-row-left {
+            flex: 1;
+            min-width: 0;
+        }
+        .top-row-right {
+            flex: 0 0 auto;
+            text-align: right;
+            min-width: 260px;
         }
         
-        .customer-info {
-            flex: 1;
-            margin-right: 50px;
-        }
-        
-        .estimate-details {
-            flex: 1;
+        .company-info {
+            font-size: 9.5px;
+            line-height: 1.4;
+            margin-top: 6px;
+            color: #555;
         }
         
         .info-box {
-            border: 2px solid #e5e7eb;
-            padding: 15px;
-            margin-bottom: 20px;
+            border: 1.5px solid #d1d5db;
+            padding: 6px 8px;
+            margin-bottom: 5px;
             background-color: #f9fafb;
         }
         
         .info-box h3 {
-            margin: 0 0 10px 0;
+            margin: 0 0 3px 0;
+            font-size: 10.5px;
             color: #374151;
             border-bottom: 1px solid #d1d5db;
-            padding-bottom: 5px;
+            padding-bottom: 2px;
         }
         
+        .info-box p, .info-box div {
+            margin: 1px 0;
+            font-size: 10px;
+        }
+        
+        .customer-name-line {
+            font-size: 13px;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+        
+        .estimate-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0 14px;
+            font-size: 9.5px;
+            color: #555;
+            border: 1px solid #e5e7eb;
+            padding: 4px 8px;
+            margin-bottom: 6px;
+            background: #fafbfc;
+        }
+        .estimate-meta span { white-space: nowrap; }
+        .estimate-meta strong { color: #333; }
+        
+        /* 見積明細テーブル */
         .estimate-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 30px;
+            margin-bottom: 8px;
+            font-size: 10px;
         }
         
         .estimate-table th,
         .estimate-table td {
             border: 1px solid #d1d5db;
-            padding: 12px;
+            padding: 3px 6px;
             text-align: left;
         }
         
         .estimate-table th {
-            background-color: #f3f4f6;
+            background-color: #eef2f7;
             font-weight: bold;
             color: #374151;
+            padding: 4px 6px;
+            font-size: 10px;
+        }
+        
+        .estimate-table td {
+            vertical-align: top;
+        }
+        
+        .estimate-table small {
+            font-size: 8.5px;
         }
         
         .amount-cell {
             text-align: right;
             font-weight: bold;
+            white-space: nowrap;
+        }
+        
+        /* セクション見出し行 */
+        .estimate-table td[colspan="2"] {
+            padding: 3px 6px 1px;
+            background-color: #fafbfc;
+        }
+        
+        /* 小計行 */
+        .estimate-table tr[style*="background-color: #f3f4f6"] td {
+            padding: 3px 6px;
         }
         
         .total-section {
             float: right;
-            width: 300px;
-            margin-bottom: 30px;
+            width: 260px;
+            margin-bottom: 8px;
         }
         
         .total-table {
             width: 100%;
             border-collapse: collapse;
+            font-size: 10px;
         }
         
         .total-table th,
         .total-table td {
             border: 1px solid #d1d5db;
-            padding: 8px 12px;
+            padding: 3px 8px;
         }
         
         .total-table th {
             background-color: #f3f4f6;
             text-align: left;
+            font-size: 10px;
         }
         
         .total-table td {
@@ -16438,32 +16498,32 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
         
         .grand-total {
             background-color: #dbeafe !important;
-            font-size: 16px;
+        }
+        .grand-total td {
+            font-size: 13px !important;
         }
         
         .notes-section {
             clear: both;
-            margin-top: 40px;
+            margin-top: 10px;
             page-break-inside: avoid;
+            font-size: 9.5px;
         }
         
         .notes-section h3 {
             color: #374151;
-            border-bottom: 2px solid #e5e7eb;
-            padding-bottom: 5px;
+            border-bottom: 1.5px solid #e5e7eb;
+            padding-bottom: 2px;
+            margin: 0 0 4px 0;
+            font-size: 11px;
         }
-        
-        .footer {
-            margin-top: 50px;
-            text-align: center;
-            color: #6b7280;
-            font-size: 12px;
-            border-top: 1px solid #e5e7eb;
-            padding-top: 20px;
+        .notes-section p {
+            margin: 2px 0;
+            line-height: 1.4;
         }
         
         .no-print {
-            margin: 20px 0;
+            margin: 10px 0;
             text-align: center;
         }
         
@@ -16471,50 +16531,42 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
             background-color: #2563eb;
             color: white;
             border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
+            padding: 8px 16px;
+            border-radius: 4px;
             cursor: pointer;
-            font-size: 16px;
-            margin: 0 10px;
+            font-size: 14px;
+            margin: 0 6px;
         }
         
         .print-button:hover {
             background-color: #1d4ed8;
         }
         
-        /* 項目列を確実に左寄せに */
-        .estimate-table tbody td:first-child {
-            text-align: left !important;
-            vertical-align: top;
-        }
-        
-        /* 金額合計ボックス - ヘッダー直下右側 */
+        /* 金額合計ボックス */
         .top-total-box {
-            float: right;
-            border: 3px solid #2563eb;
-            padding: 12px 24px;
-            margin-bottom: 20px;
+            border: 2.5px solid #2563eb;
+            padding: 6px 14px;
             text-align: center;
-            min-width: 300px;
         }
         .top-total-label {
-            font-size: 12px;
+            font-size: 9.5px;
             color: #6b7280;
             font-weight: bold;
-            margin-bottom: 2px;
+            margin-bottom: 1px;
         }
         .top-total-amount {
-            font-size: 26px;
+            font-size: 20px;
             font-weight: bold;
             color: #1e3a5f;
+            line-height: 1.2;
         }
         .top-total-sub {
-            font-size: 12px;
+            font-size: 9.5px;
             color: #6b7280;
-            margin-top: 4px;
+            margin-top: 2px;
         }
         .top-total-sub span {
-            margin: 0 6px;
+            margin: 0 4px;
         }
     </style>
 </head>
@@ -16526,15 +16578,26 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
 
     <div class="header">
         <div>
-            <h1>見積書</h1>
+            <h1>見 積 書</h1>
         </div>
         <img src="${basicSettings.logo || COMPANY_LOGO_DATA_URI}" alt="会社ロゴ" class="company-logo" />
     </div>
     
-    <!-- 金額（税込）合計ボックス - ヘッダー直下右側 -->
-    <div class="top-total-box">
-        <div class="top-total-label">お見積金額（税込）</div>
-        <div class="top-total-amount">¥${(() => {
+    <!-- ヘッダー直下: 左=お客様情報、右=合計金額+会社情報 -->
+    <div class="top-row">
+        <div class="top-row-left">
+            <div class="info-box">
+                <h3>お客様情報</h3>
+                <div class="customer-name-line">${estimate.customer_name || ''} 御中</div>
+                ${estimate.customer_contact_person ? `<div>ご担当: ${estimate.customer_contact_person} 様</div>` : ''}
+                ${estimate.customer_address ? `<div>${estimate.customer_address}</div>` : ''}
+                ${estimate.customer_phone ? `<div>TEL: ${estimate.customer_phone}</div>` : ''}
+            </div>
+        </div>
+        <div class="top-row-right">
+            <div class="top-total-box">
+                <div class="top-total-label">お見積金額（税込）</div>
+                <div class="top-total-amount">¥${(() => {
           // 小計を計算
           let subtotal = 0;
           if (lineItems && estimate.subtotal > 0) {
@@ -16610,57 +16673,32 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
             })()}</span>
         </div>
     </div>
-    
-    <div style="clear: both;"></div>
-    
-    <div class="company-info">
-        ${basicSettings.company_name ? `<strong>${basicSettings.company_name}</strong><br>` : ''}
-        ${basicSettings.company_address ? `${basicSettings.company_address}<br>` : ''}
-        ${basicSettings.company_phone ? `TEL: ${basicSettings.company_phone}` : ''}${basicSettings.company_fax ? ` / FAX: ${basicSettings.company_fax}` : ''}${basicSettings.company_phone || basicSettings.company_fax ? '<br>' : ''}
-        ${basicSettings.company_email ? `Email: ${basicSettings.company_email}` : ''}
+            <div class="company-info">
+                ${basicSettings.company_name ? `<strong>${basicSettings.company_name}</strong><br>` : ''}
+                ${basicSettings.company_address ? `${basicSettings.company_address}<br>` : ''}
+                ${basicSettings.company_phone ? `TEL: ${basicSettings.company_phone}` : ''}${basicSettings.company_fax ? ` / FAX: ${basicSettings.company_fax}` : ''}
+            </div>
+        </div>
     </div>
     
-    <div class="estimate-info">
-        <div class="customer-info">
-            <div class="info-box">
-                <h3>お客様情報</h3>
-                <strong>${estimate.customer_name || ''}</strong><br>
-                <strong>担当者:</strong> ${estimate.customer_contact_person || '未設定'}<br>
-                ${estimate.customer_address || ''}<br>
-                ${estimate.customer_phone ? `TEL: ${estimate.customer_phone}<br>` : ''}
-                ${estimate.customer_email ? `Email: ${estimate.customer_email}` : ''}
-            </div>
-        </div>
-        
-        <div class="estimate-details">
-            <div class="info-box">
-                <h3>見積詳細</h3>
-                <strong>見積番号:</strong> ${estimate.estimate_number || ''}<br>
-                <strong>案件名:</strong> ${estimate.project_name || ''}<br>
-                <strong>作成日:</strong> ${currentDate}<br>
-                <strong>有効期限:</strong> ${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('ja-JP')}<br>
-                ${estimate.created_by_name ? `<strong>見積制作担当者:</strong> ${estimate.created_by_name}` : ''}
-            </div>
-        </div>
+    <!-- 見積メタ情報（1行コンパクト表示） -->
+    <div class="estimate-meta">
+        <span><strong>見積番号:</strong> ${estimate.estimate_number || ''}</span>
+        <span><strong>案件名:</strong> ${estimate.project_name || ''}</span>
+        <span><strong>作成日:</strong> ${currentDate}</span>
+        <span><strong>有効期限:</strong> ${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('ja-JP')}</span>
+        ${estimate.created_by_name ? `<span><strong>担当:</strong> ${estimate.created_by_name}</span>` : ''}
+        <span>配送先: ${estimate.delivery_address || ''} ${estimate.delivery_postal_code ? `〒${estimate.delivery_postal_code}` : ''} エリア${estimate.delivery_area}ランク${areaDesc ? `（${areaDesc}）` : ''}${estimate.delivery_distance_km > 0 ? ` 約${estimate.delivery_distance_km}km` : ''}</span>
     </div>
     
     <table class="estimate-table">
         <thead>
             <tr>
-                <th style="width: 60%">項目</th>
-                <th style="width: 40%">金額（税抜）</th>
+                <th style="width: 65%">項目</th>
+                <th style="width: 35%">金額（税抜）</th>
             </tr>
         </thead>
         <tbody>
-            <tr>
-                <td>
-                    <strong>配送サービス</strong><br>
-                    配送先: ${estimate.delivery_address || ''}<br>
-                    ${estimate.delivery_postal_code ? `〒${estimate.delivery_postal_code}` : ''}<br>
-                    エリア: ${estimate.delivery_area}ランク${areaDesc ? `（${areaDesc}）` : ''}${estimate.delivery_distance_km > 0 ? `<br>距離: 約${estimate.delivery_distance_km}km` : ''}
-                </td>
-                <td class="amount-cell">-</td>
-            </tr>
             ${lineItems ? (() => {
               // ✅ STEP6完全転写方式：line_items_jsonを使用
               const allRows = [];
@@ -17104,7 +17142,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
             </tr>
             <tr class="grand-total">
                 <th>合計金額</th>
-                <td style="font-size: 18px;">¥${(() => {
+                <td>¥${(() => {
                   if (lineItems && estimate.total_amount > 0) {
                     return estimate.total_amount.toLocaleString();
                   }
