@@ -6742,33 +6742,21 @@ app.get('/estimate/step5', (c) => {
                   <i className="fas fa-clock text-indigo-500 text-xl mr-3"></i>
                   <h4 className="text-lg font-medium text-gray-900">作業時間帯</h4>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <label className="flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50">
-                    <input type="radio" name="work_time_type" value="normal" className="mr-3" checked onChange="updateServicesCost()" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <label className="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-colors">
+                    <input type="radio" name="work_time_type" value="normal" className="mr-3 w-5 h-5" checked onChange="updateServicesCost()" />
                     <div>
-                      <div className="font-medium">通常</div>
-                      <div className="text-xs text-gray-500">割増なし</div>
+                      <div className="font-bold text-base">通常作業時間</div>
+                      <div className="text-sm text-blue-600 font-medium mt-1">AM 8:00 〜 PM 6:00</div>
+                      <div className="text-xs text-gray-500 mt-1">×1.0（割増なし）</div>
                     </div>
                   </label>
-                  <label className="flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50">
-                    <input type="radio" name="work_time_type" value="early" className="mr-3" onChange="updateServicesCost()" />
+                  <label className="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-orange-50 hover:border-orange-300 transition-colors">
+                    <input type="radio" name="work_time_type" value="overtime" className="mr-3 w-5 h-5" onChange="updateServicesCost()" />
                     <div>
-                      <div className="font-medium">早朝</div>
-                      <div className="text-xs text-gray-500">25%割増</div>
-                    </div>
-                  </label>
-                  <label className="flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50">
-                    <input type="radio" name="work_time_type" value="night" className="mr-3" onChange="updateServicesCost()" />
-                    <div>
-                      <div className="font-medium">夜間</div>
-                      <div className="text-xs text-gray-500">25%割増</div>
-                    </div>
-                  </label>
-                  <label className="flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50">
-                    <input type="radio" name="work_time_type" value="midnight" className="mr-3" onChange="updateServicesCost()" />
-                    <div>
-                      <div className="font-medium">深夜</div>
-                      <div className="text-xs text-gray-500">50%割増</div>
+                      <div className="font-bold text-base">割増作業時間</div>
+                      <div className="text-sm text-orange-600 font-medium mt-1">PM 6:00 〜 翌 AM 8:00</div>
+                      <div className="text-xs text-gray-500 mt-1">×1.25（25%割増）</div>
                     </div>
                   </label>
                 </div>
@@ -6896,7 +6884,8 @@ app.get('/api/service-rates', async (c) => {
         'none': 0
       },
       work_time_multiplier: {
-        'normal': 1.0
+        'normal': 1.0,
+        'overtime': 1.25
       }
     }
     
@@ -6998,13 +6987,8 @@ app.get('/api/service-rates', async (c) => {
         'many': 15000     // マスター値と同じ
       }
     }
-    if (Object.keys(serviceRates.work_time_multiplier).length <= 1) {
-      serviceRates.work_time_multiplier = { 
-        'normal': 1.0,    // マスター値と同じ
-        'early': 1.2,     // マスター値と同じ
-        'night': 1.5,     // マスター値と同じ
-        'midnight': 2.0   // マスター値と同じ
-      }
+    if (!serviceRates.work_time_multiplier['overtime']) {
+      serviceRates.work_time_multiplier['overtime'] = 1.25  // デフォルト25%割増
     }
     
     console.log('🔧 最終的なサービス料金:', serviceRates)
@@ -8271,20 +8255,12 @@ app.get('/masters', (c) => {
                         <input type="number" id="service_construction_m2_staff_rate" className="form-input" min="0" step="1000" />
                       </div>
                       <div>
-                        <label className="block text-sm text-purple-800 mb-2">通常時間係数</label>
-                        <input type="number" id="service_time_normal" className="form-input" min="0.5" max="2" step="0.1" value="1.0" />
+                        <label className="block text-sm text-purple-800 mb-2">通常作業時間 係数（AM8:00〜PM6:00）</label>
+                        <input type="number" id="service_time_normal" className="form-input" min="0.5" max="2" step="0.05" value="1.0" readonly style="background-color: #f3f4f6;" />
                       </div>
                       <div>
-                        <label className="block text-sm text-purple-800 mb-2">早朝割増率</label>
-                        <input type="number" id="service_time_early" className="form-input" min="1" max="3" step="0.1" />
-                      </div>
-                      <div>
-                        <label className="block text-sm text-purple-800 mb-2">夜間割増率</label>
-                        <input type="number" id="service_time_night" className="form-input" min="1" max="3" step="0.1" />
-                      </div>
-                      <div>
-                        <label className="block text-sm text-purple-800 mb-2">深夜割増率</label>
-                        <input type="number" id="service_time_midnight" className="form-input" min="1" max="3" step="0.1" />
+                        <label className="block text-sm text-purple-800 mb-2">割増作業時間 係数（PM6:00〜翌AM8:00）</label>
+                        <input type="number" id="service_time_overtime" className="form-input" min="1" max="3" step="0.05" />
                       </div>
                     </div>
                   </div>
@@ -8753,9 +8729,7 @@ app.post('/api/master-settings', async (c) => {
         material_medium: { subcategory: 'material_collection', key: 'medium', desc: '残材回収・中' },
         material_many: { subcategory: 'material_collection', key: 'many', desc: '残材回収・多' },
         construction_m2_staff: { subcategory: 'construction', key: 'm2_staff_rate', desc: '施工M2スタッフ単価' },
-        time_early: { subcategory: 'work_time', key: 'early', desc: '早朝割増' },
-        time_night: { subcategory: 'work_time', key: 'night', desc: '夜間割増' },
-        time_midnight: { subcategory: 'work_time', key: 'midnight', desc: '深夜割増' }
+        time_overtime: { subcategory: 'work_time', key: 'overtime', desc: '割増作業時間（PM6:00〜翌AM8:00）' }
       }
       
       Object.entries(data.service_rates).forEach(([key, value]: [string, any]) => {
@@ -14088,8 +14062,8 @@ app.get('/estimate/:id', async (c) => {
 
       // 時間帯割増の表示
       const workTimeLabels: Record<string, string> = {
-        'normal': '通常（8:00-17:00）', 'early': '早朝（6:00-8:00）',
-        'night': '夜間（17:00-22:00）', 'midnight': '深夜（22:00-6:00）'
+        'normal': '通常作業時間（AM8:00〜PM6:00）',
+        'overtime': '割増作業時間（PM6:00〜翌AM8:00）'
       }
 
       estimateHtml = `
@@ -16987,6 +16961,9 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                 
                 let timeTypeLabel = '';
                 switch(estimate.work_time_type) {
+                  case 'overtime':
+                    timeTypeLabel = '割増作業時間';
+                    break;
                   case 'early':
                     timeTypeLabel = '早朝';
                     break;

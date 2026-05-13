@@ -2577,11 +2577,7 @@ const Step5Implementation = {
         construction_m2_staff: 8000,
         work_time_multiplier: {
           'normal': 1.0,
-          'early': 1.25,
-          'late': 1.3,
-          'night': 1.25,
-          'midnight': 1.5,
-          'holiday': 1.3
+          'overtime': 1.25
         }
       };
     }
@@ -2669,7 +2665,10 @@ const Step5Implementation = {
     if (costs.protection_work > 0) breakdown.push(`養生作業 ${protectionFloors}フロア: ${Utils.formatCurrency(costs.protection_work)}`);
     if (costs.material_collection > 0) breakdown.push(`残材回収（${materialCollection}）: ${Utils.formatCurrency(costs.material_collection)}`);
     if (costs.construction > 0) breakdown.push(`施工 M2スタッフ${constructionM2Staff}人: ${Utils.formatCurrency(costs.construction)}`);
-    if (costs.work_time_multiplier > 0) breakdown.push(`作業時間帯割増（${workTimeType}）: ${Utils.formatCurrency(costs.work_time_multiplier)}`);
+    if (costs.work_time_multiplier > 0) {
+      const workTimeLabel = workTimeType === 'overtime' ? '割増作業時間（PM6:00〜翌AM8:00）' : workTimeType;
+      breakdown.push(`作業時間帯割増（${workTimeLabel}）: ${Utils.formatCurrency(costs.work_time_multiplier)}`);
+    }
     if (costs.parking_fee > 0) breakdown.push(`実費：駐車料金: ${Utils.formatCurrency(costs.parking_fee)}`);
     if (costs.highway_fee > 0) breakdown.push(`実費：高速料金: ${Utils.formatCurrency(costs.highway_fee)}`);
 
@@ -3287,8 +3286,9 @@ const Step6Implementation = {
     if (services.work_time_multiplier && services.work_time_multiplier > 1.0) {
       const multiplierCost = (Step6Implementation.estimateData.vehicle.cost + Step6Implementation.estimateData.staff.total_cost) * (services.work_time_multiplier - 1.0);
       const multiplierPercent = Math.round((services.work_time_multiplier - 1.0) * 100);
+      const workTimeLabel = services.work_time_type === 'overtime' ? '割増作業時間（PM6:00〜翌AM8:00）' : (services.work_time_type || '割増');
       details.push(`<div class="flex justify-between">
-        <span>作業時間帯割増（${services.work_time_type}：+${multiplierPercent}%）</span>
+        <span>作業時間帯割増（${workTimeLabel}：+${multiplierPercent}%）</span>
         <span>${Utils.formatCurrency(multiplierCost)}</span>
       </div>`);
       totalServicesCost += multiplierCost;
@@ -4528,9 +4528,7 @@ if (typeof MasterManagement === 'undefined') {
     // 施工・作業時間帯
     setInputValue('service_construction_m2', serviceRates.construction_m2_staff_rate || 8000);
     setInputValue('service_time_normal', serviceRates.time_normal || 1.0);
-    setInputValue('service_time_early', serviceRates.time_early || 1.2);
-    setInputValue('service_time_night', serviceRates.time_night || 1.5);
-    setInputValue('service_time_midnight', serviceRates.time_midnight || 2.0);
+    setInputValue('service_time_overtime', serviceRates.time_overtime || 1.25);
     
     // システム設定
     setInputValue('system_tax_rate', systemSettings.tax_rate || 0.10);
@@ -4564,9 +4562,7 @@ if (typeof MasterManagement === 'undefined') {
     setInputValue('service_material_many', 15000);
     setInputValue('service_construction_m2', 8000);
     setInputValue('service_time_normal', 1.0);
-    setInputValue('service_time_early', 1.2);
-    setInputValue('service_time_night', 1.5);
-    setInputValue('service_time_midnight', 2.0);
+    setInputValue('service_time_overtime', 1.25);
     setInputValue('system_tax_rate', 0.10);
     setInputValue('system_estimate_prefix', 'EST');
   },
@@ -4690,9 +4686,7 @@ if (typeof MasterManagement === 'undefined') {
         material_collection_medium_rate: getInputValue('service_material_medium'),
         material_collection_large_rate: getInputValue('service_material_many'),
         construction_m2_staff_rate: getInputValue('service_construction_m2'),
-        work_time_early_multiplier: getInputValue('service_time_early'),
-        work_time_night_multiplier: getInputValue('service_time_night'),
-        work_time_midnight_multiplier: getInputValue('service_time_midnight'),
+        work_time_overtime_multiplier: getInputValue('service_time_overtime'),
         tax_rate: getInputValue('system_tax_rate'),
         estimate_prefix: getInputValue('system_estimate_prefix')
       };
@@ -4718,9 +4712,7 @@ if (typeof MasterManagement === 'undefined') {
           material_medium: servicesData.material_collection_medium_rate,
           material_many: servicesData.material_collection_large_rate,
           construction_m2_staff: servicesData.construction_m2_staff_rate,
-          time_early: servicesData.work_time_early_multiplier,
-          time_night: servicesData.work_time_night_multiplier,
-          time_midnight: servicesData.work_time_midnight_multiplier
+          time_overtime: servicesData.work_time_overtime_multiplier
         },
         system_settings: {
           tax_rate: servicesData.tax_rate,
@@ -8657,10 +8649,11 @@ const EstimateManagement = {
   
   getWorkTimeLabel: (workTimeType) => {
     const labels = {
-      'normal': '通常',
+      'normal': '通常作業時間（AM8:00〜PM6:00）',
+      'overtime': '割増作業時間（PM6:00〜翌AM8:00）',
       'early': '早朝',
-      'late': '夜間',
-      'weekend': '土日祝'
+      'night': '夜間',
+      'midnight': '深夜'
     };
     return labels[workTimeType] || '通常';
   }
