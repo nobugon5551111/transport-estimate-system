@@ -16665,6 +16665,8 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
             border: 2.5px solid #2563eb;
             padding: 6px 14px;
             text-align: center;
+            margin-top: 6px;
+            display: inline-block;
         }
         .top-total-label {
             font-size: 9.5px;
@@ -16701,7 +16703,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
         <img src="${basicSettings.logo || COMPANY_LOGO_DATA_URI}" alt="会社ロゴ" class="company-logo" />
     </div>
     
-    <!-- ヘッダー直下: 左=お客様情報、右=合計金額+会社情報 -->
+    <!-- ヘッダー直下: 左=お客様情報+合計金額、右=会社情報 -->
     <div class="top-row">
         <div class="top-row-left">
             <div class="info-box">
@@ -16711,8 +16713,6 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                 ${estimate.customer_address ? `<div>${estimate.customer_address}</div>` : ''}
                 ${estimate.customer_phone ? `<div>TEL: ${estimate.customer_phone}</div>` : ''}
             </div>
-        </div>
-        <div class="top-row-right">
             <div class="top-total-box">
                 <div class="top-total-label">お見積金額（税込）</div>
                 <div class="top-total-amount">¥${(() => {
@@ -16791,6 +16791,8 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
             })()}</span>
         </div>
     </div>
+        </div>
+        <div class="top-row-right">
             <div class="company-info">
                 ${basicSettings.company_name ? `<span class="company-name-text">${basicSettings.company_name}</span><br>` : ''}
                 ${basicSettings.company_address ? `${basicSettings.company_address}<br>` : ''}
