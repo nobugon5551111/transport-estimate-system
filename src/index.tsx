@@ -12223,6 +12223,11 @@ app.get('/settings', (c) => {
                     <input type="text" id="companyAddress" className="form-input" placeholder="〒000-0000 東京都千代田区..." />
                   </div>
                   <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">インボイス番号</label>
+                    <input type="text" id="invoiceNumber" className="form-input" placeholder="T1234567890123" />
+                    <p className="mt-1 text-xs text-gray-500">※ 適格請求書発行事業者の登録番号（見積書PDFに表示されます）</p>
+                  </div>
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">会社ロゴ</label>
                     <p className="text-sm text-gray-500 mb-2">見積書に表示されるロゴをアップロードしてください（PNG, JPG, GIF対応）</p>
                     <div className="space-y-3">
@@ -12331,6 +12336,7 @@ app.get('/settings', (c) => {
             const phoneNumberEl = document.getElementById('phoneNumber');
             const emailAddressEl = document.getElementById('emailAddress');
             const companyAddressEl = document.getElementById('companyAddress');
+            const invoiceNumberEl = document.getElementById('invoiceNumber');
             
             if (!companyNameEl || !contactPersonEl || !phoneNumberEl || !emailAddressEl || !companyAddressEl) {
               console.warn('⚠️ DOM要素が見つかりません。リトライします...');
@@ -12379,6 +12385,11 @@ app.get('/settings', (c) => {
               if (settings.company_address) {
                 companyAddressEl.value = settings.company_address;
                 console.log('✅ 会社住所設定:', settings.company_address);
+              }
+              
+              if (settings.invoice_number && invoiceNumberEl) {
+                invoiceNumberEl.value = settings.invoice_number;
+                console.log('✅ インボイス番号設定:', settings.invoice_number);
               }
               
               // ロゴがある場合は表示
@@ -12460,6 +12471,7 @@ app.get('/settings', (c) => {
           const phoneNumberEl = document.getElementById('phoneNumber');
           const emailAddressEl = document.getElementById('emailAddress');
           const companyAddressEl = document.getElementById('companyAddress');
+          const invoiceNumberEl = document.getElementById('invoiceNumber');
           const logoFileEl = document.getElementById('logoFile');
           
           if (!companyNameEl || !contactPersonEl || !phoneNumberEl || !emailAddressEl || !companyAddressEl || !logoFileEl) {
@@ -12473,6 +12485,7 @@ app.get('/settings', (c) => {
           const phoneNumber = phoneNumberEl.value;
           const emailAddress = emailAddressEl.value;
           const companyAddress = companyAddressEl.value;
+          const invoiceNumber = invoiceNumberEl ? invoiceNumberEl.value : '';
           const logoFile = logoFileEl.files[0];
           
           try {
@@ -12500,6 +12513,7 @@ app.get('/settings', (c) => {
               company_phone: phoneNumber,
               company_email: emailAddress,
               company_address: companyAddress,
+              invoice_number: invoiceNumber,
               logo: logoData
             };
             
@@ -14443,6 +14457,20 @@ function generateFreePdfHTML(estimate: any, items: any[], basicSettings: any = {
             text-align: right;
             margin-bottom: 30px;
         }
+        .company-info .company-name-text {
+            font-size: 14px;
+            font-weight: bold;
+            color: #333;
+        }
+        .company-info .invoice-number-text {
+            font-size: 14px;
+            color: #d97706;
+            font-weight: bold;
+            border: 1.5px solid #d97706;
+            padding: 1px 6px;
+            display: inline-block;
+            margin-top: 2px;
+        }
         
         .estimate-info {
             display: flex;
@@ -14632,10 +14660,11 @@ function generateFreePdfHTML(estimate: any, items: any[], basicSettings: any = {
     <div style="clear: both;"></div>
     
     <div class="company-info">
-        ${basicSettings.company_name ? `<strong>${basicSettings.company_name}</strong><br>` : ''}
+        ${basicSettings.company_name ? `<span class="company-name-text">${basicSettings.company_name}</span><br>` : ''}
         ${basicSettings.company_address ? `${basicSettings.company_address}<br>` : ''}
         ${basicSettings.company_phone ? `TEL: ${basicSettings.company_phone}` : ''}${basicSettings.company_fax ? ` / FAX: ${basicSettings.company_fax}` : ''}${basicSettings.company_phone || basicSettings.company_fax ? '<br>' : ''}
         ${basicSettings.company_email ? `Email: ${basicSettings.company_email}` : ''}
+        ${basicSettings.invoice_number ? `<br><span class="invoice-number-text">インボイス番号 ${basicSettings.invoice_number}</span>` : ''}
     </div>
     
     <div class="estimate-info">
@@ -15487,6 +15516,7 @@ app.get('/api/estimates/:id/pdf', async (c) => {
         company_phone: '',
         company_fax: '',
         company_email: '',
+        invoice_number: '',
         logo: null
       }
       
@@ -15497,6 +15527,7 @@ app.get('/api/estimates/:id/pdf', async (c) => {
           else if (row.key === 'company_phone') basicSettings.company_phone = row.value
           else if (row.key === 'company_fax') basicSettings.company_fax = row.value
           else if (row.key === 'company_email') basicSettings.company_email = row.value
+          else if (row.key === 'invoice_number') basicSettings.invoice_number = row.value
           else if (row.key === 'company_logo') basicSettings.logo = row.value
         })
       }
@@ -15537,6 +15568,7 @@ app.get('/api/estimates/:id/pdf', async (c) => {
         company_phone: '',
         company_fax: '',
         company_email: '',
+        invoice_number: '',
         logo: null
       }
       
@@ -15547,6 +15579,7 @@ app.get('/api/estimates/:id/pdf', async (c) => {
           else if (row.key === 'company_phone') basicSettings.company_phone = row.value
           else if (row.key === 'company_fax') basicSettings.company_fax = row.value
           else if (row.key === 'company_email') basicSettings.company_email = row.value
+          else if (row.key === 'invoice_number') basicSettings.invoice_number = row.value
           else if (row.key === 'company_logo') basicSettings.logo = row.value
         })
       }
@@ -15741,6 +15774,7 @@ app.get('/api/estimates/:id/pdf', async (c) => {
       company_phone: '',
       company_fax: '',
       company_email: '',
+      invoice_number: '',
       logo: null
     }
     
@@ -15751,6 +15785,7 @@ app.get('/api/estimates/:id/pdf', async (c) => {
         else if (row.key === 'company_phone') basicSettings.company_phone = row.value
         else if (row.key === 'company_fax') basicSettings.company_fax = row.value
         else if (row.key === 'company_email') basicSettings.company_email = row.value
+        else if (row.key === 'invoice_number') basicSettings.invoice_number = row.value
         else if (row.key === 'company_logo') basicSettings.logo = row.value
       })
     }
@@ -15986,6 +16021,20 @@ function generateSurveyPdfHTML(estimate: any, items: any[], surveyMeta: any = {}
             text-align: right;
             margin-bottom: 30px;
         }
+        .company-info .company-name-text {
+            font-size: 14px;
+            font-weight: bold;
+            color: #333;
+        }
+        .company-info .invoice-number-text {
+            font-size: 14px;
+            color: #d97706;
+            font-weight: bold;
+            border: 1.5px solid #d97706;
+            padding: 1px 6px;
+            display: inline-block;
+            margin-top: 2px;
+        }
         
         .estimate-info {
             display: flex;
@@ -16204,10 +16253,11 @@ function generateSurveyPdfHTML(estimate: any, items: any[], surveyMeta: any = {}
     <div style="clear: both;"></div>
     
     <div class="company-info">
-        ${basicSettings.company_name ? `<strong>${basicSettings.company_name}</strong><br>` : ''}
+        ${basicSettings.company_name ? `<span class="company-name-text">${basicSettings.company_name}</span><br>` : ''}
         ${basicSettings.company_address ? `${basicSettings.company_address}<br>` : ''}
         ${basicSettings.company_phone ? `TEL: ${basicSettings.company_phone}` : ''}${basicSettings.company_fax ? ` / FAX: ${basicSettings.company_fax}` : ''}${basicSettings.company_phone || basicSettings.company_fax ? '<br>' : ''}
         ${basicSettings.company_email ? `Email: ${basicSettings.company_email}` : ''}
+        ${basicSettings.invoice_number ? `<br><span class="invoice-number-text">インボイス番号 ${basicSettings.invoice_number}</span>` : ''}
     </div>
     
     <div class="estimate-info">
@@ -16431,6 +16481,20 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
             line-height: 1.4;
             margin-top: 6px;
             color: #555;
+        }
+        .company-info .company-name-text {
+            font-size: 14px;
+            font-weight: bold;
+            color: #333;
+        }
+        .company-info .invoice-number-text {
+            font-size: 14px;
+            color: #d97706;
+            font-weight: bold;
+            border: 1.5px solid #d97706;
+            padding: 1px 6px;
+            display: inline-block;
+            margin-top: 2px;
         }
         
         .info-box {
@@ -16728,9 +16792,10 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
         </div>
     </div>
             <div class="company-info">
-                ${basicSettings.company_name ? `<strong>${basicSettings.company_name}</strong><br>` : ''}
+                ${basicSettings.company_name ? `<span class="company-name-text">${basicSettings.company_name}</span><br>` : ''}
                 ${basicSettings.company_address ? `${basicSettings.company_address}<br>` : ''}
                 ${basicSettings.company_phone ? `TEL: ${basicSettings.company_phone}` : ''}${basicSettings.company_fax ? ` / FAX: ${basicSettings.company_fax}` : ''}
+                ${basicSettings.invoice_number ? `<br><span class="invoice-number-text">インボイス番号 ${basicSettings.invoice_number}</span>` : ''}
             </div>
         </div>
     </div>
@@ -19841,6 +19906,12 @@ app.get('/settings', (c) => {
                                         <input type="email" id="companyEmail" name="company_email" 
                                                class="form-input" placeholder="info@company.co.jp" />
                                     </div>
+                                    <div class="md:col-span-2">
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">インボイス番号</label>
+                                        <input type="text" id="invoiceNumber" name="invoice_number" 
+                                               class="form-input" placeholder="T1234567890123" />
+                                        <p class="mt-1 text-xs text-gray-500">※ 適格請求書発行事業者の登録番号（見積書PDFに表示されます）</p>
+                                    </div>
                                 </div>
                             </div>
 
@@ -20021,6 +20092,7 @@ app.get('/settings', (c) => {
                             company_phone: document.getElementById('companyPhone').value,
                             company_fax: document.getElementById('companyFax').value,
                             company_email: document.getElementById('companyEmail').value,
+                            invoice_number: document.getElementById('invoiceNumber') ? document.getElementById('invoiceNumber').value : '',
                             quote_valid_days: document.getElementById('quoteValidDays').value,
                             tax_rate: document.getElementById('taxRate').value,
                             logo: logoData
@@ -20122,6 +20194,10 @@ app.get('/settings', (c) => {
                             if (settings.company_email) {
                                 const emailEl = document.getElementById('companyEmail');
                                 if (emailEl) emailEl.value = settings.company_email;
+                            }
+                            if (settings.invoice_number) {
+                                const invoiceEl = document.getElementById('invoiceNumber');
+                                if (invoiceEl) invoiceEl.value = settings.invoice_number;
                             }
                             if (settings.quote_valid_days) {
                                 const validDaysEl = document.getElementById('quoteValidDays');
@@ -20254,6 +20330,7 @@ app.post('/api/settings/basic', async (c) => {
       { key: 'company_phone', value: data.company_phone, description: '会社電話番号' },
       { key: 'company_fax', value: data.company_fax, description: '会社FAX番号' },
       { key: 'company_email', value: data.company_email, description: '会社メールアドレス' },
+      { key: 'invoice_number', value: data.invoice_number, description: 'インボイス番号' },
       { key: 'quote_valid_days', value: data.quote_valid_days, description: '見積書有効期限（日数）' },
       { key: 'tax_rate', value: data.tax_rate, description: '消費税率' }
     ]
