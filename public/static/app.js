@@ -4646,9 +4646,20 @@ const Step6Implementation = {
     // 4. 最終合計計算（値引き対応）
     const subtotal = finalVehicleCost + finalStaffCost + finalServicesCost;
     
-    // 値引き金額を取得（入力欄から）
-    const discountInput = document.getElementById('discountAmount');
-    const discountAmount = discountInput ? parseInt(discountInput.value) || 0 : 0;
+    // 値引き金額を取得（金額 or パーセント）
+    const discountType = document.getElementById('discountTypePercent')?.classList.contains('bg-blue-500') ? 'percent' : 'amount';
+    let discountAmount = 0;
+    if (discountType === 'percent') {
+      const percentInput = document.getElementById('discountPercent');
+      const percent = percentInput ? parseFloat(percentInput.value) || 0 : 0;
+      discountAmount = Math.round(subtotal * percent / 100);
+      // 計算結果を表示
+      const calcEl = document.getElementById('discountPercentCalc');
+      if (calcEl) calcEl.textContent = `= ¥${discountAmount.toLocaleString()}`;
+    } else {
+      const discountInput = document.getElementById('discountAmount');
+      discountAmount = discountInput ? parseInt(discountInput.value) || 0 : 0;
+    }
     
     // 値引き後小計
     const discountedSubtotal = Math.max(0, subtotal - discountAmount);
@@ -5563,8 +5574,41 @@ window.goBackToStep4 = Step5Implementation.goBackToStep4;
 window.proceedToStep6 = Step5Implementation.proceedToStep6;
 
 // STEP6用関数
-window.handleDiscountChange = Step6Implementation.handleDiscountChange;
+window.handleDiscountChange = function() {
+  if (typeof FreeEstimate !== 'undefined' && document.getElementById('freeEstimateContainer') && document.getElementById('freeEstimateContainer').style.display !== 'none') {
+    FreeEstimate.calculateTotal();
+  } else {
+    Step6Implementation.calculateTotal();
+  }
+};
 window.recalculateTotal = Step6Implementation.recalculateTotal;
+
+// 値引きタイプ切替（金額 ↔ パーセント）
+window.switchDiscountType = function(type) {
+  const amountBtn = document.getElementById('discountTypeAmount');
+  const percentBtn = document.getElementById('discountTypePercent');
+  const amountRow = document.getElementById('discountAmountRow');
+  const percentRow = document.getElementById('discountPercentRow');
+  
+  if (type === 'percent') {
+    if (amountBtn) { amountBtn.className = 'px-3 py-1 text-sm rounded-l border border-gray-300 bg-white text-gray-700'; }
+    if (percentBtn) { percentBtn.className = 'px-3 py-1 text-sm rounded-r border border-blue-500 bg-blue-500 text-white font-bold'; }
+    if (amountRow) amountRow.style.display = 'none';
+    if (percentRow) percentRow.style.display = 'flex';
+  } else {
+    if (amountBtn) { amountBtn.className = 'px-3 py-1 text-sm rounded-l border border-blue-500 bg-blue-500 text-white font-bold'; }
+    if (percentBtn) { percentBtn.className = 'px-3 py-1 text-sm rounded-r border border-gray-300 bg-white text-gray-700'; }
+    if (amountRow) amountRow.style.display = 'flex';
+    if (percentRow) percentRow.style.display = 'none';
+  }
+  
+  // 再計算
+  if (typeof Step6Implementation !== 'undefined' && Step6Implementation.calculateTotal) {
+    Step6Implementation.calculateTotal();
+  } else if (typeof FreeEstimate !== 'undefined' && FreeEstimate.calculateTotal) {
+    FreeEstimate.calculateTotal();
+  }
+};
 window.generateAIEmail = Step6Implementation.generateAIEmail;
 window.copyEmailToClipboard = Step6Implementation.copyEmailToClipboard;
 window.generatePDF = Step6Implementation.generatePDF;
@@ -12675,9 +12719,19 @@ if (typeof FreeEstimate === 'undefined') {
         subtotal += value;
       });
 
-      // 値引き金額を取得
-      const discountInput = document.getElementById('discountAmount');
-      const discountAmount = discountInput ? (parseInt(discountInput.value) || 0) : 0;
+      // 値引き金額を取得（金額 or パーセント）
+      const discountType = document.getElementById('discountTypePercent')?.classList.contains('bg-blue-500') ? 'percent' : 'amount';
+      let discountAmount = 0;
+      if (discountType === 'percent') {
+        const percentInput = document.getElementById('discountPercent');
+        const percent = percentInput ? parseFloat(percentInput.value) || 0 : 0;
+        discountAmount = Math.round(subtotal * percent / 100);
+        const calcEl = document.getElementById('discountPercentCalc');
+        if (calcEl) calcEl.textContent = `= ¥${discountAmount.toLocaleString()}`;
+      } else {
+        const discountInput = document.getElementById('discountAmount');
+        discountAmount = discountInput ? (parseInt(discountInput.value) || 0) : 0;
+      }
       
       // 値引き後の小計計算
       const discountedSubtotal = Math.max(0, subtotal - discountAmount);

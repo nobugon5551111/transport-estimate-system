@@ -7266,9 +7266,15 @@ app.get('/estimate/step6', (c) => {
                     </div>
                     
                     {/* 値引き入力欄 */}
-                    <div className="flex justify-between items-center text-lg border-t pt-2">
-                      <span>値引き:</span>
-                      <div className="flex items-center space-x-2">
+                    <div className="border-t pt-2 mb-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-lg">値引き:</span>
+                        <div className="flex items-center space-x-1">
+                          <button type="button" id="discountTypeAmount" className="px-3 py-1 text-sm rounded-l border border-blue-500 bg-blue-500 text-white font-bold" onclick="switchDiscountType('amount')">金額</button>
+                          <button type="button" id="discountTypePercent" className="px-3 py-1 text-sm rounded-r border border-gray-300 bg-white text-gray-700" onclick="switchDiscountType('percent')">％</button>
+                        </div>
+                      </div>
+                      <div id="discountAmountRow" className="flex items-center justify-end space-x-2">
                         <span>¥</span>
                         <input 
                           type="number" 
@@ -7279,6 +7285,21 @@ app.get('/estimate/step6', (c) => {
                           onChange="handleDiscountChange()"
                           placeholder="0"
                         />
+                      </div>
+                      <div id="discountPercentRow" className="flex items-center justify-end space-x-2" style="display:none">
+                        <input 
+                          type="number" 
+                          id="discountPercent" 
+                          className="form-input w-24 text-right text-lg font-bold" 
+                          min="0" 
+                          max="100"
+                          step="0.1"
+                          value="0" 
+                          onChange="handleDiscountChange()"
+                          placeholder="0"
+                        />
+                        <span>％</span>
+                        <span className="text-sm text-gray-500" id="discountPercentCalc"></span>
                       </div>
                     </div>
                     <div className="flex justify-between text-lg text-red-600">
@@ -12890,9 +12911,13 @@ app.get('/estimate/free-form', (c) => {
               {/* 値引き入力 */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  値引き金額（税抜）
+                  値引き（税抜）
                 </label>
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2 mb-2">
+                  <button type="button" id="discountTypeAmount" className="px-3 py-1 text-sm rounded-l border border-blue-500 bg-blue-500 text-white font-bold" onclick="switchDiscountType('amount')">金額</button>
+                  <button type="button" id="discountTypePercent" className="px-3 py-1 text-sm rounded-r border border-gray-300 bg-white text-gray-700" onclick="switchDiscountType('percent')">％</button>
+                </div>
+                <div id="discountAmountRow" className="flex items-center space-x-3">
                   <input 
                     type="number" 
                     id="discountAmount" 
@@ -12904,8 +12929,23 @@ app.get('/estimate/free-form', (c) => {
                     onchange="FreeEstimate.calculateTotal()"
                   />
                   <span className="text-sm text-gray-600">円</span>
-                  <span className="text-xs text-gray-500">※小計から値引きされます</span>
                 </div>
+                <div id="discountPercentRow" className="flex items-center space-x-3" style="display:none">
+                  <input 
+                    type="number" 
+                    id="discountPercent" 
+                    min="0" 
+                    max="100"
+                    step="0.1"
+                    value="0"
+                    className="w-24 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="0"
+                    onchange="FreeEstimate.calculateTotal()"
+                  />
+                  <span className="text-sm text-gray-600">％</span>
+                  <span className="text-xs text-gray-500" id="discountPercentCalc"></span>
+                </div>
+                <span className="text-xs text-gray-500 mt-1 block">※小計から値引きされます</span>
               </div>
               
               <div className="grid md:grid-cols-4 gap-4 text-center">
