@@ -14463,13 +14463,8 @@ function generateFreePdfHTML(estimate: any, items: any[], basicSettings: any = {
             color: #333;
         }
         .company-info .invoice-number-text {
-            font-size: 14px;
-            color: #d97706;
-            font-weight: bold;
-            border: 1.5px solid #d97706;
-            padding: 1px 6px;
-            display: inline-block;
-            margin-top: 2px;
+            font-size: 9.5px;
+            color: #555;
         }
         
         .estimate-info {
@@ -16027,13 +16022,8 @@ function generateSurveyPdfHTML(estimate: any, items: any[], surveyMeta: any = {}
             color: #333;
         }
         .company-info .invoice-number-text {
-            font-size: 14px;
-            color: #d97706;
-            font-weight: bold;
-            border: 1.5px solid #d97706;
-            padding: 1px 6px;
-            display: inline-block;
-            margin-top: 2px;
+            font-size: 9.5px;
+            color: #555;
         }
         
         .estimate-info {
@@ -16458,11 +16448,11 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
             object-fit: contain;
         }
         
-        /* === ヘッダー直下: 左=お客様+見積詳細、右=合計+会社情報 === */
+        /* === ヘッダー直下: 左=お客様+合計金額、右=会社情報 === */
         .top-row {
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
+            align-items: flex-end;
             gap: 16px;
             margin-bottom: 8px;
         }
@@ -16479,7 +16469,8 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
         .company-info {
             font-size: 9.5px;
             line-height: 1.4;
-            margin-top: 6px;
+            margin-top: 0;
+            margin-bottom: 0;
             color: #555;
         }
         .company-info .company-name-text {
@@ -16488,13 +16479,8 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
             color: #333;
         }
         .company-info .invoice-number-text {
-            font-size: 14px;
-            color: #d97706;
-            font-weight: bold;
-            border: 1.5px solid #d97706;
-            padding: 1px 6px;
-            display: inline-block;
-            margin-top: 2px;
+            font-size: 9.5px;
+            color: #555;
         }
         
         .info-box {
