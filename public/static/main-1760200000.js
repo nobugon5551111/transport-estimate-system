@@ -2863,6 +2863,10 @@ const Step6Implementation = {
     await Step6Implementation.displayStaffDetails();
     Step6Implementation.displayServicesDetails();
     Step6Implementation.displayNotesSection();
+    // 有効期限のデフォルト設定（1ヶ月）
+    if (typeof window.setValidityPeriod === 'function') {
+      window.setValidityPeriod('1month');
+    }
     await Step6Implementation.calculateTotal();
   },
 
@@ -3658,6 +3662,7 @@ const Step6Implementation = {
         
         // メタ情報
         notes: Step6Implementation.estimateData.services?.notes || '',
+        valid_until: Step6Implementation.estimateData.valid_until || '',
         user_id: currentUser
       };
 
@@ -3766,6 +3771,90 @@ window.copyEmailToClipboard = Step6Implementation.copyEmailToClipboard;
 window.generatePDF = Step6Implementation.generatePDF;
 window.saveEstimate = Step6Implementation.saveEstimate;
 window.goBackToStep5 = Step6Implementation.goBackToStep5;
+
+// 見積有効期限選択機能
+window.setValidityPeriod = function(period) {
+  const buttons = ['validityImmediate', 'validity1month', 'validity3months', 'validity6months', 'validityCustom'];
+  const activeClass = 'px-3 py-1.5 text-sm rounded border border-blue-500 bg-blue-500 text-white font-bold';
+  const inactiveClass = 'px-3 py-1.5 text-sm rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-100';
+  
+  buttons.forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.className = inactiveClass;
+  });
+  
+  const buttonMap = {
+    'immediate': 'validityImmediate',
+    '1month': 'validity1month',
+    '3months': 'validity3months',
+    '6months': 'validity6months',
+    'custom': 'validityCustom'
+  };
+  
+  const activeBtn = document.getElementById(buttonMap[period]);
+  if (activeBtn) activeBtn.className = activeClass;
+  
+  const customRow = document.getElementById('validityCustomRow');
+  if (customRow) {
+    customRow.classList.toggle('hidden', period !== 'custom');
+  }
+  
+  const now = new Date();
+  let validDate;
+  
+  switch (period) {
+    case 'immediate':
+      validDate = now;
+      break;
+    case '1month':
+      validDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      break;
+    case '3months':
+      validDate = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+      break;
+    case '6months':
+      validDate = new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
+      break;
+    case 'custom':
+      const customInput = document.getElementById('validityCustomDate');
+      if (customInput && customInput.value) {
+        validDate = new Date(customInput.value);
+      } else {
+        validDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+        if (customInput) {
+          customInput.value = validDate.toISOString().split('T')[0];
+        }
+      }
+      break;
+    default:
+      validDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  }
+  
+  const display = document.getElementById('validityDisplay');
+  if (display) {
+    display.textContent = validDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
+  }
+  
+  if (typeof Step6Implementation !== 'undefined' && Step6Implementation.estimateData) {
+    Step6Implementation.estimateData.valid_until = validDate.toISOString().split('T')[0];
+    Step6Implementation.estimateData.validity_period = period;
+  }
+};
+
+window.handleValidityDateChange = function() {
+  const customInput = document.getElementById('validityCustomDate');
+  if (customInput && customInput.value) {
+    const validDate = new Date(customInput.value);
+    const display = document.getElementById('validityDisplay');
+    if (display) {
+      display.textContent = validDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+    if (typeof Step6Implementation !== 'undefined' && Step6Implementation.estimateData) {
+      Step6Implementation.estimateData.valid_until = customInput.value;
+      Step6Implementation.estimateData.validity_period = 'custom';
+    }
+  }
+};
 
 // 郵便番号検索機能
 const PostalCodeUtils = {

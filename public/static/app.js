@@ -3536,6 +3536,10 @@ const Step6Implementation = {
     await Step6Implementation.displayVehicleDetails();
     await Step6Implementation.displayStaffDetails();
     Step6Implementation.displayNotesSection();
+    // 有効期限のデフォルト設定（1ヶ月）
+    if (typeof window.setValidityPeriod === 'function') {
+      window.setValidityPeriod('1month');
+    }
     // ⚠️ 重要：calculateTotalが最後に実行され、その中でdisplayServicesDetailsが呼ばれる
     await Step6Implementation.calculateTotal();
   },
@@ -4878,6 +4882,7 @@ const Step6Implementation = {
         
         // メタ情報
         notes: Step6Implementation.estimateData.services?.notes || '',
+        valid_until: Step6Implementation.estimateData.valid_until || '',
         user_id: currentUser,
         created_by_name: window._currentUser?.userName || '担当者未設定',
         estimate_type: Step6Implementation.estimateData.estimate_type || sessionStorage.getItem('estimate_type') || 'standard_a'
@@ -5625,6 +5630,96 @@ window.cancelStaffPriceEdit = Step6Implementation.cancelStaffPriceEdit;
 window.toggleServicePriceEdit = Step6Implementation.toggleServicePriceEdit;
 window.applyServicePriceEdit = Step6Implementation.applyServicePriceEdit;
 window.cancelServicePriceEdit = Step6Implementation.cancelServicePriceEdit;
+
+// 見積有効期限選択機能
+window.setValidityPeriod = function(period) {
+  const buttons = ['validityImmediate', 'validity1month', 'validity3months', 'validity6months', 'validityCustom'];
+  const activeClass = 'px-3 py-1.5 text-sm rounded border border-blue-500 bg-blue-500 text-white font-bold';
+  const inactiveClass = 'px-3 py-1.5 text-sm rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-100';
+  
+  // ボタンスタイル更新
+  buttons.forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.className = inactiveClass;
+  });
+  
+  const buttonMap = {
+    'immediate': 'validityImmediate',
+    '1month': 'validity1month',
+    '3months': 'validity3months',
+    '6months': 'validity6months',
+    'custom': 'validityCustom'
+  };
+  
+  const activeBtn = document.getElementById(buttonMap[period]);
+  if (activeBtn) activeBtn.className = activeClass;
+  
+  // その他の日付入力表示/非表示
+  const customRow = document.getElementById('validityCustomRow');
+  if (customRow) {
+    customRow.classList.toggle('hidden', period !== 'custom');
+  }
+  
+  // 有効期限日付を計算
+  const now = new Date();
+  let validDate;
+  
+  switch (period) {
+    case 'immediate':
+      validDate = now;
+      break;
+    case '1month':
+      validDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      break;
+    case '3months':
+      validDate = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+      break;
+    case '6months':
+      validDate = new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
+      break;
+    case 'custom':
+      const customInput = document.getElementById('validityCustomDate');
+      if (customInput && customInput.value) {
+        validDate = new Date(customInput.value);
+      } else {
+        // デフォルトで1ヶ月後をセット
+        validDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+        if (customInput) {
+          customInput.value = validDate.toISOString().split('T')[0];
+        }
+      }
+      break;
+    default:
+      validDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  }
+  
+  // 表示更新
+  const display = document.getElementById('validityDisplay');
+  if (display) {
+    display.textContent = validDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
+  }
+  
+  // estimateDataに保存
+  if (typeof Step6Implementation !== 'undefined' && Step6Implementation.estimateData) {
+    Step6Implementation.estimateData.valid_until = validDate.toISOString().split('T')[0];
+    Step6Implementation.estimateData.validity_period = period;
+  }
+};
+
+window.handleValidityDateChange = function() {
+  const customInput = document.getElementById('validityCustomDate');
+  if (customInput && customInput.value) {
+    const validDate = new Date(customInput.value);
+    const display = document.getElementById('validityDisplay');
+    if (display) {
+      display.textContent = validDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+    if (typeof Step6Implementation !== 'undefined' && Step6Implementation.estimateData) {
+      Step6Implementation.estimateData.valid_until = customInput.value;
+      Step6Implementation.estimateData.validity_period = 'custom';
+    }
+  }
+};
 
 // 郵便番号検索機能
 const PostalCodeUtils = {

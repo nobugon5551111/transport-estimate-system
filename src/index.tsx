@@ -7337,6 +7337,27 @@ app.get('/estimate/step6', (c) => {
                     </p>
                   </div>
                 </div>
+
+                {/* 見積有効期限 */}
+                <div className="border rounded-lg p-4 bg-yellow-50">
+                  <h4 className="font-medium text-gray-900 mb-3">
+                    <i className="fas fa-calendar-alt mr-2"></i>
+                    見積有効期限
+                  </h4>
+                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                    <button type="button" id="validityImmediate" className="px-3 py-1.5 text-sm rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-100" onclick="setValidityPeriod('immediate')">即日</button>
+                    <button type="button" id="validity1month" className="px-3 py-1.5 text-sm rounded border border-blue-500 bg-blue-500 text-white font-bold" onclick="setValidityPeriod('1month')">1ヶ月</button>
+                    <button type="button" id="validity3months" className="px-3 py-1.5 text-sm rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-100" onclick="setValidityPeriod('3months')">3ヶ月</button>
+                    <button type="button" id="validity6months" className="px-3 py-1.5 text-sm rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-100" onclick="setValidityPeriod('6months')">6ヶ月</button>
+                    <button type="button" id="validityCustom" className="px-3 py-1.5 text-sm rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-100" onclick="setValidityPeriod('custom')">その他</button>
+                  </div>
+                  <div id="validityCustomRow" className="hidden mt-2">
+                    <input type="date" id="validityCustomDate" className="form-input w-48 text-sm" onchange="handleValidityDateChange()" />
+                  </div>
+                  <div className="mt-2 text-sm text-gray-600">
+                    有効期限: <span id="validityDisplay" className="font-medium text-gray-900">-</span>
+                  </div>
+                </div>
               </div>
 
               {/* アクションボタン */}
@@ -7525,6 +7546,14 @@ app.post('/api/estimates', async (c) => {
     const sessionInfo = await verifySession(c)
     const createdByName = sessionInfo.valid ? sessionInfo.userName : '未設定'
     
+    // valid_untilカラムが存在しない場合は追加（自動マイグレーション）
+    try {
+      await env.DB.prepare(`ALTER TABLE estimates ADD COLUMN valid_until TEXT`).run()
+      console.log('✅ valid_untilカラム追加完了')
+    } catch (e) {
+      // カラムが既に存在する場合はエラーを無視
+    }
+    
     // 完全版見積データ保存 - 詳細フィールドを含む
     const result = await env.DB.prepare(`
       INSERT INTO estimates (
@@ -7550,13 +7579,13 @@ app.post('/api/estimates', async (c) => {
         external_contractor_cost, 
         uses_multiple_vehicles, notes, line_items_json, created_by_name, customer_contact_person,
         delivery_distance_km, transport_vehicle_fee, road_permit_fee, survey_fee, oneman_discount_applied,
-        estimate_type
+        estimate_type, valid_until
       ) VALUES (
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
         ?, ?, ?, ?, ?, ?, 
         ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `).bind(
       data.customer_id,
@@ -7620,7 +7649,8 @@ app.post('/api/estimates', async (c) => {
       data.road_permit_fee || 0,
       data.survey_fee || 0,
       data.oneman_discount_applied || 0,
-      estimateType
+      estimateType,
+      data.valid_until || null
     ).run()
     
     console.log('見積保存結果:', result)
@@ -16793,7 +16823,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
         <span><strong>見積番号:</strong> ${estimate.estimate_number || ''}</span>
         <span><strong>案件名:</strong> ${estimate.project_name || ''}</span>
         <span><strong>作成日:</strong> ${currentDate}</span>
-        <span><strong>有効期限:</strong> ${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('ja-JP')}</span>
+        <span><strong>有効期限:</strong> ${estimate.valid_until ? new Date(estimate.valid_until).toLocaleDateString('ja-JP') : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('ja-JP')}</span>
         ${estimate.created_by_name ? `<span><strong>担当:</strong> ${estimate.created_by_name}</span>` : ''}
         <span>配送先: ${estimate.delivery_address || ''} ${estimate.delivery_postal_code ? `〒${estimate.delivery_postal_code}` : ''} エリア${estimate.delivery_area}ランク${areaDesc ? `（${areaDesc}）` : ''}${estimate.delivery_distance_km > 0 ? ` 約${estimate.delivery_distance_km}km` : ''}</span>
     </div>
