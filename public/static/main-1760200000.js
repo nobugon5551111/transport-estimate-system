@@ -2552,29 +2552,30 @@ const Step5Implementation = {
       console.warn('サービスレートが取得できていません。デフォルト値を使用します。');
       // マスター現在値に合わせたデフォルトサービスレートを設定
       Step5Implementation.serviceRates = {
-        parking_half_day: 11000,
+        parking_half_day: 10000,
         parking_full_day: 16000,
         parking_transport_osaka_city: 1000,
         parking_transport_osaka_suburb: 1500,
         parking_transport_kyoto: 2000,
         parking_transport_hyogo: 2000,
-        transport_vehicle_20km: 5000,
-        transport_vehicle_per_km: 100,
+        transport_vehicle_20km: 15000,
+        transport_vehicle_per_km: 150,
+        fuel_per_liter: 160,
         waste_disposal: {
           'none': 0,
-          'small': 5000,
-          'medium': 10000,
-          'large': 20000
+          'small': 8000,
+          'medium': 15000,
+          'large': 25000
         },
         protection_work_base: 5000,
         protection_work_floor: 3000,
         material_collection: {
           'none': 0,
-          'few': 3000,
-          'medium': 8000,
-          'many': 15000
+          'few': 6000,
+          'medium': 12000,
+          'many': 20000
         },
-        construction_m2_staff: 8000,
+        construction_m2_staff: 12500,
         work_time_multiplier: {
           'normal': 1.0,
           'overtime': 1.25
@@ -3098,16 +3099,16 @@ const Step6Implementation = {
 
     // サービス単価をマスターデータから取得
     let serviceMasterRates = {
-      parking_half_day_rate: 11000,
+      parking_half_day_rate: 10000,
       parking_full_day_rate: 16000,
-      transport_base_rate: 5000,
-      waste_disposal_small_rate: 3000,
-      waste_disposal_medium_rate: 5000,
-      waste_disposal_large_rate: 8000,
-      protection_per_floor_rate: 2500,
-      material_collection_small_rate: 2000,
-      material_collection_medium_rate: 4000,
-      material_collection_large_rate: 6000,
+      transport_base_rate: 15000,
+      waste_disposal_small_rate: 8000,
+      waste_disposal_medium_rate: 15000,
+      waste_disposal_large_rate: 25000,
+      protection_per_floor_rate: 3000,
+      material_collection_small_rate: 6000,
+      material_collection_medium_rate: 12000,
+      material_collection_large_rate: 20000,
       construction_m2_staff_rate: 12500,
       early_morning_multiplier: 1.2,
       late_night_multiplier: 1.5,
@@ -3223,11 +3224,14 @@ const Step6Implementation = {
     
     // 2. 人員輸送車両
     if (services.transport_vehicles > 0 || services.transport_cost > 0) {
+      const rates = Step5Implementation.serviceRates || {};
+      const rate20km = rates.transport_vehicle_20km || 15000;
+      const ratePerKm = rates.transport_vehicle_per_km || 150;
       let distanceText;
       if (services.transport_within_20km) {
-        distanceText = '20km圏内一律 (¥15,000)';
+        distanceText = `20km圏内一律 (¥${rate20km.toLocaleString()})`;
       } else {
-        distanceText = `${services.transport_distance}km × ¥150/km + 燃料費¥${services.transport_fuel_cost || 0}`;
+        distanceText = `${services.transport_distance}km × ¥${ratePerKm.toLocaleString()}/km + 燃料費¥${services.transport_fuel_cost || 0}`;
       }
       details.push(`<div class="flex justify-between">
         <span>人員輸送車両 ${services.transport_vehicles}台（${distanceText}）</span>
@@ -3239,7 +3243,8 @@ const Step6Implementation = {
     
     // 3. 引き取り廃棄
     if (services.waste_disposal_size && services.waste_disposal_size !== 'none') {
-      const sizeMap = { small: '小 (¥8,000)', medium: '中 (¥15,000)', large: '大 (¥25,000)' };
+      const wasteRates = (Step5Implementation.serviceRates || {}).waste_disposal || { small: 8000, medium: 15000, large: 25000 };
+      const sizeMap = { small: `小 (¥${(wasteRates.small || 8000).toLocaleString()})`, medium: `中 (¥${(wasteRates.medium || 15000).toLocaleString()})`, large: `大 (¥${(wasteRates.large || 25000).toLocaleString()})` };
       details.push(`<div class="flex justify-between">
         <span>引き取り廃棄（${sizeMap[services.waste_disposal_size] || services.waste_disposal_size}）</span>
         <span>${Utils.formatCurrency(services.waste_disposal_cost)}</span>
@@ -3250,8 +3255,9 @@ const Step6Implementation = {
     
     // 4. 養生作業
     if (services.protection_work || services.protection_cost > 0) {
+      const protBase = (Step5Implementation.serviceRates || {}).protection_work_base || 5000;
       details.push(`<div class="flex justify-between">
-        <span>養生作業 ${services.protection_floors}フロア (基本料金¥5,000)</span>
+        <span>養生作業 ${services.protection_floors}フロア (基本料金¥${protBase.toLocaleString()})</span>
         <span>${Utils.formatCurrency(services.protection_cost)}</span>
       </div>`);
       totalServicesCost += services.protection_cost;
@@ -3260,7 +3266,8 @@ const Step6Implementation = {
     
     // 5. 残材回収
     if (services.material_collection_size && services.material_collection_size !== 'none') {
-      const sizeMap = { few: '少 (¥6,000)', medium: '中 (¥12,000)', many: '多 (¥20,000)' };
+      const matRates = (Step5Implementation.serviceRates || {}).material_collection || { few: 6000, medium: 12000, many: 20000 };
+      const sizeMap = { few: `少 (¥${(matRates.few || 6000).toLocaleString()})`, medium: `中 (¥${(matRates.medium || 12000).toLocaleString()})`, many: `多 (¥${(matRates.many || 20000).toLocaleString()})` };
       details.push(`<div class="flex justify-between">
         <span>残材回収（${sizeMap[services.material_collection_size] || services.material_collection_size}）</span>
         <span>${Utils.formatCurrency(services.material_collection_cost)}</span>
@@ -3271,9 +3278,10 @@ const Step6Implementation = {
     
     // 6. 施工（M2スタッフまたは協力会社）
     if (services.construction_cost > 0) {
+      const constructionRate = (Step5Implementation.serviceRates || {}).construction_m2_staff || 12500;
       if (services.construction_m2_staff > 0) {
         details.push(`<div class="flex justify-between">
-          <span>施工 M2スタッフ ${services.construction_m2_staff}人 (¥12,500/人)</span>
+          <span>施工 M2スタッフ ${services.construction_m2_staff}人 (¥${constructionRate.toLocaleString()}/人)</span>
           <span>${Utils.formatCurrency(services.construction_cost)}</span>
         </div>`);
       } else if (services.construction_partner) {

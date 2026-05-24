@@ -2319,26 +2319,46 @@ app.get('/api/staff-rates', async (c) => {
 app.get('/api/service-rates', async (c) => {
   try {
     const { env } = c
-    const userId = c.req.header('X-User-ID')
+    const userId = c.req.header('X-User-ID') || 'test-user-001'
     const planType = c.req.query('plan_type') || 'A'
-
-    if (!userId) {
-      return c.json({ error: 'ユーザーIDが必要です' }, 400)
-    }
 
     console.log('サービス単価マスター取得開始:', userId, 'プラン:', planType)
 
-    // master_settingsからサービス単価を取得（プラン別）
+    // master_settingsからサービス単価を取得（プラン別・user_id付き）
     const serviceRates = await env.DB.prepare(`
       SELECT subcategory, key, value, data_type, description 
       FROM master_settings 
-      WHERE category = 'service' AND plan_type = ?
+      WHERE category = 'service' AND plan_type = ? AND user_id = ?
       ORDER BY subcategory, key
-    `).bind(planType).all()
+    `).bind(planType, userId).all()
 
-    const rates = {}
+    // デフォルト値（DBにデータがない場合に使用）
+    const defaults: Record<string, number> = {
+      parking_officer_hourly_rate: 2500,
+      parking_officer_half_day_rate: 10000,
+      parking_officer_full_day_rate: 16000,
+      parking_officer_transport_osaka_city: 1000,
+      parking_officer_transport_osaka_suburb: 1500,
+      parking_officer_transport_kyoto: 2000,
+      parking_officer_transport_hyogo: 2000,
+      transport_vehicle_base_rate_20km: 15000,
+      transport_vehicle_rate_per_km: 150,
+      fuel_rate_per_liter: 160,
+      waste_disposal_small: 8000,
+      waste_disposal_medium: 15000,
+      waste_disposal_large: 25000,
+      protection_work_base_rate: 5000,
+      protection_work_floor_rate: 3000,
+      material_collection_few: 6000,
+      material_collection_medium: 12000,
+      material_collection_many: 20000,
+      construction_m2_staff_rate: 12500,
+      work_time_overtime: 1.25
+    }
+
+    const rates: Record<string, number> = {}
     if (serviceRates.results && serviceRates.results.length > 0) {
-      serviceRates.results.forEach(rate => {
+      serviceRates.results.forEach((rate: any) => {
         // subcategoryとkeyを組み合わせてユニークなキーを作成
         const compositeKey = rate.subcategory ? `${rate.subcategory}_${rate.key}` : rate.key
         rates[compositeKey] = parseFloat(rate.value)
@@ -2349,7 +2369,19 @@ app.get('/api/service-rates', async (c) => {
       })
       console.log('サービス単価raw results:', serviceRates.results.length, '件')
     } else {
-      console.log('サービス単価結果なし')
+      console.log('サービス単価結果なし、デフォルト値を使用')
+    }
+
+    // デフォルト値でDBにない項目を補完
+    for (const [key, defaultVal] of Object.entries(defaults)) {
+      if (rates[key] === undefined || isNaN(rates[key])) {
+        rates[key] = defaultVal
+        // 短縮キーも設定
+        const shortKey = key.replace(/^[^_]+_[^_]+_/, '')  // prefix_sub_ を除去
+        if (!rates[shortKey]) {
+          rates[shortKey] = defaultVal
+        }
+      }
     }
 
     console.log('サービス単価マスター取得完了:', rates)
@@ -6843,169 +6875,6 @@ app.get('/estimate/step5', (c) => {
       </main>
     </div>
   )
-})
-
-// サービス料金取得API（プランA/B対応）
-app.get('/api/service-rates', async (c) => {
-  const userId = c.req.header('X-User-ID') || 'test-user-001'
-  const planType = c.req.query('plan_type') || 'A'
-  
-  try {
-    const { env } = c
-    
-    // データベースからサービス料金を取得（プラン別）
-    const result = await env.DB.prepare(`
-      SELECT subcategory, key, value 
-      FROM master_settings 
-      WHERE category = 'service' AND plan_type = ?
-      AND user_id = ?
-      ORDER BY subcategory, key
-    `).bind(planType, userId).all()
-    
-    // Step5実装に適合した形式でサービス料金を構築
-    const serviceRates = {
-      parking_officer_hourly: 0,
-      parking_half_day: 0,
-      parking_full_day: 0,
-      parking_transport_osaka_city: 0,
-      parking_transport_osaka_suburb: 0,
-      parking_transport_kyoto: 0,
-      parking_transport_hyogo: 0,
-      transport_vehicle_20km: 0,
-      transport_vehicle_per_km: 0,
-      fuel_per_liter: 0,
-      protection_work_base: 0,
-      protection_work_floor: 0,
-      construction_m2_staff: 0,
-      waste_disposal: {
-        'none': 0
-      },
-      material_collection: {
-        'none': 0
-      },
-      work_time_multiplier: {
-        'normal': 1.0,
-        'overtime': 1.25
-      }
-    }
-    
-    if (result.results) {
-      result.results.forEach((row: any) => {
-        const { subcategory, key, value } = row
-        const numericValue = parseFloat(value) || 0
-        
-        if (subcategory === 'parking_officer' && key === 'hourly_rate') {
-          serviceRates.parking_officer_hourly = numericValue
-        } else if (subcategory === 'parking_officer' && key === 'half_day_rate') {
-          serviceRates.parking_half_day = numericValue
-        } else if (subcategory === 'parking_officer' && key === 'full_day_rate') {
-          serviceRates.parking_full_day = numericValue
-        } else if (subcategory === 'parking_officer' && key === 'transport_osaka_city') {
-          serviceRates.parking_transport_osaka_city = numericValue
-        } else if (subcategory === 'parking_officer' && key === 'transport_osaka_suburb') {
-          serviceRates.parking_transport_osaka_suburb = numericValue
-        } else if (subcategory === 'parking_officer' && key === 'transport_kyoto') {
-          serviceRates.parking_transport_kyoto = numericValue
-        } else if (subcategory === 'parking_officer' && key === 'transport_hyogo') {
-          serviceRates.parking_transport_hyogo = numericValue
-        } else if (subcategory === 'transport_vehicle' && key === 'base_rate_20km') {
-          serviceRates.transport_vehicle_20km = numericValue
-        } else if (subcategory === 'transport_vehicle' && key === 'rate_per_km') {
-          serviceRates.transport_vehicle_per_km = numericValue
-        } else if (subcategory === 'fuel' && key === 'rate_per_liter') {
-          serviceRates.fuel_per_liter = numericValue
-        } else if (subcategory === 'waste_disposal') {
-          serviceRates.waste_disposal[key] = numericValue
-        } else if (subcategory === 'protection_work' && key === 'base_rate') {
-          serviceRates.protection_work_base = numericValue
-        } else if (subcategory === 'protection_work' && key === 'floor_rate') {
-          serviceRates.protection_work_floor = numericValue
-        } else if (subcategory === 'material_collection') {
-          serviceRates.material_collection[key] = numericValue
-        } else if (subcategory === 'construction' && key === 'm2_staff_rate') {
-          serviceRates.construction_m2_staff = numericValue
-        } else if (subcategory === 'work_time') {
-          serviceRates.work_time_multiplier[key] = numericValue
-        }
-      })
-    }
-    
-    console.log('📊 構築されたサービス料金:', serviceRates)
-    
-    // マスター未設定の場合のみデフォルト値を設定
-    if (!serviceRates.parking_officer_hourly) {
-      serviceRates.parking_officer_hourly = 3000
-    }
-    if (!serviceRates.parking_half_day) {
-      serviceRates.parking_half_day = 11000
-    }
-    if (!serviceRates.parking_full_day) {
-      serviceRates.parking_full_day = 16000
-    }
-    if (!serviceRates.parking_transport_osaka_city) {
-      serviceRates.parking_transport_osaka_city = 1000
-    }
-    if (!serviceRates.parking_transport_osaka_suburb) {
-      serviceRates.parking_transport_osaka_suburb = 1500
-    }
-    if (!serviceRates.parking_transport_kyoto) {
-      serviceRates.parking_transport_kyoto = 2000
-    }
-    if (!serviceRates.parking_transport_hyogo) {
-      serviceRates.parking_transport_hyogo = 2000
-    }
-    if (!serviceRates.transport_vehicle_20km) {
-      serviceRates.transport_vehicle_20km = 8000  // マスター値と同じ
-    }
-    if (!serviceRates.transport_vehicle_per_km) {
-      serviceRates.transport_vehicle_per_km = 100  // マスター値と同じ
-    }
-    if (!serviceRates.protection_work_base) {
-      serviceRates.protection_work_base = 5000  // マスター値と同じ
-    }
-    if (!serviceRates.protection_work_floor) {
-      serviceRates.protection_work_floor = 3000  // マスター値と同じ
-    }
-    if (!serviceRates.construction_m2_staff) {
-      serviceRates.construction_m2_staff = 8000  // マスター値と同じ
-    }
-    
-    // オブジェクト形式のデフォルト値（'none' キーは必ず含む）
-    if (Object.keys(serviceRates.waste_disposal).length <= 1) {
-      serviceRates.waste_disposal = { 
-        'none': 0,
-        'small': 5000,    // マスター値と同じ
-        'medium': 10000,  // マスター値と同じ
-        'large': 20000    // マスター値と同じ
-      }
-    }
-    if (Object.keys(serviceRates.material_collection).length <= 1) {
-      serviceRates.material_collection = { 
-        'none': 0,
-        'few': 3000,      // マスター値と同じ
-        'medium': 8000,   // マスター値と同じ  
-        'many': 15000     // マスター値と同じ
-      }
-    }
-    if (!serviceRates.work_time_multiplier['overtime']) {
-      serviceRates.work_time_multiplier['overtime'] = 1.25  // デフォルト25%割増
-    }
-    
-    console.log('🔧 最終的なサービス料金:', serviceRates)
-    
-    return c.json({
-      success: true,
-      data: serviceRates
-    })
-    
-  } catch (error) {
-    console.error('Error fetching service rates:', error)
-    return c.json({
-      success: false,
-      message: 'サービス料金の取得に失敗しました',
-      error: error instanceof Error ? error.message : '不明なエラー'
-    }, 500)
-  }
 })
 
 // STEP6: 内容確認・見積書作成
