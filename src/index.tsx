@@ -13989,31 +13989,35 @@ app.get('/estimate/:id', async (c) => {
       // 明細行を生成
       let itemRowsHtml = ''
       if (lineItems) {
-        // line_items_json が存在する場合
+        // line_items_json が存在する場合（単価 × 数量 = 金額 形式）
         const sections = ['vehicle', 'staff', 'services']
         for (const sec of sections) {
           const sectionData = lineItems[sec]
           if (sectionData && sectionData.items && sectionData.items.length > 0) {
             itemRowsHtml += `
               <tr class="bg-blue-50">
-                <td colspan="2" class="px-4 py-2 border font-bold text-blue-800">【${sectionData.section_name}】</td>
+                <td colspan="4" class="px-4 py-2 border font-bold text-blue-800">【${sectionData.section_name}】</td>
               </tr>`
             for (const item of sectionData.items) {
+              const qty = item.quantity || 1
+              const unitPrice = item.unit_price || item.amount
               itemRowsHtml += `
               <tr class="bg-white hover:bg-gray-50">
-                <td class="px-4 py-2 border">${item.description}${item.detail ? ' ' + item.detail : ''}${item.note ? '<br><small class="text-gray-500">' + item.note + '</small>' : ''}</td>
+                <td class="px-4 py-2 border">${item.description}${item.note ? '<br><small class="text-gray-500">' + item.note + '</small>' : ''}</td>
+                <td class="px-4 py-2 border text-right">¥${unitPrice.toLocaleString()}</td>
+                <td class="px-4 py-2 border text-center">${qty}</td>
                 <td class="px-4 py-2 border text-right font-bold">¥${item.amount.toLocaleString()}</td>
               </tr>`
             }
             itemRowsHtml += `
               <tr class="bg-gray-100">
-                <td class="px-4 py-2 border font-bold">${sectionData.section_name}小計</td>
+                <td colspan="3" class="px-4 py-2 border font-bold">${sectionData.section_name}小計</td>
                 <td class="px-4 py-2 border text-right font-bold">¥${sectionData.subtotal.toLocaleString()}</td>
               </tr>`
           }
         }
       } else {
-        // フォールバック: 基本的なコスト表示
+        // フォールバック: 基本的なコスト表示（4列テーブルに合わせてcolspan使用）
         const costs = [
           { name: '車両費', amount: estimate.vehicle_cost || 0 },
           { name: 'スタッフ費', amount: estimate.staff_cost || 0 },
@@ -14044,7 +14048,7 @@ app.get('/estimate/:id', async (c) => {
         for (const [index, cost] of costs.entries()) {
           itemRowsHtml += `
             <tr class="${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}">
-              <td class="px-4 py-2 border">${cost.name}</td>
+              <td colspan="3" class="px-4 py-2 border">${cost.name}</td>
               <td class="px-4 py-2 border text-right font-bold">¥${cost.amount.toLocaleString()}</td>
             </tr>`
         }
@@ -14115,7 +14119,9 @@ app.get('/estimate/:id', async (c) => {
             <table class="w-full border-collapse border border-gray-300">
               <thead>
                 <tr class="bg-blue-600 text-white">
-                  <th class="px-4 py-3 border text-left">項目</th>
+                  <th class="px-4 py-3 border text-left">品名</th>
+                  <th class="px-4 py-3 border text-right">単価</th>
+                  <th class="px-4 py-3 border text-center">数量</th>
                   <th class="px-4 py-3 border text-right">金額（税抜）</th>
                 </tr>
               </thead>
@@ -16497,7 +16503,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
         }
         
         /* セクション見出し行 */
-        .estimate-table td[colspan="2"] {
+        .estimate-table td[colspan="4"] {
             padding: 3px 6px 1px;
             background-color: #fafbfc;
         }
@@ -16737,27 +16743,33 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
     <table class="estimate-table">
         <thead>
             <tr>
-                <th style="width: 65%">項目</th>
-                <th style="width: 35%">金額（税抜）</th>
+                <th style="width: 45%">品名</th>
+                <th style="width: 20%; text-align: right;">単価</th>
+                <th style="width: 10%; text-align: center;">数量</th>
+                <th style="width: 25%; text-align: right;">金額（税抜）</th>
             </tr>
         </thead>
         <tbody>
             ${lineItems ? (() => {
-              // ✅ STEP6完全転写方式：line_items_jsonを使用
+              // ✅ STEP6完全転写方式：line_items_jsonを使用（単価 × 数量 = 金額 形式）
               const allRows = [];
               
               // 1. 車両費用セクション
               if (lineItems.vehicle && lineItems.vehicle.items && lineItems.vehicle.items.length > 0) {
                 allRows.push(`
                   <tr>
-                    <td colspan="2"><strong>【${lineItems.vehicle.section_name}】</strong></td>
+                    <td colspan="4"><strong>【${lineItems.vehicle.section_name}】</strong></td>
                   </tr>
                 `);
                 
                 lineItems.vehicle.items.forEach(item => {
+                  const qty = item.quantity || 1;
+                  const unitPrice = item.unit_price || item.amount;
                   allRows.push(`
                     <tr>
-                      <td>&nbsp;&nbsp;${item.description}${item.detail ? ' ' + item.detail : ''}${item.note ? '<br>&nbsp;&nbsp;&nbsp;&nbsp;<small>' + item.note + '</small>' : ''}</td>
+                      <td>&nbsp;&nbsp;${item.description}${item.note ? '<br>&nbsp;&nbsp;&nbsp;&nbsp;<small>' + item.note + '</small>' : ''}</td>
+                      <td class="amount-cell">¥${unitPrice.toLocaleString()}</td>
+                      <td style="text-align: center;">${qty}</td>
                       <td class="amount-cell">¥${item.amount.toLocaleString()}</td>
                     </tr>
                   `);
@@ -16765,7 +16777,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                 
                 allRows.push(`
                   <tr style="background-color: #f3f4f6;">
-                    <td><strong>&nbsp;&nbsp;${lineItems.vehicle.section_name}小計</strong></td>
+                    <td colspan="3"><strong>&nbsp;&nbsp;${lineItems.vehicle.section_name}小計</strong></td>
                     <td class="amount-cell"><strong>¥${lineItems.vehicle.subtotal.toLocaleString()}</strong></td>
                   </tr>
                 `);
@@ -16775,14 +16787,18 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
               if (lineItems.staff && lineItems.staff.items && lineItems.staff.items.length > 0) {
                 allRows.push(`
                   <tr>
-                    <td colspan="2"><strong>【${lineItems.staff.section_name}】</strong></td>
+                    <td colspan="4"><strong>【${lineItems.staff.section_name}】</strong></td>
                   </tr>
                 `);
                 
                 lineItems.staff.items.forEach(item => {
+                  const qty = item.quantity || 1;
+                  const unitPrice = item.unit_price || item.amount;
                   allRows.push(`
                     <tr>
                       <td>&nbsp;&nbsp;${item.description}${item.detail ? ' ' + item.detail : ''}</td>
+                      <td class="amount-cell">¥${unitPrice.toLocaleString()}</td>
+                      <td style="text-align: center;">${qty}</td>
                       <td class="amount-cell">¥${item.amount.toLocaleString()}</td>
                     </tr>
                   `);
@@ -16790,7 +16806,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                 
                 allRows.push(`
                   <tr style="background-color: #f3f4f6;">
-                    <td><strong>&nbsp;&nbsp;${lineItems.staff.section_name}小計</strong></td>
+                    <td colspan="3"><strong>&nbsp;&nbsp;${lineItems.staff.section_name}小計</strong></td>
                     <td class="amount-cell"><strong>¥${lineItems.staff.subtotal.toLocaleString()}</strong></td>
                   </tr>
                 `);
@@ -16800,14 +16816,18 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
               if (lineItems.services && lineItems.services.items && lineItems.services.items.length > 0) {
                 allRows.push(`
                   <tr>
-                    <td colspan="2"><strong>【${lineItems.services.section_name}】</strong></td>
+                    <td colspan="4"><strong>【${lineItems.services.section_name}】</strong></td>
                   </tr>
                 `);
                 
                 lineItems.services.items.forEach(item => {
+                  const qty = item.quantity || 1;
+                  const unitPrice = item.unit_price || item.amount;
                   allRows.push(`
                     <tr>
-                      <td>&nbsp;&nbsp;${item.description}${item.detail ? ' ' + item.detail : ''}${item.note ? '<br>&nbsp;&nbsp;&nbsp;&nbsp;<small style="color: #666;">' + item.note + '</small>' : ''}</td>
+                      <td>&nbsp;&nbsp;${item.description}${item.note ? '<br>&nbsp;&nbsp;&nbsp;&nbsp;<small style="color: #666;">' + item.note + '</small>' : ''}</td>
+                      <td class="amount-cell">¥${unitPrice.toLocaleString()}</td>
+                      <td style="text-align: center;">${qty}</td>
                       <td class="amount-cell">¥${item.amount.toLocaleString()}</td>
                     </tr>
                   `);
@@ -16815,7 +16835,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                 
                 allRows.push(`
                   <tr style="background-color: #f3f4f6;">
-                    <td><strong>&nbsp;&nbsp;${lineItems.services.section_name}小計</strong></td>
+                    <td colspan="3"><strong>&nbsp;&nbsp;${lineItems.services.section_name}小計</strong></td>
                     <td class="amount-cell"><strong>¥${lineItems.services.subtotal.toLocaleString()}</strong></td>
                   </tr>
                 `);
@@ -16824,7 +16844,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
               return allRows.join('');
             })() : (() => {
               // ❌ フォールバック：従来のロジック（line_items_jsonがない場合）
-              // 車両費用を個別項目で表示
+              // 4列テーブルに合わせてcolspan="3"を使用
               const vehicleRows = [];
               const vehicleCost = estimate.vehicle_cost || 0;
               
@@ -16832,14 +16852,14 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
               if (estimate.vehicle_type && vehicleCost > 0) {
                 vehicleRows.push(`
                   <tr>
-                    <td>&nbsp;&nbsp;${estimate.vehicle_type}1台 ¥${vehicleCost.toLocaleString()} × 1 = ¥${vehicleCost.toLocaleString()}</td>
+                    <td colspan="3">&nbsp;&nbsp;${estimate.vehicle_type}1台</td>
                     <td class="amount-cell">¥${vehicleCost.toLocaleString()}</td>
                   </tr>
                 `);
               } else if (vehicleCost > 0) {
                 vehicleRows.push(`
                   <tr>
-                    <td>&nbsp;&nbsp;車両費用1台 ¥${vehicleCost.toLocaleString()} × 1 = ¥${vehicleCost.toLocaleString()}</td>
+                    <td colspan="3">&nbsp;&nbsp;車両費用</td>
                     <td class="amount-cell">¥${vehicleCost.toLocaleString()}</td>
                   </tr>
                 `);
@@ -16851,7 +16871,9 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                 const dedTotal = dedUnitPrice * estimate.vehicle_dedicated_count;
                 vehicleRows.push(`
                   <tr>
-                    <td>&nbsp;&nbsp;チャーター便${estimate.vehicle_dedicated_count}台（${estimate.delivery_area}ランク）¥${dedUnitPrice.toLocaleString()} × ${estimate.vehicle_dedicated_count}</td>
+                    <td>&nbsp;&nbsp;チャーター便（${estimate.delivery_area}ランク）</td>
+                    <td class="amount-cell">¥${dedUnitPrice.toLocaleString()}</td>
+                    <td style="text-align: center;">${estimate.vehicle_dedicated_count}</td>
                     <td class="amount-cell">¥${dedTotal.toLocaleString()}</td>
                   </tr>
                 `);
@@ -16863,7 +16885,9 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                 const chaTotal = chaUnitPrice * estimate.vehicle_charter_count;
                 vehicleRows.push(`
                   <tr>
-                    <td>&nbsp;&nbsp;2tチャーター${estimate.vehicle_charter_count}台（${estimate.delivery_area}ランク）¥${chaUnitPrice.toLocaleString()} × ${estimate.vehicle_charter_count}</td>
+                    <td>&nbsp;&nbsp;2tチャーター（${estimate.delivery_area}ランク）</td>
+                    <td class="amount-cell">¥${chaUnitPrice.toLocaleString()}</td>
+                    <td style="text-align: center;">${estimate.vehicle_charter_count}</td>
                     <td class="amount-cell">¥${chaTotal.toLocaleString()}</td>
                   </tr>
                 `);
@@ -16873,7 +16897,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
               if (estimate.transport_vehicle_fee && estimate.transport_vehicle_fee > 0) {
                 vehicleRows.push(`
                   <tr>
-                    <td>&nbsp;&nbsp;輸送車両費（${estimate.delivery_area}ランク）</td>
+                    <td colspan="3">&nbsp;&nbsp;輸送車両費（${estimate.delivery_area}ランク）</td>
                     <td class="amount-cell">¥${estimate.transport_vehicle_fee.toLocaleString()}</td>
                   </tr>
                 `);
@@ -16883,7 +16907,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
               if (estimate.road_permit_fee && estimate.road_permit_fee > 0) {
                 vehicleRows.push(`
                   <tr>
-                    <td>&nbsp;&nbsp;道路許可費</td>
+                    <td colspan="3">&nbsp;&nbsp;道路許可費</td>
                     <td class="amount-cell">¥${estimate.road_permit_fee.toLocaleString()}</td>
                   </tr>
                 `);
@@ -16901,7 +16925,9 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                 const total = unitPrice * count;
                 staffRows.push(`
                   <tr>
-                    <td>&nbsp;&nbsp;監督者${count}名 ¥${unitPrice.toLocaleString()} × ${count} = ¥${total.toLocaleString()}</td>
+                    <td>&nbsp;&nbsp;監督者</td>
+                    <td class="amount-cell">¥${unitPrice.toLocaleString()}</td>
+                    <td style="text-align: center;">${count}</td>
                     <td class="amount-cell">¥${total.toLocaleString()}</td>
                   </tr>
                 `);
@@ -16914,7 +16940,9 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                 const total = unitPrice * count;
                 staffRows.push(`
                   <tr>
-                    <td>&nbsp;&nbsp;リーダー${count}名 ¥${unitPrice.toLocaleString()} × ${count} = ¥${total.toLocaleString()}</td>
+                    <td>&nbsp;&nbsp;リーダー</td>
+                    <td class="amount-cell">¥${unitPrice.toLocaleString()}</td>
+                    <td style="text-align: center;">${count}</td>
                     <td class="amount-cell">¥${total.toLocaleString()}</td>
                   </tr>
                 `);
@@ -16927,7 +16955,9 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                 const total = unitPrice * count;
                 staffRows.push(`
                   <tr>
-                    <td>&nbsp;&nbsp;一般社員 ${count}名 ¥${unitPrice.toLocaleString()} × ${count} = ¥${total.toLocaleString()}</td>
+                    <td>&nbsp;&nbsp;一般社員（半日）</td>
+                    <td class="amount-cell">¥${unitPrice.toLocaleString()}</td>
+                    <td style="text-align: center;">${count}</td>
                     <td class="amount-cell">¥${total.toLocaleString()}</td>
                   </tr>
                 `);
@@ -16940,7 +16970,9 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                 const total = unitPrice * count;
                 staffRows.push(`
                   <tr>
-                    <td>&nbsp;&nbsp;M2スタッフ（全日）${count}名 ¥${unitPrice.toLocaleString()} × ${count} = ¥${total.toLocaleString()}</td>
+                    <td>&nbsp;&nbsp;M2スタッフ（全日）</td>
+                    <td class="amount-cell">¥${unitPrice.toLocaleString()}</td>
+                    <td style="text-align: center;">${count}</td>
                     <td class="amount-cell">¥${total.toLocaleString()}</td>
                   </tr>
                 `);
@@ -16953,7 +16985,9 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                 const total = unitPrice * count;
                 staffRows.push(`
                   <tr>
-                    <td>&nbsp;&nbsp;アルバイト（半日）${count}名 ¥${unitPrice.toLocaleString()} × ${count} = ¥${total.toLocaleString()}</td>
+                    <td>&nbsp;&nbsp;アルバイト（半日）</td>
+                    <td class="amount-cell">¥${unitPrice.toLocaleString()}</td>
+                    <td style="text-align: center;">${count}</td>
                     <td class="amount-cell">¥${total.toLocaleString()}</td>
                   </tr>
                 `);
@@ -16966,7 +17000,9 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                 const total = unitPrice * count;
                 staffRows.push(`
                   <tr>
-                    <td>&nbsp;&nbsp;アルバイト（全日）${count}名 ¥${unitPrice.toLocaleString()} × ${count} = ¥${total.toLocaleString()}</td>
+                    <td>&nbsp;&nbsp;アルバイト（全日）</td>
+                    <td class="amount-cell">¥${unitPrice.toLocaleString()}</td>
+                    <td style="text-align: center;">${count}</td>
                     <td class="amount-cell">¥${total.toLocaleString()}</td>
                   </tr>
                 `);
@@ -16976,7 +17012,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
               if (staffRows.length === 0 && calculatedStaffCost > 0) {
                 staffRows.push(`
                   <tr>
-                    <td>&nbsp;&nbsp;スタッフ費用</td>
+                    <td colspan="3">&nbsp;&nbsp;スタッフ費用</td>
                     <td class="amount-cell">¥${calculatedStaffCost.toLocaleString()}</td>
                   </tr>
                 `);
@@ -16987,47 +17023,47 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
             })()}
             ${!lineItems && estimate.site_survey_cost > 0 ? `
             <tr>
-                <td>&nbsp;&nbsp;現地調査（${estimate.site_survey_people || 0}人・${estimate.site_survey_distance || 0}km）</td>
+                <td colspan="3">&nbsp;&nbsp;現地調査（${estimate.site_survey_people || 0}人・${estimate.site_survey_distance || 0}km）</td>
                 <td class="amount-cell">¥${(estimate.site_survey_cost || 0).toLocaleString()}</td>
             </tr>` : ''}
             ${!lineItems && estimate.parking_officer_cost > 0 ? `
             <tr>
-                <td>&nbsp;&nbsp;駐車対策員（${estimate.parking_officer_hours || 0}時間）</td>
+                <td colspan="3">&nbsp;&nbsp;駐車対策員（${estimate.parking_officer_hours || 0}時間）</td>
                 <td class="amount-cell">¥${(estimate.parking_officer_cost || 0).toLocaleString()}</td>
             </tr>` : ''}
             ${!lineItems && estimate.transport_cost > 0 ? `
             <tr>
-                <td>&nbsp;&nbsp;人員輸送車両（${estimate.transport_vehicles || 0}台）</td>
+                <td colspan="3">&nbsp;&nbsp;人員輸送車両（${estimate.transport_vehicles || 0}台）</td>
                 <td class="amount-cell">¥${(estimate.transport_cost || 0).toLocaleString()}</td>
             </tr>` : ''}
             ${!lineItems && estimate.waste_disposal_cost > 0 ? `
             <tr>
-                <td>&nbsp;&nbsp;引取廃棄（${estimate.waste_disposal_size || ''}）</td>
+                <td colspan="3">&nbsp;&nbsp;引取廃棄（${estimate.waste_disposal_size || ''}）</td>
                 <td class="amount-cell">¥${(estimate.waste_disposal_cost || 0).toLocaleString()}</td>
             </tr>` : ''}
             ${!lineItems && estimate.protection_cost > 0 ? `
             <tr>
-                <td>&nbsp;&nbsp;養生作業（${estimate.protection_floors || 0}階）</td>
+                <td colspan="3">&nbsp;&nbsp;養生作業（${estimate.protection_floors || 0}階）</td>
                 <td class="amount-cell">¥${(estimate.protection_cost || 0).toLocaleString()}</td>
             </tr>` : ''}
             ${!lineItems && estimate.material_collection_cost > 0 ? `
             <tr>
-                <td>&nbsp;&nbsp;資材回収（${estimate.material_collection_size || ''}）</td>
+                <td colspan="3">&nbsp;&nbsp;資材回収（${estimate.material_collection_size || ''}）</td>
                 <td class="amount-cell">¥${(estimate.material_collection_cost || 0).toLocaleString()}</td>
             </tr>` : ''}
             ${!lineItems && estimate.construction_cost > 0 ? `
             <tr>
-                <td>&nbsp;&nbsp;施工作業（M2スタッフ${estimate.construction_m2_staff || 0}名）</td>
+                <td colspan="3">&nbsp;&nbsp;施工作業（M2スタッフ${estimate.construction_m2_staff || 0}名）</td>
                 <td class="amount-cell">¥${(estimate.construction_cost || 0).toLocaleString()}</td>
             </tr>` : ''}
             ${!lineItems && estimate.parking_fee > 0 ? `
             <tr>
-                <td>&nbsp;&nbsp;実費：駐車料金</td>
+                <td colspan="3">&nbsp;&nbsp;実費：駐車料金</td>
                 <td class="amount-cell">¥${(estimate.parking_fee || 0).toLocaleString()}</td>
             </tr>` : ''}
             ${!lineItems && estimate.highway_fee > 0 ? `
             <tr>
-                <td>&nbsp;&nbsp;実費：高速料金</td>
+                <td colspan="3">&nbsp;&nbsp;実費：高速料金</td>
                 <td class="amount-cell">¥${(estimate.highway_fee || 0).toLocaleString()}</td>
             </tr>` : ''}
             ${!lineItems ? (() => {
@@ -17060,11 +17096,11 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                 
                 otherCosts.push(`
                   <tr>
-                    <td><strong>その他費用</strong></td>
+                    <td colspan="3"><strong>その他費用</strong></td>
                     <td class="amount-cell">-</td>
                   </tr>
                   <tr>
-                    <td>&nbsp;&nbsp;割増賃金 (${timeTypeLabel}作業 : +${multiplierPercent}%)</td>
+                    <td colspan="3">&nbsp;&nbsp;割増賃金 (${timeTypeLabel}作業 : +${multiplierPercent}%)</td>
                     <td class="amount-cell">¥${premiumAmount.toLocaleString()}</td>
                   </tr>
                 `);
