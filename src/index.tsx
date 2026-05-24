@@ -3716,12 +3716,49 @@ app.get('/api/office-location', async (c) => {
 app.get('/api/area-settings', async (c) => {
   try {
     const { env } = c
+    const userId = c.req.header('X-User-ID') || 'test-user-001'
     
-    const areas = await env.DB.prepare(`
-      SELECT DISTINCT area_name, area_rank
+    // まずuser_idでフィルタしたデータを取得
+    let areas = await env.DB.prepare(`
+      SELECT id, postal_code_prefix, area_name, area_rank, created_at
       FROM area_settings
+      WHERE user_id = ?
       ORDER BY area_rank ASC, area_name ASC
-    `).all()
+    `).bind(userId).all()
+    
+    // user_idフィルタで結果がない場合、全データを取得
+    if (!areas.results || areas.results.length === 0) {
+      areas = await env.DB.prepare(`
+        SELECT id, postal_code_prefix, area_name, area_rank, created_at
+        FROM area_settings
+        ORDER BY area_rank ASC, area_name ASC
+      `).all()
+    }
+    
+    // area_settingsが空の場合、distance_area_pricingのregionsからフォールバック生成
+    if (!areas.results || areas.results.length === 0) {
+      const pricingAreas = await env.DB.prepare(`
+        SELECT area_rank, regions, distance_km
+        FROM distance_area_pricing
+        WHERE plan_type = 'A'
+        ORDER BY area_rank ASC
+      `).all()
+      
+      if (pricingAreas.results && pricingAreas.results.length > 0) {
+        const fallbackAreas = pricingAreas.results.map(row => ({
+          id: null,
+          postal_code_prefix: null,
+          area_name: `${row.area_rank}ランク（${row.regions}）- ${row.distance_km}km圏内`,
+          area_rank: row.area_rank,
+          created_at: null
+        }))
+        
+        return c.json({
+          success: true,
+          areas: fallbackAreas
+        })
+      }
+    }
     
     return c.json({
       success: true,
