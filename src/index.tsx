@@ -9835,6 +9835,7 @@ app.post('/api/customers', async (c) => {
 // ステータス変更
 app.post('/api/projects/status-change', async (c) => {
   try {
+    const { env } = c
     const statusData = await c.req.json();
     
     // 簡単な検証
@@ -9845,21 +9846,61 @@ app.post('/api/projects/status-change', async (c) => {
       }, 400);
     }
 
-    // モックレスポンス（実際はD1データベースを更新）
+    const projectId = statusData.project_id
+    const newStatus = statusData.new_status
+    const changeReason = statusData.change_reason || statusData.comment || ''
+    const userId = statusData.user_id || c.req.header('X-User-ID') || 'test-user-001'
+
+    // 現在のステータスを取得
+    const currentProject = await env.DB.prepare(`
+      SELECT status FROM projects WHERE id = ?
+    `).bind(projectId).first()
+
+    if (!currentProject) {
+      return c.json({
+        success: false,
+        error: '案件が見つかりません'
+      }, 404);
+    }
+
+    // プロジェクトのステータスを更新
+    await env.DB.prepare(`
+      UPDATE projects 
+      SET status = ?, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `).bind(newStatus, projectId).run()
+
+    // ステータス履歴を記録
+    await env.DB.prepare(`
+      INSERT INTO status_history (project_id, old_status, new_status, notes, user_id)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(
+      projectId,
+      currentProject.status,
+      newStatus,
+      changeReason,
+      userId
+    ).run()
+
     return c.json({
       success: true,
       data: {
         id: Date.now(),
-        ...statusData,
+        project_id: projectId,
+        old_status: currentProject.status,
+        new_status: newStatus,
+        change_reason: changeReason,
         created_at: new Date().toISOString()
       },
       message: 'ステータスを変更しました'
     });
 
   } catch (error) {
+    console.error('ステータス変更エラー:', error)
     return c.json({
       success: false,
-      error: 'ステータスの変更に失敗しました'
+      error: 'ステータスの変更に失敗しました',
+      detail: error instanceof Error ? error.message : '不明なエラー'
     }, 500);
   }
 });
