@@ -9486,12 +9486,17 @@ app.get('/customers', (c) => {
 
       {/* ステータス変更モーダル */}
       <div id="statusChangeModal" className="modal-backdrop" style="display: none;">
-        <div className="modal-content">
+        <div className="modal-content" style="max-width: 28rem; overflow: visible;">
           <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900">ステータス変更</h3>
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-medium text-gray-900">ステータス変更</h3>
+              <button onclick="Modal.close('statusChangeModal')" className="text-gray-400 hover:text-gray-600 cursor-pointer">
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
           </div>
           <form id="statusChangeForm" className="p-6">
-            <input type="hidden" id="statusChangeProjectId" />
+            <input type="hidden" id="statusChangeProjectId" name="project_id" />
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -9510,18 +9515,21 @@ app.get('/customers', (c) => {
                   新しいステータス <span className="text-red-500">*</span>
                 </label>
                 <select name="new_status" id="statusChangeNewStatus" className="form-select" required>
+                  <option value="">選択してください</option>
                   <option value="initial">初回コンタクト</option>
                   <option value="quote_sent">見積書送信済み</option>
                   <option value="under_consideration">受注検討中</option>
                   <option value="order">受注</option>
+                  <option value="completed">完了</option>
                   <option value="failed">失注</option>
+                  <option value="cancelled">キャンセル</option>
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   変更理由・備考
                 </label>
-                <textarea name="change_reason" id="statusChangeReason" className="form-textarea" rows={3}></textarea>
+                <textarea name="change_reason" id="statusChangeReason" className="form-textarea" rows={3} placeholder="ステータス変更の理由を入力..."></textarea>
               </div>
             </div>
             
@@ -10245,11 +10253,11 @@ app.get('/estimates', (c) => {
       </div>
 
       <div id="statusChangeModal" className="modal-backdrop" style="display: none;">
-        <div className="modal-content max-w-md">
+        <div className="modal-content" style="max-width: 28rem; overflow: visible;">
           <div className="px-6 py-4 border-b border-gray-200">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-medium text-gray-900">ステータス変更</h3>
-              <button onclick="Modal.close('statusChangeModal')" className="text-gray-400 hover:text-gray-600">
+              <button onclick="Modal.close('statusChangeModal')" className="text-gray-400 hover:text-gray-600 cursor-pointer">
                 <i className="fas fa-times"></i>
               </button>
             </div>
@@ -10261,60 +10269,16 @@ app.get('/estimates', (c) => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   新しいステータス
                 </label>
-                {/* カスタムドロップダウン */}
-                <div id="customStatusDropdown" className="relative">
-                  <button id="statusDropdownButton" type="button" className="w-full text-left flex justify-between items-center bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm">
-                    <span id="statusDropdownText">選択してください</span>
-                    <i className="fas fa-chevron-down text-gray-400"></i>
-                  </button>
-                  <div id="statusDropdownMenu" className="hidden absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                    <div className="status-option p-3 cursor-pointer hover:bg-blue-50" data-value="" data-label="選択してください">
-                      <span className="text-gray-400">選択してください</span>
-                    </div>
-                    <div className="status-option p-3 cursor-pointer hover:bg-blue-50 border-t" data-value="initial" data-label="初回コンタクト">
-                      <div className="flex items-center">
-                        <div className="w-3 h-3 bg-gray-400 rounded-full mr-3"></div>
-                        <span className="text-gray-700">初回コンタクト</span>
-                      </div>
-                    </div>
-                    <div className="status-option p-3 cursor-pointer hover:bg-blue-50 border-t" data-value="quote_sent" data-label="見積書送信済み">
-                      <div className="flex items-center">
-                        <div className="w-3 h-3 bg-blue-400 rounded-full mr-3"></div>
-                        <span className="text-gray-700">見積書送信済み</span>
-                      </div>
-                    </div>
-                    <div className="status-option p-3 cursor-pointer hover:bg-blue-50 border-t" data-value="under_consideration" data-label="受注検討中">
-                      <div className="flex items-center">
-                        <div className="w-3 h-3 bg-yellow-400 rounded-full mr-3"></div>
-                        <span className="text-gray-700">受注検討中</span>
-                      </div>
-                    </div>
-                    <div className="status-option p-3 cursor-pointer hover:bg-blue-50 border-t" data-value="order" data-label="受注">
-                      <div className="flex items-center">
-                        <div className="w-3 h-3 bg-green-400 rounded-full mr-3"></div>
-                        <span className="text-gray-700">受注</span>
-                      </div>
-                    </div>
-                    <div className="status-option p-3 cursor-pointer hover:bg-blue-50 border-t" data-value="completed" data-label="完了">
-                      <div className="flex items-center">
-                        <div className="w-3 h-3 bg-green-600 rounded-full mr-3"></div>
-                        <span className="text-gray-700">完了</span>
-                      </div>
-                    </div>
-                    <div className="status-option p-3 cursor-pointer hover:bg-blue-50 border-t" data-value="failed" data-label="失注">
-                      <div className="flex items-center">
-                        <div className="w-3 h-3 bg-red-400 rounded-full mr-3"></div>
-                        <span className="text-gray-700">失注</span>
-                      </div>
-                    </div>
-                    <div className="status-option p-3 cursor-pointer hover:bg-blue-50 border-t" data-value="cancelled" data-label="キャンセル">
-                      <div className="flex items-center">
-                        <div className="w-3 h-3 bg-red-600 rounded-full mr-3"></div>
-                        <span className="text-gray-700">キャンセル</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <select id="statusChangeSelect" className="form-select w-full">
+                  <option value="">選択してください</option>
+                  <option value="initial">初回コンタクト</option>
+                  <option value="quote_sent">見積書送信済み</option>
+                  <option value="under_consideration">受注検討中</option>
+                  <option value="order">受注</option>
+                  <option value="completed">完了</option>
+                  <option value="failed">失注</option>
+                  <option value="cancelled">キャンセル</option>
+                </select>
               </div>
               
               <div>
@@ -10513,7 +10477,7 @@ app.get('/estimates', (c) => {
                       <i class="fas fa-file-pdf"></i>
                     </button>
                     <button 
-                      onclick="StatusManagement.openStatusChangeModal(\${estimate.id}, 'estimate')" 
+                      onclick="StatusManagement.showStatusChangeModal('estimate', \${estimate.id}, '\${project ? project.status || 'initial' : 'initial'}')" 
                       class="btn-sm btn-warning" 
                       title="ステータス変更"
                     >
@@ -10829,53 +10793,62 @@ app.get('/estimates', (c) => {
         };
         } // EstimateManagement条件分岐の閉じ括弧
 
-        // ステータス管理
+        // ステータス管理 - app.jsのStatusManagementが読み込まれていない場合のフォールバック
         if (typeof StatusManagement === 'undefined') {
           window.StatusManagement = {
-          currentItemId: null,
-          currentItemType: null,
+            currentType: null,
+            currentId: null,
+            currentStatus: null,
 
-          openStatusChangeModal: (id, type) => {
-            StatusManagement.currentItemId = id;
-            StatusManagement.currentItemType = type;
-            Modal.open('statusChangeModal');
-          },
+            showStatusChangeModal: (type, id, currentStatus) => {
+              StatusManagement.currentType = type;
+              StatusManagement.currentId = id;
+              StatusManagement.currentStatus = currentStatus;
+              const selectEl = document.getElementById('statusChangeSelect');
+              if (selectEl) selectEl.value = '';
+              const commentInput = document.getElementById('statusChangeComment');
+              if (commentInput) commentInput.value = '';
+              Modal.open('statusChangeModal');
+            },
 
-          changeStatus: async () => {
-            const form = document.getElementById('statusChangeForm');
-            const status = form.getAttribute('data-status');
-            const comment = document.getElementById('statusChangeComment').value;
+            changeStatus: async () => {
+              const selectEl = document.getElementById('statusChangeSelect');
+              const commentInput = document.getElementById('statusChangeComment');
+              const newStatus = selectEl ? selectEl.value : '';
+              const comment = commentInput ? commentInput.value.trim() : '';
 
-            if (!status) {
-              Utils.showError('新しいステータスを選択してください');
-              return;
-            }
-
-            try {
-              const endpoint = StatusManagement.currentItemType === 'estimate' 
-                ? \`/api/estimates/\${StatusManagement.currentItemId}/status\`
-                : \`/api/projects/\${StatusManagement.currentItemId}/status\`;
-
-              const response = await axios.put(endpoint, {
-                status: status,
-                comment: comment
-              }, {
-                headers: { 'X-User-ID': 'test-user-001' }
-              });
-
-              if (response.data.success) {
-                Utils.showSuccess('ステータスを変更しました');
-                Modal.close('statusChangeModal');
-                EstimateManagement.loadEstimates();
-              } else {
-                Utils.showError('ステータスの変更に失敗しました');
+              if (!newStatus) {
+                Utils.showError('新しいステータスを選択してください');
+                return;
               }
-            } catch (error) {
-              console.error('ステータス変更エラー:', error);
-              Utils.showError('ステータス変更中にエラーが発生しました');
+
+              try {
+                const endpoint = StatusManagement.currentType === 'estimate' 
+                  ? \`/api/estimates/\${StatusManagement.currentId}/status\`
+                  : \`/api/projects/\${StatusManagement.currentId}/status\`;
+
+                const response = await axios.put(endpoint, {
+                  status: newStatus,
+                  comment: comment
+                }, {
+                  headers: { 'X-User-ID': currentUser || 'test-user-001' }
+                });
+
+                if (response.data.success) {
+                  Utils.showSuccess('ステータスを変更しました');
+                  Modal.close('statusChangeModal');
+                  if (typeof EstimateManagement !== 'undefined' && EstimateManagement.loadEstimates) {
+                    EstimateManagement.loadEstimates();
+                  }
+                } else {
+                  Utils.showError('ステータスの変更に失敗しました');
+                }
+              } catch (error) {
+                console.error('ステータス変更エラー:', error);
+                Utils.showError('ステータス変更中にエラーが発生しました');
+              }
             }
-          }
-        };
+          };
         } // StatusManagement条件分岐の閉じ括弧
 
         // ページ読み込み時の初期化（複数の方法で確実に実行）

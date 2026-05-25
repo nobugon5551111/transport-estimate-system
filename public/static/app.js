@@ -8890,7 +8890,7 @@ const CustomerManagement = {
                 <i class="fas fa-edit"></i>
               </button>
               <button 
-                onClick="CustomerManagement.changeProjectStatus(${project.id})" 
+                onClick="CustomerManagement.changeProjectStatus(${project.id}, '${project.status || 'initial'}', '${(project.name || '').replace(/'/g, "\\'")}')" 
                 class="text-green-600 hover:text-green-800"
                 title="ステータス変更"
               >
@@ -9351,8 +9351,34 @@ const CustomerManagement = {
     );
   },
 
-  changeProjectStatus: (projectId) => {
-    Utils.showSuccess(`案件ID ${projectId} のステータス変更機能は実装予定です`);
+  changeProjectStatus: (projectId, currentStatus, projectName) => {
+    // モーダルにプロジェクト情報を設定
+    const projectIdInput = document.getElementById('statusChangeProjectId');
+    const projectNameDiv = document.getElementById('statusChangeProjectName');
+    const currentStatusDiv = document.getElementById('statusChangeCurrentStatus');
+    const newStatusSelect = document.getElementById('statusChangeNewStatus');
+    
+    if (projectIdInput) projectIdInput.value = projectId;
+    if (projectNameDiv) projectNameDiv.textContent = projectName || `案件ID: ${projectId}`;
+    
+    // 現在のステータスを表示
+    const statusLabels = {
+      'initial': '初回コンタクト',
+      'quote_sent': '見積書送信済み',
+      'under_consideration': '受注検討中',
+      'order': '受注',
+      'completed': '完了',
+      'failed': '失注',
+      'cancelled': 'キャンセル'
+    };
+    if (currentStatusDiv) currentStatusDiv.textContent = statusLabels[currentStatus] || currentStatus;
+    if (newStatusSelect) newStatusSelect.value = '';
+    
+    // 変更理由もクリア
+    const reasonInput = document.getElementById('statusChangeReason');
+    if (reasonInput) reasonInput.value = '';
+    
+    Modal.open('statusChangeModal');
   },
 
   viewProjectEstimates: (projectId) => {
@@ -9500,140 +9526,13 @@ window.switchCustomerTab = CustomerManagement.switchTab;
 
 // ================== ステータス管理機能 ==================
 const StatusManagement = {
-  // ステータス一覧キャッシュ
-  statusOptions: [],
-  
-  // ステータス一覧を取得
-  loadStatusOptions: async () => {
-    try {
-      console.log('ステータスオプションAPI呼び出し...');
-      const response = await API.get('/status-options');
-      console.log('APIレスポンス:', response);
-      if (response.success) {
-        StatusManagement.statusOptions = response.data || [];
-        console.log('ステータスオプション設定完了:', StatusManagement.statusOptions);
-      } else {
-        console.error('APIエラー:', response);
-      }
-    } catch (error) {
-      console.error('ステータス一覧取得エラー:', error);
-    }
-  },
-  
-  // カスタムドロップダウン初期化
-  initializeCustomDropdown: () => {
-    const button = document.getElementById('statusDropdownButton');
-    const menu = document.getElementById('statusDropdownMenu');
-    const textElement = document.getElementById('statusDropdownText');
-    
-    if (!button || !menu || !textElement) return;
-    
-    // ボタンクリックでメニューを開閉
-    button.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const isOpen = !menu.classList.contains('hidden');
-      const modal = document.getElementById('statusChangeModal');
-      
-      if (isOpen) {
-        menu.classList.add('hidden');
-        // モーダルからdropdown-openクラスを除去
-        if (modal) modal.classList.remove('dropdown-open');
-        // スタイルをリセット
-        menu.style.position = '';
-        menu.style.top = '';
-        menu.style.left = '';
-        menu.style.width = '';
-        menu.style.zIndex = '';
-      } else {
-        menu.classList.remove('hidden');
-        // モーダルにdropdown-openクラスを追加
-        if (modal) modal.classList.add('dropdown-open');
-        
-        // ボタンの位置を取得
-        const buttonRect = button.getBoundingClientRect();
-        
-        // fixed positionで絶対位置に配置
-        menu.style.position = 'fixed';
-        menu.style.top = `${buttonRect.bottom}px`;
-        menu.style.left = `${buttonRect.left}px`;
-        menu.style.width = `${buttonRect.width}px`;
-        menu.style.zIndex = '2147483647'; // 最大z-index値で確実に最前面に
-        
-        console.log('ドロップダウン位置:', {
-          top: buttonRect.bottom,
-          left: buttonRect.left,
-          width: buttonRect.width
-        });
-      }
-    });
-    
-    // オプション選択
-    menu.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const option = e.target.closest('.status-option');
-      if (option) {
-        const value = option.getAttribute('data-value');
-        const label = option.getAttribute('data-label');
-        
-        // 選択値を更新
-        textElement.textContent = label;
-        textElement.setAttribute('data-value', value);
-        
-        // メニューを閉じる
-        menu.classList.add('hidden');
-        // モーダルからdropdown-openクラスを除去
-        const modal = document.getElementById('statusChangeModal');
-        if (modal) modal.classList.remove('dropdown-open');
-        // スタイルをリセット
-        menu.style.position = '';
-        menu.style.top = '';
-        menu.style.left = '';
-        menu.style.width = '';
-        menu.style.zIndex = '';
-        
-        console.log('ステータス選択:', { value, label });
-      }
-    });
-    
-    // 外部クリックでメニューを閉じる
-    document.addEventListener('click', (e) => {
-      if (!button.contains(e.target) && !menu.contains(e.target)) {
-        menu.classList.add('hidden');
-        // モーダルからdropdown-openクラスを除去
-        const modal = document.getElementById('statusChangeModal');
-        if (modal) modal.classList.remove('dropdown-open');
-        // スタイルをリセット
-        menu.style.position = '';
-        menu.style.top = '';
-        menu.style.left = '';
-        menu.style.width = '';
-        menu.style.zIndex = '';
-      }
-    });
-  },
-  
-  // 選択値を取得
-  getSelectedStatus: () => {
-    const textElement = document.getElementById('statusDropdownText');
-    return textElement ? textElement.getAttribute('data-value') || '' : '';
-  },
-  
-  // 選択値をリセット
-  resetStatusSelection: () => {
-    const textElement = document.getElementById('statusDropdownText');
-    if (textElement) {
-      textElement.textContent = '選択してください';
-      textElement.setAttribute('data-value', '');
-    }
-  },
+  // 現在の状態
+  currentType: null,
+  currentId: null,
+  currentStatus: null,
 
   // ステータス変更モーダルを表示（同期呼び出し用ラッパー）
   showStatusChangeModal: (type, id, currentStatus) => {
-    StatusManagement._showStatusChangeModalAsync(type, id, currentStatus);
-  },
-
-  // ステータス変更モーダルを表示（非同期実装）
-  _showStatusChangeModalAsync: async (type, id, currentStatus) => {
     console.log('ステータス変更モーダル表示:', { type, id, currentStatus });
     
     // type: 'project' or 'estimate'
@@ -9641,15 +9540,11 @@ const StatusManagement = {
     StatusManagement.currentId = id;
     StatusManagement.currentStatus = currentStatus;
     
-    // ステータスオプションが空の場合は読み込み
-    if (StatusManagement.statusOptions.length === 0) {
-      console.log('ステータスオプションを読み込み中...');
-      await StatusManagement.loadStatusOptions();
-      console.log('読み込み完了:', StatusManagement.statusOptions.length + '個');
+    // selectをリセット
+    const selectEl = document.getElementById('statusChangeSelect');
+    if (selectEl) {
+      selectEl.value = '';
     }
-    
-    // カスタムドロップダウンを初期化
-    StatusManagement.resetStatusSelection();
     
     // コメント欄をクリア
     const commentInput = document.getElementById('statusChangeComment');
@@ -9657,28 +9552,23 @@ const StatusManagement = {
       commentInput.value = '';
     }
     
-    console.log('モーダルを開く...');
+    // モーダルを確実に開く
     Modal.open('statusChangeModal');
-    
-    // モーダルが開いてからカスタムドロップダウンを初期化
-    setTimeout(() => {
-      StatusManagement.initializeCustomDropdown();
-    }, 100);
   },
   
   // ステータス変更を実行
   changeStatus: async () => {
     try {
+      const selectEl = document.getElementById('statusChangeSelect');
       const commentInput = document.getElementById('statusChangeComment');
       
-      if (!commentInput) {
+      if (!selectEl) {
         Utils.showError('フォーム要素が見つかりません');
         return;
       }
       
-      // カスタムドロップダウンから選択値を取得
-      const newStatus = StatusManagement.getSelectedStatus();
-      const comment = commentInput.value.trim();
+      const newStatus = selectEl.value;
+      const comment = commentInput ? commentInput.value.trim() : '';
       
       if (!newStatus) {
         Utils.showError('新しいステータスを選択してください');
