@@ -8616,10 +8616,12 @@ function updateProjectCustomerOptions() {
   console.log(`✅ Updated project customer options: ${customerCount} customers`);
 }
 
-// DOMContentLoaded時にボタン設定を実行
+// DOMContentLoaded時にボタン設定を実行（/customersページのみ）
 document.addEventListener('DOMContentLoaded', function() {
-  console.log('🚀 Setting up project button on DOMContentLoaded');
-  setupProjectAddButton();
+  if (window.location.pathname === '/customers') {
+    console.log('🚀 Setting up project button on DOMContentLoaded');
+    setupProjectAddButton();
+  }
 });
 // 顧客・案件管理機能の実装
 const CustomerManagement = {
@@ -13796,9 +13798,10 @@ const ProjectManagement = {
 // 案件管理をグローバルに公開
 window.ProjectManagement = ProjectManagement;
 
-// DOM読み込み完了時の案件管理初期化
+// DOM読み込み完了時の案件管理初期化（/customersまたは/mastersページのみ）
 document.addEventListener('DOMContentLoaded', function() {
-  console.log('🚀 Setting up project button on DOMContentLoaded');
+  const path = window.location.pathname;
+  if (path !== '/customers' && path !== '/masters') return;
   
   const addProjectBtn = document.getElementById('addProjectBtn');
   const projectForm = document.getElementById('masterProjectForm');
