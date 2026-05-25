@@ -11380,19 +11380,68 @@ app.post('/api/reports/sales-analysis', async (c) => {
     const { env } = c
     const { start_date, end_date, period = 'monthly' } = await c.req.json()
 
-    // 期間別売上データを取得
-    const { results: salesData } = await env.DB.prepare(`
-      SELECT 
-        strftime('%Y-%m', e.created_at) as period,
-        SUM(e.total_amount) as revenue,
-        COUNT(*) as orders
-      FROM estimates e
-      LEFT JOIN projects p ON e.project_id = p.id
-      WHERE e.created_at BETWEEN ? AND ?
-        AND p.status = 'order'
-      GROUP BY strftime('%Y-%m', e.created_at)
-      ORDER BY period
-    `).bind(start_date, end_date).all()
+    // 集計単位に応じたstrftimeフォーマットを決定
+    let groupFormat: string
+    switch (period) {
+      case 'daily':
+        groupFormat = '%Y-%m-%d'
+        break
+      case 'weekly':
+        groupFormat = '%Y-W%W'
+        break
+      case 'monthly':
+        groupFormat = '%Y-%m'
+        break
+      case 'quarterly':
+        // SQLiteにはquarter関数がないため、月から四半期を計算
+        groupFormat = 'quarter'
+        break
+      case 'yearly':
+        groupFormat = '%Y'
+        break
+      default:
+        groupFormat = '%Y-%m'
+    }
+
+    let salesData: any[]
+
+    if (period === 'quarterly') {
+      // 四半期: 特殊処理
+      const { results } = await env.DB.prepare(`
+        SELECT 
+          strftime('%Y', e.created_at) || '-Q' || 
+          CASE 
+            WHEN CAST(strftime('%m', e.created_at) AS INTEGER) BETWEEN 1 AND 3 THEN '1'
+            WHEN CAST(strftime('%m', e.created_at) AS INTEGER) BETWEEN 4 AND 6 THEN '2'
+            WHEN CAST(strftime('%m', e.created_at) AS INTEGER) BETWEEN 7 AND 9 THEN '3'
+            ELSE '4'
+          END as period,
+          SUM(e.total_amount) as revenue,
+          COUNT(*) as orders
+        FROM estimates e
+        LEFT JOIN projects p ON e.project_id = p.id
+        WHERE e.created_at BETWEEN ? AND ?
+          AND p.status = 'order'
+        GROUP BY period
+        ORDER BY period
+      `).bind(start_date, end_date).all()
+      salesData = results
+    } else {
+      // 日次/週次/月次/年次
+      const { results } = await env.DB.prepare(`
+        SELECT 
+          strftime('${groupFormat}', e.created_at) as period,
+          SUM(e.total_amount) as revenue,
+          COUNT(*) as orders
+        FROM estimates e
+        LEFT JOIN projects p ON e.project_id = p.id
+        WHERE e.created_at BETWEEN ? AND ?
+          AND p.status = 'order'
+        GROUP BY strftime('${groupFormat}', e.created_at)
+        ORDER BY period
+      `).bind(start_date, end_date).all()
+      salesData = results
+    }
 
     // 車両タイプ別売上
     const { results: vehicleData } = await env.DB.prepare(`

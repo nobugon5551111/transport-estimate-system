@@ -11627,7 +11627,8 @@ const ReportManagement = {
     try {
       const startDate = document.getElementById('salesStartDate').value;
       const endDate = document.getElementById('salesEndDate').value;
-      console.log('📊 売上データAPI呼び出し開始:', startDate, '〜', endDate);
+      const period = document.getElementById('salesPeriod').value || 'monthly';
+      console.log('📊 売上データAPI呼び出し開始:', startDate, '〜', endDate, '集計単位:', period);
       
       const response = await fetch('/api/reports/sales-analysis', {
         method: 'POST',
@@ -11635,7 +11636,7 @@ const ReportManagement = {
         body: JSON.stringify({
           start_date: startDate,
           end_date: endDate,
-          period: 'monthly'
+          period: period
         })
       });
       
@@ -11645,7 +11646,7 @@ const ReportManagement = {
       
       if (data.success) {
         console.log('📊 グラフ更新開始 - salesData:', data.salesData?.length, 'vehicleData:', data.vehicleData?.length, 'areaData:', data.areaData?.length);
-        this.updateSalesChart(data.salesData, 'monthly');
+        this.updateSalesChart(data.salesData, period);
         this.updateVehicleChart(data.vehicleData);
         this.updateAreaChart(data.areaData);
         this.loadTopCustomersFromAPI();
