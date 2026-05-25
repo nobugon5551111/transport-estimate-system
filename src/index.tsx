@@ -14005,7 +14005,7 @@ app.get('/estimate/:id', async (c) => {
               <tr class="bg-white hover:bg-gray-50">
                 <td class="px-4 py-2 border">${item.description}${item.note ? '<br><small class="text-gray-500">' + item.note + '</small>' : ''}</td>
                 <td class="px-4 py-2 border text-right">¥${unitPrice.toLocaleString()}</td>
-                <td class="px-4 py-2 border text-center">${qty}</td>
+                <td class="px-4 py-2 border text-right">${qty}</td>
                 <td class="px-4 py-2 border text-right font-bold">¥${item.amount.toLocaleString()}</td>
               </tr>`
             }
@@ -14119,10 +14119,10 @@ app.get('/estimate/:id', async (c) => {
             <table class="w-full border-collapse border border-gray-300">
               <thead>
                 <tr class="bg-blue-600 text-white">
-                  <th class="px-4 py-3 border text-left">品名</th>
-                  <th class="px-4 py-3 border text-right">単価</th>
+                  <th class="px-4 py-3 border text-center">品名</th>
+                  <th class="px-4 py-3 border text-center">単価</th>
                   <th class="px-4 py-3 border text-center">数量</th>
-                  <th class="px-4 py-3 border text-right">金額（税抜）</th>
+                  <th class="px-4 py-3 border text-center">金額（税抜）</th>
                 </tr>
               </thead>
               <tbody>
@@ -16743,10 +16743,10 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
     <table class="estimate-table">
         <thead>
             <tr>
-                <th style="width: 45%">品名</th>
-                <th style="width: 20%; text-align: right;">単価</th>
+                <th style="width: 45%; text-align: center;">品名</th>
+                <th style="width: 20%; text-align: center;">単価</th>
                 <th style="width: 10%; text-align: center;">数量</th>
-                <th style="width: 25%; text-align: right;">金額（税抜）</th>
+                <th style="width: 25%; text-align: center;">金額（税抜）</th>
             </tr>
         </thead>
         <tbody>
@@ -16769,7 +16769,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                     <tr>
                       <td>&nbsp;&nbsp;${item.description}${item.note ? '<br>&nbsp;&nbsp;&nbsp;&nbsp;<small>' + item.note + '</small>' : ''}</td>
                       <td class="amount-cell">¥${unitPrice.toLocaleString()}</td>
-                      <td style="text-align: center;">${qty}</td>
+                      <td style="text-align: right;">${qty}</td>
                       <td class="amount-cell">¥${item.amount.toLocaleString()}</td>
                     </tr>
                   `);
@@ -16798,7 +16798,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                     <tr>
                       <td>&nbsp;&nbsp;${item.description}${item.detail ? ' ' + item.detail : ''}</td>
                       <td class="amount-cell">¥${unitPrice.toLocaleString()}</td>
-                      <td style="text-align: center;">${qty}</td>
+                      <td style="text-align: right;">${qty}</td>
                       <td class="amount-cell">¥${item.amount.toLocaleString()}</td>
                     </tr>
                   `);
@@ -16827,7 +16827,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                     <tr>
                       <td>&nbsp;&nbsp;${item.description}${item.note ? '<br>&nbsp;&nbsp;&nbsp;&nbsp;<small style="color: #666;">' + item.note + '</small>' : ''}</td>
                       <td class="amount-cell">¥${unitPrice.toLocaleString()}</td>
-                      <td style="text-align: center;">${qty}</td>
+                      <td style="text-align: right;">${qty}</td>
                       <td class="amount-cell">¥${item.amount.toLocaleString()}</td>
                     </tr>
                   `);
@@ -16873,7 +16873,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                   <tr>
                     <td>&nbsp;&nbsp;チャーター便（${estimate.delivery_area}ランク）</td>
                     <td class="amount-cell">¥${dedUnitPrice.toLocaleString()}</td>
-                    <td style="text-align: center;">${estimate.vehicle_dedicated_count}</td>
+                    <td style="text-align: right;">${estimate.vehicle_dedicated_count}</td>
                     <td class="amount-cell">¥${dedTotal.toLocaleString()}</td>
                   </tr>
                 `);
@@ -16887,7 +16887,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                   <tr>
                     <td>&nbsp;&nbsp;2tチャーター（${estimate.delivery_area}ランク）</td>
                     <td class="amount-cell">¥${chaUnitPrice.toLocaleString()}</td>
-                    <td style="text-align: center;">${estimate.vehicle_charter_count}</td>
+                    <td style="text-align: right;">${estimate.vehicle_charter_count}</td>
                     <td class="amount-cell">¥${chaTotal.toLocaleString()}</td>
                   </tr>
                 `);
@@ -16927,7 +16927,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                   <tr>
                     <td>&nbsp;&nbsp;監督者</td>
                     <td class="amount-cell">¥${unitPrice.toLocaleString()}</td>
-                    <td style="text-align: center;">${count}</td>
+                    <td style="text-align: right;">${count}</td>
                     <td class="amount-cell">¥${total.toLocaleString()}</td>
                   </tr>
                 `);
@@ -16942,7 +16942,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                   <tr>
                     <td>&nbsp;&nbsp;リーダー</td>
                     <td class="amount-cell">¥${unitPrice.toLocaleString()}</td>
-                    <td style="text-align: center;">${count}</td>
+                    <td style="text-align: right;">${count}</td>
                     <td class="amount-cell">¥${total.toLocaleString()}</td>
                   </tr>
                 `);
@@ -16957,7 +16957,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                   <tr>
                     <td>&nbsp;&nbsp;一般社員（半日）</td>
                     <td class="amount-cell">¥${unitPrice.toLocaleString()}</td>
-                    <td style="text-align: center;">${count}</td>
+                    <td style="text-align: right;">${count}</td>
                     <td class="amount-cell">¥${total.toLocaleString()}</td>
                   </tr>
                 `);
@@ -16972,7 +16972,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                   <tr>
                     <td>&nbsp;&nbsp;M2スタッフ（全日）</td>
                     <td class="amount-cell">¥${unitPrice.toLocaleString()}</td>
-                    <td style="text-align: center;">${count}</td>
+                    <td style="text-align: right;">${count}</td>
                     <td class="amount-cell">¥${total.toLocaleString()}</td>
                   </tr>
                 `);
@@ -16987,7 +16987,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                   <tr>
                     <td>&nbsp;&nbsp;アルバイト（半日）</td>
                     <td class="amount-cell">¥${unitPrice.toLocaleString()}</td>
-                    <td style="text-align: center;">${count}</td>
+                    <td style="text-align: right;">${count}</td>
                     <td class="amount-cell">¥${total.toLocaleString()}</td>
                   </tr>
                 `);
@@ -17002,7 +17002,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                   <tr>
                     <td>&nbsp;&nbsp;アルバイト（全日）</td>
                     <td class="amount-cell">¥${unitPrice.toLocaleString()}</td>
-                    <td style="text-align: center;">${count}</td>
+                    <td style="text-align: right;">${count}</td>
                     <td class="amount-cell">¥${total.toLocaleString()}</td>
                   </tr>
                 `);
