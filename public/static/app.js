@@ -11605,10 +11605,10 @@ const ReportManagement = {
   
   // 売上分析タブ初期化
   initializeSalesTab: function() {
-    // デフォルト期間を設定（過去30日）
+    // デフォルト期間を設定（過去12ヶ月）
     const endDate = new Date();
     const startDate = new Date();
-    startDate.setDate(endDate.getDate() - 30);
+    startDate.setFullYear(endDate.getFullYear() - 1);
     
     const startInput = document.getElementById('salesStartDate');
     const endInput = document.getElementById('salesEndDate');
@@ -11618,9 +11618,102 @@ const ReportManagement = {
     
     // 基本統計をロード
     this.loadBasicStatistics();
-    this.loadVehicleChart();
-    this.loadAreaChart();
-    this.loadTopCustomers();
+    // APIから実データでグラフを自動描画
+    this.loadSalesDataFromAPI();
+  },
+  
+  // 初期ロード時にAPIからデータを取得してグラフを更新
+  loadSalesDataFromAPI: async function() {
+    try {
+      const startDate = document.getElementById('salesStartDate').value;
+      const endDate = document.getElementById('salesEndDate').value;
+      console.log('📊 売上データAPI呼び出し開始:', startDate, '〜', endDate);
+      
+      const response = await fetch('/api/reports/sales-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          start_date: startDate,
+          end_date: endDate,
+          period: 'monthly'
+        })
+      });
+      
+      console.log('📊 API応答ステータス:', response.status);
+      const data = await response.json();
+      console.log('📊 API応答データ:', JSON.stringify(data).substring(0, 200));
+      
+      if (data.success) {
+        console.log('📊 グラフ更新開始 - salesData:', data.salesData?.length, 'vehicleData:', data.vehicleData?.length, 'areaData:', data.areaData?.length);
+        this.updateSalesChart(data.salesData, 'monthly');
+        this.updateVehicleChart(data.vehicleData);
+        this.updateAreaChart(data.areaData);
+        this.loadTopCustomersFromAPI();
+        console.log('📊 グラフ更新完了');
+      } else {
+        console.log('📊 APIレスポンスが失敗 - フォールバック表示');
+        this.loadVehicleChart();
+        this.loadAreaChart();
+        this.loadTopCustomers();
+      }
+    } catch (error) {
+      console.error('📊 初期レポートデータ取得エラー:', error);
+      this.loadVehicleChart();
+      this.loadAreaChart();
+      this.loadTopCustomers();
+    }
+  },
+  
+  // TOP顧客をAPIから取得
+  loadTopCustomersFromAPI: async function() {
+    const customersList = document.getElementById('topCustomersList');
+    if (!customersList) return;
+    
+    try {
+      const response = await fetch('/api/reports/basic-stats');
+      const statsData = await response.json();
+      
+      // 売上分析APIで顧客別データを取得（既存のsales-analysisからはエリア別のみ）
+      // 代わりにbasic-statsの情報を活用
+      const startDate = document.getElementById('salesStartDate').value;
+      const endDate = document.getElementById('salesEndDate').value;
+      
+      const salesResponse = await fetch('/api/reports/sales-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          start_date: startDate,
+          end_date: endDate,
+          period: 'monthly'
+        })
+      });
+      const salesData = await salesResponse.json();
+      
+      if (salesData.success && salesData.areaData) {
+        const totalRevenue = salesData.areaData.reduce((sum, a) => sum + (a.revenue || 0), 0);
+        const items = salesData.areaData.map(area => {
+          const percentage = totalRevenue > 0 ? Math.round((area.revenue / totalRevenue) * 100) : 0;
+          return `
+            <div class="flex items-center justify-between py-2 border-b border-gray-100">
+              <div>
+                <div class="font-medium text-sm">${area.delivery_area}エリア</div>
+                <div class="text-xs text-gray-500">${area.orders}件の受注</div>
+              </div>
+              <div class="text-right">
+                <div class="font-bold text-sm">¥${(area.revenue || 0).toLocaleString()}</div>
+                <div class="text-xs text-gray-500">${percentage}%</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+        customersList.innerHTML = `<div class="space-y-2">${items}</div>`;
+      } else {
+        this.loadTopCustomers();
+      }
+    } catch (error) {
+      console.error('顧客データ取得エラー:', error);
+      this.loadTopCustomers();
+    }
   },
   
   // 基本統計読み込み
@@ -12273,6 +12366,24 @@ const ReportManagement = {
 
 // レポート管理用関数をグローバルに登録
 window.ReportManagement = ReportManagement;
+
+// レポートページ初期化（ページロード時に自動実行）
+if (window.location.pathname === '/reports') {
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log('📊 レポートページ初期化開始');
+    ReportManagement.initializeSalesTab();
+  });
+  // DOMContentLoadedが既に発火済みの場合のフォールバック
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(function() {
+      if (!ReportManagement._initialized) {
+        console.log('📊 レポートページ初期化（フォールバック）');
+        ReportManagement._initialized = true;
+        ReportManagement.initializeSalesTab();
+      }
+    }, 500);
+  }
+}
 
 // ================== デバッグ用テスト関数 ==================
 

@@ -59,6 +59,9 @@ export const renderer = jsxRenderer(({ children }) => {
       <body className="bg-gray-50 font-sans">
         {children}
         
+        {/* Chart.js for reports */}
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+        
         {/* Axios for API calls */}
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         
