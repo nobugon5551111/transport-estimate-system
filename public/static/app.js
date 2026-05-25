@@ -11649,6 +11649,7 @@ const ReportManagement = {
         this.updateSalesChart(data.salesData, period);
         this.updateVehicleChart(data.vehicleData);
         this.updateAreaChart(data.areaData);
+        this.updateEstimateTypeChart(data.estimateTypeData);
         this.loadTopCustomersFromAPI();
         console.log('📊 グラフ更新完了');
       } else {
@@ -11871,6 +11872,7 @@ const ReportManagement = {
         this.updateSalesChart(data.salesData, period);
         this.updateVehicleChart(data.vehicleData);
         this.updateAreaChart(data.areaData);
+        this.updateEstimateTypeChart(data.estimateTypeData);
       } else {
         // フォールバック表示
         this.updateSalesChartFallback(period);
@@ -12234,6 +12236,108 @@ const ReportManagement = {
     }
     
     return csvData;
+  },
+  
+  // 見積もりタイプ別チャート更新
+  updateEstimateTypeChart: function(estimateTypeData) {
+    const chartEl = document.getElementById('estimateTypeChart');
+    if (!chartEl) return;
+    
+    if (!estimateTypeData || estimateTypeData.length === 0) {
+      chartEl.innerHTML = `
+        <div class="text-center text-gray-500 py-4">
+          <i class="fas fa-file-invoice text-2xl mb-2"></i>
+          <div class="text-sm">見積もりタイプ別データがありません</div>
+        </div>
+      `;
+      return;
+    }
+    
+    try {
+      // 既存のChart.jsインスタンスを破棄
+      if (this.estimateTypeChartInstance) {
+        this.estimateTypeChartInstance.destroy();
+      }
+      
+      const typeLabels = {
+        'standard_a': '標準見積A',
+        'standard_b': '標準見積B',
+        'free': 'フリー見積',
+        'survey': '現調見積'
+      };
+      
+      const typeColors = {
+        'standard_a': { bg: 'rgba(59, 130, 246, 0.8)', border: 'rgb(59, 130, 246)' },
+        'standard_b': { bg: 'rgba(20, 184, 166, 0.8)', border: 'rgb(20, 184, 166)' },
+        'free': { bg: 'rgba(249, 115, 22, 0.8)', border: 'rgb(249, 115, 22)' },
+        'survey': { bg: 'rgba(168, 85, 247, 0.8)', border: 'rgb(168, 85, 247)' }
+      };
+      
+      // canvasを作成
+      chartEl.innerHTML = '<canvas id="estimateTypeChartCanvas"></canvas>';
+      const ctx = document.getElementById('estimateTypeChartCanvas').getContext('2d');
+      
+      const labels = estimateTypeData.map(d => typeLabels[d.estimate_type] || d.estimate_type);
+      const bgColors = estimateTypeData.map(d => (typeColors[d.estimate_type] || typeColors['standard_a']).bg);
+      const borderColors = estimateTypeData.map(d => (typeColors[d.estimate_type] || typeColors['standard_a']).border);
+      
+      this.estimateTypeChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: estimateTypeData.map(d => d.revenue || 0),
+            backgroundColor: bgColors,
+            borderColor: borderColors,
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'right',
+              labels: {
+                padding: 12,
+                usePointStyle: true,
+                font: { size: 11 }
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const value = context.parsed;
+                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+                  return context.label + ': ¥' + value.toLocaleString() + ' (' + pct + '%)';
+                }
+              }
+            }
+          }
+        }
+      });
+    } catch (error) {
+      console.error('見積もりタイプ別チャートエラー:', error);
+      // フォールバック: テキスト表示
+      const totalRevenue = estimateTypeData.reduce((sum, d) => sum + (d.revenue || 0), 0);
+      const typeLabels = { 'standard_a': '標準A', 'standard_b': '標準B', 'free': 'フリー', 'survey': '現調' };
+      const colors = { 'standard_a': 'bg-blue-500', 'standard_b': 'bg-teal-500', 'free': 'bg-orange-500', 'survey': 'bg-purple-500' };
+      
+      const items = estimateTypeData.map(d => {
+        const pct = totalRevenue > 0 ? Math.round((d.revenue / totalRevenue) * 100) : 0;
+        return `
+          <div class="flex items-center justify-between">
+            <div class="flex items-center">
+              <div class="w-3 h-3 ${colors[d.estimate_type] || 'bg-gray-500'} rounded mr-2"></div>
+              <span class="text-sm">${typeLabels[d.estimate_type] || d.estimate_type}</span>
+            </div>
+            <span class="text-sm font-medium">¥${(d.revenue || 0).toLocaleString()} (${pct}%)</span>
+          </div>
+        `;
+      }).join('');
+      chartEl.innerHTML = `<div class="space-y-3">${items}</div>`;
+    }
   },
   
   // 車両タイプ別チャート更新（実データ）

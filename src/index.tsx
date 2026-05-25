@@ -11100,6 +11100,19 @@ app.get('/reports', (c) => {
                 </div>
               </div>
             </div>
+
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                <i className="fas fa-file-invoice mr-2 text-orange-600"></i>
+                見積もりタイプ別売上
+              </h3>
+              <div id="estimateTypeChart" className="h-64 flex items-center justify-center text-gray-500">
+                <div className="text-center">
+                  <i className="fas fa-chart-pie text-4xl mb-2"></i>
+                  <p>データを読み込み中...</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -11471,11 +11484,26 @@ app.post('/api/reports/sales-analysis', async (c) => {
       ORDER BY revenue DESC
     `).bind(start_date, end_date).all()
 
+    // 見積もりタイプ別売上
+    const { results: estimateTypeData } = await env.DB.prepare(`
+      SELECT 
+        e.estimate_type,
+        SUM(e.total_amount) as revenue,
+        COUNT(*) as orders
+      FROM estimates e
+      LEFT JOIN projects p ON e.project_id = p.id
+      WHERE e.created_at BETWEEN ? AND ?
+        AND p.status = 'order'
+      GROUP BY e.estimate_type
+      ORDER BY revenue DESC
+    `).bind(start_date, end_date).all()
+
     return c.json({
       success: true,
       salesData,
       vehicleData,
-      areaData
+      areaData,
+      estimateTypeData
     })
 
   } catch (error) {
