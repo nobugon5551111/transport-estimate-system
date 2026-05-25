@@ -9704,9 +9704,6 @@ const EstimateManagement = {
   // ページ初期化
   initialize: async () => {
     try {
-      // ステータス管理初期化
-      await StatusManagement.loadStatusOptions();
-      
       // データを読み込み
       await EstimateManagement.loadEstimates();
       await EstimateManagement.loadCustomers();
