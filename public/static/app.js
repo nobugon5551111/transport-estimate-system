@@ -215,8 +215,10 @@ if (typeof Utils === 'undefined') {
 
   // エラー表示
   showError: (message) => {
+    console.log('❌ showError:', message);
     const errorDiv = document.createElement('div');
-    errorDiv.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-4 rounded-lg shadow-lg z-50 fade-in';
+    errorDiv.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-4 rounded-lg shadow-2xl fade-in';
+    errorDiv.style.cssText = 'z-index: 99999; position: fixed; top: 16px; right: 16px;';
     errorDiv.innerHTML = `
       <div class="flex items-center">
         <i class="fas fa-exclamation-triangle mr-2"></i>
@@ -238,8 +240,10 @@ if (typeof Utils === 'undefined') {
 
   // 成功表示
   showSuccess: (message) => {
+    console.log('✅ showSuccess:', message);
     const successDiv = document.createElement('div');
-    successDiv.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg z-50 fade-in';
+    successDiv.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-4 rounded-lg shadow-2xl fade-in';
+    successDiv.style.cssText = 'z-index: 99999; position: fixed; top: 16px; right: 16px;';
     successDiv.innerHTML = `
       <div class="flex items-center">
         <i class="fas fa-check-circle mr-2"></i>
@@ -6805,12 +6809,15 @@ if (typeof MasterManagement === 'undefined') {
       }
 
       if (errorCount === 0) {
+        console.log(`✅ 車両設定保存完了: ${successCount}件`);
         Utils.showSuccess(`プラン${currentPlan}の車両料金設定を保存しました（${successCount}件更新）`);
       } else {
+        console.error(`❌ 車両設定保存一部失敗: 成功${successCount}件、失敗${errorCount}件`);
         Utils.showError(`一部の保存に失敗しました（成功: ${successCount}件、失敗: ${errorCount}件）`);
       }
 
     } catch (error) {
+      console.error('❌ 車両設定保存エラー:', error);
       Utils.showError('保存中にエラーが発生しました: ' + error.message);
     }
   },
@@ -6886,22 +6893,27 @@ if (typeof MasterManagement === 'undefined') {
       console.log(`📤 サービス設定保存（プラン${apiData.plan_type}）:`, apiData);
 
       const response = await API.post('/master-settings', apiData);
+      console.log('📥 サービス設定保存レスポンス:', response);
       
       if (response.success) {
         const plan = MasterManagement._currentPlan || 'A';
         Utils.showSuccess(`プラン${plan}のサービス料金設定を保存しました`);
         // 保存後は強制的にデータを再読み込みして最新値を反映
-        MasterManagement._dataPopulated = false; // フラグをリセット
-        MasterManagement._servicesDisplayed = false; // サービス表示フラグもリセット
-        MasterManagement.masterSettings = null;  // キャッシュをクリア
-        await MasterManagement.loadMasterSettings(true);
-        // サービス設定を強制的に再表示
-        MasterManagement.displayServicesSettings();
+        try {
+          MasterManagement._dataPopulated = false;
+          MasterManagement._servicesDisplayed = false;
+          MasterManagement.masterSettings = null;
+          await MasterManagement.loadMasterSettings(true);
+          MasterManagement.displayServicesSettings();
+        } catch (reloadError) {
+          console.warn('⚠️ 保存成功後のデータ再読み込みでエラー:', reloadError);
+        }
       } else {
-        Utils.showError('保存に失敗しました: ' + response.error);
+        Utils.showError('保存に失敗しました: ' + (response.error || response.message || '不明なエラー'));
       }
 
     } catch (error) {
+      console.error('❌ サービス設定保存エラー:', error);
       Utils.showError('保存中にエラーが発生しました: ' + error.message);
     }
   },
@@ -6934,12 +6946,17 @@ if (typeof MasterManagement === 'undefined') {
 
       console.log(`📤 送信データ（プラン${currentPlan}）:`, apiData);
       const response = await API.post('/master-settings', apiData);
+      console.log('📥 スタッフ料金保存レスポンス:', response);
       
       if (response.success) {
         Utils.showSuccess(`プラン${currentPlan}のスタッフ料金設定を保存しました`);
-        await MasterManagement.loadMasterSettings(true);
+        try {
+          await MasterManagement.loadMasterSettings(true);
+        } catch (reloadError) {
+          console.warn('⚠️ 保存成功後のデータ再読み込みでエラー:', reloadError);
+        }
       } else {
-        Utils.showError('保存に失敗しました: ' + response.error);
+        Utils.showError('保存に失敗しました: ' + (response.error || response.message || '不明なエラー'));
       }
 
     } catch (error) {

@@ -18012,14 +18012,14 @@ app.get('/api/master-settings', async (c) => {
     // マスタ設定データを取得（プラン別、最新データを優先）
     // staff/service/vehicleカテゴリはplan_type別、systemはプラン共通('A')
     const result = await env.DB.prepare(`
-      SELECT DISTINCT category, subcategory, key, value, data_type, MAX(updated_at) as updated_at
+      SELECT category, subcategory, key, value, data_type, updated_at
       FROM master_settings 
       WHERE (
         (category IN ('staff', 'service', 'vehicle') AND plan_type = ?)
         OR (category = 'system' AND plan_type = 'A')
+        OR (category = 'basic' AND plan_type = 'A')
       )
-      GROUP BY category, subcategory, key
-      ORDER BY category, subcategory, key
+      ORDER BY category, subcategory, key, updated_at DESC
     `).bind(planType).all();
 
     if (result.success && result.results) {
