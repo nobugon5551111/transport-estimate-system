@@ -11450,45 +11450,11 @@ window.predictOrderProbability = AIFeatures.predictOrderProbability;
 const ReportManagement = {
   currentTab: 'sales',
   
-  // タブ切り替え
+  // タブ切り替え（売上分析のみ）
   switchTab: function(tabName) {
-    // 全てのタブコンテンツを非表示
-    const allTabs = ['salesTab', 'efficiencyTab', 'predictionTab', 'customTab'];
-    const allTabButtons = ['salesTabBtn', 'efficiencyTabBtn', 'predictionTabBtn', 'customTabBtn'];
-    
-    allTabs.forEach(tab => {
-      const element = document.getElementById(tab);
-      if (element) element.classList.add('hidden');
-    });
-    
-    allTabButtons.forEach(btn => {
-      const element = document.getElementById(btn);
-      if (element) element.classList.remove('active');
-    });
-    
-    // 選択されたタブを表示
-    const targetTab = document.getElementById(tabName + 'Tab');
-    const targetBtn = document.getElementById(tabName + 'TabBtn');
-    
-    if (targetTab) targetTab.classList.remove('hidden');
-    if (targetBtn) targetBtn.classList.add('active');
-    
     this.currentTab = tabName;
-    
-    // タブごとの初期化処理
-    switch(tabName) {
-      case 'sales':
-        this.initializeSalesTab();
-        break;
-      case 'efficiency':
-        this.initializeEfficiencyTab();
-        break;
-      case 'prediction':
-        this.initializePredictionTab();
-        break;
-      case 'custom':
-        this.initializeCustomTab();
-        break;
+    if (tabName === 'sales') {
+      this.initializeSalesTab();
     }
   },
   
@@ -11857,211 +11823,22 @@ const ReportManagement = {
     }
   },
   
-  // 業務効率タブ初期化
-  initializeEfficiencyTab: async function() {
-    // 効率指標をAPIから取得
-    try {
-      const response = await fetch('/api/reports/efficiency-metrics');
-      const data = await response.json();
-      
-      if (data.success) {
-        const metrics = data.metrics;
-        
-        // DOM要素の安全な更新
-        const updateElement = (id, value) => {
-          const element = document.getElementById(id);
-          if (element) element.textContent = value;
-        };
-        
-        updateElement('avgWorkTime', metrics.avgWorkTime + '時間');
-        updateElement('utilizationRate', metrics.utilizationRate + '%');
-        updateElement('completionRate', metrics.completionRate + '%');
-        updateElement('vehicleUtilization', metrics.vehicleUtilization + '%');
-        updateElement('avgDeliveryTime', metrics.avgDeliveryTime + '時間');
-        updateElement('fuelEfficiency', metrics.fuelEfficiency + 'km/L');
-        updateElement('unitCost', '¥' + metrics.unitCost.toLocaleString());
-        updateElement('profitMargin', metrics.profitMargin + '%');
-        updateElement('roiValue', metrics.roiValue + '%');
-        
-      } else {
-        // フォールバック値を設定
-        this.setEfficiencyFallbackValues();
-      }
-    } catch (error) {
-      console.error('効率指標取得エラー:', error);
-      this.setEfficiencyFallbackValues();
-    }
-    
-    // 改善提案の表示
-    this.displayEfficiencyRecommendations();
-  },
-  
-  // 効率指標のフォールバック値設定
-  setEfficiencyFallbackValues: function() {
-    const fallbackValues = {
-      'avgWorkTime': '6.5時間',
-      'utilizationRate': '85%',
-      'completionRate': '98%',
-      'vehicleUtilization': '78%',
-      'avgDeliveryTime': '4.2時間',
-      'fuelEfficiency': '8.5km/L',
-      'unitCost': '¥12,500',
-      'profitMargin': '25%',
-      'roiValue': '18%'
-    };
-    
-    Object.keys(fallbackValues).forEach(key => {
-      const element = document.getElementById(key);
-      if (element) element.textContent = fallbackValues[key];
-    });
-  },
-  
-  // 効率改善提案表示
-  displayEfficiencyRecommendations: function() {
-    const recommendations = document.getElementById('efficiencyRecommendations');
-    if (recommendations) {
-      recommendations.innerHTML = `
-        <div class="space-y-4">
-          <div class="border-l-4 border-blue-500 pl-4">
-            <h4 class="font-medium text-gray-900">スタッフ配置最適化</h4>
-            <p class="text-sm text-gray-600">AI分析により、ピーク時間帯のスタッフ配置を20%改善できる可能性があります。</p>
-          </div>
-          <div class="border-l-4 border-green-500 pl-4">
-            <h4 class="font-medium text-gray-900">ルート最適化</h4>
-            <p class="text-sm text-gray-600">配送ルートの見直しにより、燃料コストを15%削減できます。</p>
-          </div>
-          <div class="border-l-4 border-yellow-500 pl-4">
-            <h4 class="font-medium text-gray-900">車両メンテナンス</h4>
-            <p class="text-sm text-gray-600">予防メンテナンスの実施により、稼働率を5%向上できます。</p>
-          </div>
-        </div>
-      `;
-    }
-  },
-  
-  // 予測分析タブ初期化
-  initializePredictionTab: function() {
-    // 市場トレンドの表示
-    setTimeout(() => {
-      const marketTrends = document.getElementById('marketTrends');
-      if (marketTrends) {
-        marketTrends.innerHTML = `
-          <div class="space-y-4">
-            <div class="flex justify-between items-center">
-              <span class="text-sm">輸送需要トレンド</span>
-              <span class="text-sm font-medium text-green-600">↗ +12%</span>
-            </div>
-            <div class="w-full bg-gray-200 rounded-full h-2">
-              <div class="bg-green-500 h-2 rounded-full" style="width: 75%"></div>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-sm">競合動向</span>
-              <span class="text-sm font-medium text-yellow-600">→ 0%</span>
-            </div>
-            <div class="w-full bg-gray-200 rounded-full h-2">
-              <div class="bg-yellow-500 h-2 rounded-full" style="width: 50%"></div>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-sm">価格動向</span>
-              <span class="text-sm font-medium text-blue-600">↗ +5%</span>
-            </div>
-            <div class="w-full bg-gray-200 rounded-full h-2">
-              <div class="bg-blue-500 h-2 rounded-full" style="width: 60%"></div>
-            </div>
-          </div>
-        `;
-      }
-    }, 1500);
-  },
-  
-  // AI予測生成
-  generatePrediction: function() {
-    const period = document.getElementById('predictionPeriod').value;
-    
-    Utils.showLoading('AI予測分析中...');
-    
-    setTimeout(() => {
-      // 予測値の計算（実際はAPIから取得）
-      const currentRevenue = 201300;
-      const growthRate = 1 + (0.08 * parseInt(period)); // 月8%成長と仮定
-      const predictedRevenue = Math.round(currentRevenue * growthRate);
-      
-      const predictionDiv = document.getElementById('salesPrediction');
-      if (predictionDiv) {
-        predictionDiv.innerHTML = `
-          <div class="text-2xl font-bold text-blue-600">¥${predictedRevenue.toLocaleString()}</div>
-          <div class="text-sm text-gray-600">${period}ヶ月後の売上予測</div>
-          <div class="text-xs text-gray-500 mt-1">信頼度: 78%</div>
-        `;
-      }
-      
-      Utils.hideLoading();
-      Utils.showSuccess(`${period}ヶ月先の売上予測を生成しました`);
-    }, 3000);
-  },
-  
-  // AI予測生成
-  generatePrediction: async function() {
-    const period = document.getElementById('predictionPeriod').value;
-    const predictionDiv = document.getElementById('salesPrediction');
-    
-    try {
-      Utils.showLoading('AI予測分析中...');
-      
-      // AI予測APIを呼び出し
-      const response = await fetch('/api/reports/ai-prediction', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ period: parseInt(period) })
-      });
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        predictionDiv.innerHTML = `
-          <div class="text-2xl font-bold text-blue-600">¥${data.predictedRevenue.toLocaleString()}</div>
-          <div class="text-sm text-gray-600">${period}ヶ月先の予測売上</div>
-          <div class="mt-2 text-xs text-gray-500">信頼度: ${data.confidence}%</div>
-        `;
-      } else {
-        predictionDiv.innerHTML = `
-          <div class="text-2xl font-bold text-orange-600">¥2,500,000</div>
-          <div class="text-sm text-gray-600">${period}ヶ月先の予測売上</div>
-          <div class="mt-2 text-xs text-gray-500">信頼度: 85%</div>
-        `;
-      }
-      
-      Utils.hideLoading();
-      Utils.showSuccess('AI予測を生成しました');
-      
-    } catch (error) {
-      console.error('予測生成エラー:', error);
-      predictionDiv.innerHTML = `
-        <div class="text-2xl font-bold text-orange-600">¥2,500,000</div>
-        <div class="text-sm text-gray-600">${period}ヶ月先の予測売上</div>
-        <div class="mt-2 text-xs text-gray-500">信頼度: 85%</div>
-      `;
-      Utils.hideLoading();
-      Utils.showSuccess('AI予測を生成しました（サンプルデータ）');
-    }
-  },
-  
-  // カスタムタブ初期化
-  initializeCustomTab: function() {
-    // カスタムレポート設定の初期化
-    console.log('カスタムレポートタブを初期化しました');
-  },
-  
   // カスタムレポート生成
   generateCustomReport: async function() {
     try {
       Utils.showLoading('カスタムレポート生成中...');
       
-      // 選択された項目を取得
-      const checkboxes = document.querySelectorAll('#customTab input[type="checkbox"]:checked');
-      const selectedItems = Array.from(checkboxes).map(cb => cb.nextElementSibling.textContent);
+      // 選択された項目を取得（新しいID基準）
+      const selectedItems = [];
+      if (document.getElementById('customCheck_sales')?.checked) selectedItems.push('売上金額');
+      if (document.getElementById('customCheck_orders')?.checked) selectedItems.push('受注実績');
+      if (document.getElementById('customCheck_customers')?.checked) selectedItems.push('顧客情報');
+      
+      if (selectedItems.length === 0) {
+        Utils.hideLoading();
+        Utils.showError('少なくとも1つの項目を選択してください');
+        return;
+      }
       
       // CSV形式でデータをダウンロード
       const csvData = await this.generateCSVReport(selectedItems);
@@ -12111,17 +11888,24 @@ const ReportManagement = {
   
   // フォールバックCSVデータ生成
   getFallbackCSVData: function(selectedItems) {
-    let csvData = selectedItems.join(',') + '\n';
+    let csvData = '';
     
-    // サンプルデータ
-    if (selectedItems.includes('売上金額') && selectedItems.includes('受注件数')) {
-      csvData += '2025-01,201300,2\n';
-      csvData += '2025-02,0,0\n';
-      csvData += '2025-03,0,0\n';
-    } else if (selectedItems.includes('売上金額')) {
-      csvData += '201300\n';
-    } else if (selectedItems.includes('受注件数')) {
-      csvData += '2\n';
+    if (selectedItems.includes('売上金額')) {
+      csvData += '期間,売上金額\n';
+      csvData += '2025-01,350000\n';
+      csvData += '2025-02,420000\n';
+      csvData += '2025-03,380000\n';
+    }
+    if (selectedItems.includes('受注実績')) {
+      csvData += '期間,受注件数,受注率\n';
+      csvData += '2025-01,5,45%\n';
+      csvData += '2025-02,8,53%\n';
+      csvData += '2025-03,6,50%\n';
+    }
+    if (selectedItems.includes('顧客情報')) {
+      csvData += '顧客名,案件数,売上合計\n';
+      csvData += 'サンプル顧客A,3,500000\n';
+      csvData += 'サンプル顧客B,2,300000\n';
     }
     
     return csvData;
@@ -12233,7 +12017,7 @@ const ReportManagement = {
   updateVehicleChart: function(vehicleData) {
     const vehicleChart = document.getElementById('vehicleChart');
     if (!vehicleChart || !vehicleData || vehicleData.length === 0) {
-      this.setFallbackVehicleChart();
+      this.loadVehicleChart();
       return;
     }
     
@@ -12270,7 +12054,7 @@ const ReportManagement = {
       `;
     } catch (error) {
       console.error('車両チャート更新エラー:', error);
-      this.setFallbackVehicleChart();
+      this.loadVehicleChart();
     }
   },
   

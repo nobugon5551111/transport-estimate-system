@@ -10926,41 +10926,16 @@ app.get('/reports', (c) => {
           <p className="text-gray-600">売上分析・業務効率・予測分析を行います</p>
         </div>
 
-        {/* レポートタブ */}
+        {/* レポートヘッダー */}
         <div className="mb-8">
           <div className="border-b border-gray-200">
             <nav className="-mb-px flex space-x-8">
               <button 
-                onclick="ReportManagement.switchTab('sales')"
                 id="salesTabBtn"
                 className="tab-button active"
               >
                 <i className="fas fa-chart-line mr-2"></i>
                 売上分析
-              </button>
-              <button 
-                onclick="ReportManagement.switchTab('efficiency')"
-                id="efficiencyTabBtn"
-                className="tab-button"
-              >
-                <i className="fas fa-users mr-2"></i>
-                業務効率
-              </button>
-              <button 
-                onclick="ReportManagement.switchTab('prediction')"
-                id="predictionTabBtn"
-                className="tab-button"
-              >
-                <i className="fas fa-crystal-ball mr-2"></i>
-                予測分析
-              </button>
-              <button 
-                onclick="ReportManagement.switchTab('custom')"
-                id="customTabBtn"
-                className="tab-button"
-              >
-                <i className="fas fa-cog mr-2"></i>
-                カスタム
               </button>
             </nav>
           </div>
@@ -11089,180 +11064,28 @@ app.get('/reports', (c) => {
           </div>
         </div>
 
-        {/* 業務効率タブ */}
-        <div id="efficiencyTab" className="tab-content hidden">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
-                <i className="fas fa-user-clock mr-2 text-blue-600"></i>
-                スタッフ効率
-              </h3>
-              <div className="space-y-4">
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">平均作業時間:</span>
-                  <span className="text-sm font-medium" id="avgWorkTime">計算中...</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">稼働率:</span>
-                  <span className="text-sm font-medium" id="utilizationRate">計算中...</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">完了率:</span>
-                  <span className="text-sm font-medium" id="completionRate">計算中...</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
-                <i className="fas fa-truck mr-2 text-green-600"></i>
-                車両効率
-              </h3>
-              <div className="space-y-4">
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">車両稼働率:</span>
-                  <span className="text-sm font-medium" id="vehicleUtilization">計算中...</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">平均配送時間:</span>
-                  <span className="text-sm font-medium" id="avgDeliveryTime">計算中...</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">燃費効率:</span>
-                  <span className="text-sm font-medium" id="fuelEfficiency">計算中...</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
-                <i className="fas fa-dollar-sign mr-2 text-purple-600"></i>
-                コスト効率
-              </h3>
-              <div className="space-y-4">
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">単位当たりコスト:</span>
-                  <span className="text-sm font-medium" id="unitCost">計算中...</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">利益率:</span>
-                  <span className="text-sm font-medium" id="profitMargin">計算中...</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">ROI:</span>
-                  <span className="text-sm font-medium" id="roiValue">計算中...</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">効率改善提案</h3>
-            <div id="efficiencyRecommendations" className="space-y-4">
-              <div className="text-center text-gray-500 py-8">
-                <i className="fas fa-lightbulb text-4xl mb-2"></i>
-                <p>データを分析中...</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* 予測分析タブ */}
-        <div id="predictionTab" className="tab-content hidden">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
-                <i className="fas fa-trending-up mr-2 text-blue-600"></i>
-                売上予測
-              </h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">予測期間</label>
-                  <select id="predictionPeriod" className="form-select">
-                    <option value="1">1ヶ月先</option>
-                    <option value="3" selected>3ヶ月先</option>
-                    <option value="6">6ヶ月先</option>
-                    <option value="12">1年先</option>
-                  </select>
-                </div>
-                <button onclick="ReportManagement.generatePrediction()" className="btn-primary w-full">
-                  <i className="fas fa-magic mr-2"></i>
-                  AI予測生成
-                </button>
-                <div id="salesPrediction" className="text-center py-4 border-t">
-                  <div className="text-2xl font-bold text-blue-600">予測待ち</div>
-                  <div className="text-sm text-gray-600">売上予測</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
-                <i className="fas fa-chart-line mr-2 text-green-600"></i>
-                市場トレンド
-              </h3>
-              <div id="marketTrends" className="h-64 flex items-center justify-center text-gray-500">
-                <div className="text-center">
-                  <i className="fas fa-chart-area text-4xl mb-2"></i>
-                  <p>トレンド分析中...</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">リスク分析</h3>
-            <div id="riskAnalysis" className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="text-center">
-                <div className="text-lg font-bold text-yellow-600">中</div>
-                <div className="text-sm text-gray-600">市場リスク</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-bold text-green-600">低</div>
-                <div className="text-sm text-gray-600">運営リスク</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-bold text-red-600">高</div>
-                <div className="text-sm text-gray-600">競合リスク</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* カスタムレポートタブ */}
-        <div id="customTab" className="tab-content hidden">
+        {/* カスタムレポート（売上分析内） */}
+        <div className="mt-8">
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="text-lg font-medium text-gray-900 mb-4">
-              <i className="fas fa-plus mr-2 text-indigo-600"></i>
-              カスタムレポート作成
+              <i className="fas fa-download mr-2 text-indigo-600"></i>
+              カスタムレポート出力
             </h3>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div>
                 <h4 className="font-medium text-gray-900 mb-3">データ項目選択</h4>
                 <div className="space-y-2">
                   <label className="flex items-center">
-                    <input type="checkbox" className="form-checkbox" checked />
+                    <input type="checkbox" className="form-checkbox" id="customCheck_sales" checked />
                     <span className="ml-2 text-sm">売上金額</span>
                   </label>
                   <label className="flex items-center">
-                    <input type="checkbox" className="form-checkbox" checked />
-                    <span className="ml-2 text-sm">受注件数</span>
+                    <input type="checkbox" className="form-checkbox" id="customCheck_orders" checked />
+                    <span className="ml-2 text-sm">受注実績</span>
                   </label>
                   <label className="flex items-center">
-                    <input type="checkbox" className="form-checkbox" />
+                    <input type="checkbox" className="form-checkbox" id="customCheck_customers" />
                     <span className="ml-2 text-sm">顧客情報</span>
-                  </label>
-                  <label className="flex items-center">
-                    <input type="checkbox" className="form-checkbox" />
-                    <span className="ml-2 text-sm">車両使用率</span>
-                  </label>
-                  <label className="flex items-center">
-                    <input type="checkbox" className="form-checkbox" />
-                    <span className="ml-2 text-sm">スタッフ稼働</span>
-                  </label>
-                  <label className="flex items-center">
-                    <input type="checkbox" className="form-checkbox" />
-                    <span className="ml-2 text-sm">エリア別分析</span>
                   </label>
                 </div>
               </div>
@@ -11272,23 +11095,12 @@ app.get('/reports', (c) => {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">レポート名</label>
-                    <input type="text" className="form-input" placeholder="カスタムレポート" />
+                    <input type="text" id="customReportName" className="form-input" placeholder="カスタムレポート" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">出力形式</label>
-                    <select className="form-select">
-                      <option>PDF</option>
-                      <option>CSV</option>
-                      <option>Excel</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">グラフタイプ</label>
-                    <select className="form-select">
-                      <option>棒グラフ</option>
-                      <option>円グラフ</option>
-                      <option>線グラフ</option>
-                      <option>散布図</option>
+                    <select id="customReportFormat" className="form-select">
+                      <option value="csv">CSV</option>
                     </select>
                   </div>
                   <button onclick="ReportManagement.generateCustomReport()" className="btn-primary w-full">
@@ -11485,260 +11297,26 @@ app.post('/api/reports/sales-analysis', async (c) => {
   }
 })
 
-// API: 効率分析レポート
-app.get('/api/reports/efficiency-analysis', async (c) => {
-  try {
-    const { env } = c
-
-    // 効率指標の計算
-    const [
-      totalEstimates,
-      completedOrders,
-      avgProcessingTime,
-      vehicleUtilization
-    ] = await Promise.all([
-      env.DB.prepare('SELECT COUNT(*) as total FROM estimates').all(),
-      env.DB.prepare(`
-        SELECT COUNT(*) as completed 
-        FROM estimates e
-        LEFT JOIN projects p ON e.project_id = p.id
-        WHERE p.status = 'order'
-      `).all(),
-      env.DB.prepare(`
-        SELECT AVG(
-          julianday(e.updated_at) - julianday(e.created_at)
-        ) as avg_days
-        FROM estimates e
-        LEFT JOIN projects p ON e.project_id = p.id
-        WHERE p.status = 'order'
-      `).all(),
-      env.DB.prepare(`
-        SELECT 
-          e.vehicle_type,
-          COUNT(*) as usage_count
-        FROM estimates e
-        GROUP BY e.vehicle_type
-      `).all()
-    ])
-
-    const completionRate = totalEstimates.results?.[0]?.total > 0 
-      ? Math.round((completedOrders.results?.[0]?.completed || 0) / (totalEstimates.results?.[0]?.total || 1) * 100)
-      : 0
-
-    const avgDays = avgProcessingTime.results?.[0]?.avg_days || 0
-
-    return c.json({
-      success: true,
-      completionRate,
-      avgProcessingDays: Math.round(avgDays * 10) / 10,
-      vehicleUtilization: vehicleUtilization.results,
-      recommendations: [
-        'AI分析により、ピーク時間帯のスタッフ配置を20%改善できる可能性があります。',
-        '配送ルートの見直しにより、燃料コストを15%削減できます。',
-        '予防メンテナンスの実施により、稼働率を5%向上できます。'
-      ]
-    })
-
-  } catch (error) {
-    console.error('効率分析レポートエラー:', error)
-    return c.json({ error: '効率分析レポートの生成に失敗しました' }, 500)
-  }
-})
-
-// API: 予測分析
-app.post('/api/reports/prediction-analysis', async (c) => {
-  try {
-    const { env } = c
-    const { prediction_months = 3 } = await c.req.json()
-
-    // 過去の売上データから成長率を計算
-    const { results: historicalData } = await env.DB.prepare(`
-      SELECT 
-        strftime('%Y-%m', e.created_at) as month,
-        SUM(e.total_amount) as revenue
-      FROM estimates e
-      LEFT JOIN projects p ON e.project_id = p.id
-      WHERE p.status = 'order'
-        AND e.created_at >= date('now', '-12 months')
-      GROUP BY strftime('%Y-%m', e.created_at)
-      ORDER BY month
-    `).all()
-
-    // 簡易成長率計算（実際はより高度な予測アルゴリズムを使用）
-    let growthRate = 0.08 // デフォルト8%成長
-    if (historicalData.length >= 2) {
-      const recent = historicalData[historicalData.length - 1]?.revenue || 0
-      const previous = historicalData[historicalData.length - 2]?.revenue || 0
-      if (previous > 0) {
-        growthRate = (recent - previous) / previous
-      }
-    }
-
-    // 現在の月次売上を取得
-    const { results: currentData } = await env.DB.prepare(`
-      SELECT SUM(e.total_amount) as current_revenue
-      FROM estimates e
-      LEFT JOIN projects p ON e.project_id = p.id
-      WHERE p.status = 'order'
-        AND strftime('%Y-%m', e.created_at) = strftime('%Y-%m', 'now')
-    `).all()
-
-    const currentRevenue = currentData?.[0]?.current_revenue || 0
-    const predictedRevenue = Math.round(currentRevenue * (1 + growthRate * prediction_months))
-
-    return c.json({
-      success: true,
-      predictedRevenue,
-      growthRate: Math.round(growthRate * 100),
-      confidenceScore: 78,
-      historicalData,
-      marketTrends: {
-        demand: 12,
-        competition: 0,
-        pricing: 5
-      },
-      risks: {
-        market: 'medium',
-        operational: 'low',
-        competitive: 'high'
-      }
-    })
-
-  } catch (error) {
-    console.error('予測分析エラー:', error)
-    return c.json({ error: '予測分析の生成に失敗しました' }, 500)
-  }
-})
-
-// API: AI予測生成（フロントエンド用）
-app.post('/api/reports/ai-prediction', async (c) => {
-  try {
-    const { env } = c
-    const { period = 3 } = await c.req.json()
-
-    // 過去の売上データから予測を生成
-    const { results: recentData } = await env.DB.prepare(`
-      SELECT AVG(e.total_amount) as avg_revenue
-      FROM estimates e
-      LEFT JOIN projects p ON e.project_id = p.id
-      WHERE p.status = 'order'
-        AND e.created_at >= date('now', '-3 months')
-    `).all()
-
-    const avgRevenue = recentData?.[0]?.avg_revenue || 100000
-    const seasonalFactor = 1.1 // 季節要因
-    const growthTrend = 1.08 // 成長トレンド
-    
-    const predictedRevenue = Math.round(avgRevenue * period * seasonalFactor * growthTrend)
-    const confidence = Math.max(70, Math.min(95, 85 + Math.random() * 10))
-
-    return c.json({
-      success: true,
-      predictedRevenue,
-      confidence: Math.round(confidence),
-      period,
-      factors: {
-        seasonal: seasonalFactor,
-        growth: growthTrend,
-        baseRevenue: avgRevenue
-      }
-    })
-
-  } catch (error) {
-    console.error('AI予測生成エラー:', error)
-    return c.json({ error: 'AI予測の生成に失敗しました' }, 500)
-  }
-})
-
-// API: 車両分析データ取得
-app.get('/api/reports/vehicle-analysis', async (c) => {
-  try {
-    const { env } = c
-
-    // 車両タイプ別売上分析
-    const { results: vehicleData } = await env.DB.prepare(`
-      SELECT 
-        e.vehicle_type,
-        SUM(e.total_amount) as revenue,
-        COUNT(*) as orders,
-        AVG(e.total_amount) as avg_order_value
-      FROM estimates e
-      LEFT JOIN projects p ON e.project_id = p.id
-      WHERE p.status = 'order'
-        AND e.created_at >= date('now', '-12 months')
-      GROUP BY e.vehicle_type
-      ORDER BY revenue DESC
-    `).all()
-
-    return c.json({
-      success: true,
-      vehicleData
-    })
-
-  } catch (error) {
-    console.error('車両分析データ取得エラー:', error)
-    return c.json({ error: '車両分析データの取得に失敗しました' }, 500)
-  }
-})
-
-// API: 効率分析指標計算
-app.get('/api/reports/efficiency-metrics', async (c) => {
-  try {
-    const { env } = c
-
-    // 簡略化した効率指標の算出
-    const ordersResult = await env.DB.prepare(`
-      SELECT COUNT(*) as total_orders
-      FROM estimates e
-      LEFT JOIN projects p ON e.project_id = p.id
-      WHERE p.status = 'order'
-    `).first()
-    
-    const estimatesResult = await env.DB.prepare(`
-      SELECT COUNT(*) as total_estimates
-      FROM estimates
-    `).first()
-
-    const totalOrders = ordersResult?.total_orders || 0
-    const totalEstimates = estimatesResult?.total_estimates || 0
-
-    // 効率指標の計算（実データベース + 推定値）
-    const completionRate = totalEstimates > 0 ? 
-      Math.round((totalOrders / totalEstimates) * 100) : 0
-    
-    const utilizationRate = Math.min(95, completionRate + 20) // 完了率をベースに稼働率を推定
-
-    return c.json({
-      success: true,
-      metrics: {
-        avgWorkTime: 6.5,
-        utilizationRate,
-        completionRate,
-        vehicleUtilization: Math.min(100, utilizationRate + 5),
-        avgDeliveryTime: 4.2,
-        fuelEfficiency: 8.5,
-        unitCost: 12500,
-        profitMargin: Math.max(15, Math.min(35, completionRate / 2)), // 完了率から利益率を推定
-        roiValue: Math.max(5, Math.min(25, completionRate / 3)) // 完了率からROIを推定
-      }
-    })
-
-  } catch (error) {
-    console.error('効率分析指標計算エラー:', error)
-    return c.json({ error: '効率分析指標の計算に失敗しました' }, 500)
-  }
-})
-
 // API: カスタムCSV出力
 app.post('/api/reports/custom-csv', async (c) => {
   try {
     const { env } = c
     const { items } = await c.req.json()
 
-    let csvData = items.join(',') + '\n'
+    let csvData = ''
+    const headers: string[] = []
 
-    // 選択された項目に応じてデータを生成
-    if (items.includes('売上金額') || items.includes('受注件数')) {
+    // ヘッダー行の構築
+    if (items.includes('売上金額')) headers.push('期間', '売上金額')
+    if (items.includes('受注実績')) headers.push('期間', '受注件数', '受注率')
+    if (items.includes('顧客情報')) headers.push('顧客名', '案件数', '売上合計')
+
+    // 重複を除去してヘッダー出力
+    const uniqueHeaders = [...new Set(headers)]
+    csvData = uniqueHeaders.join(',') + '\n'
+
+    // 売上金額・受注実績データ
+    if (items.includes('売上金額') || items.includes('受注実績')) {
       const { results: salesData } = await env.DB.prepare(`
         SELECT 
           strftime('%Y-%m', e.created_at) as period,
@@ -11752,21 +11330,50 @@ app.post('/api/reports/custom-csv', async (c) => {
         ORDER BY period
       `).all()
 
-      salesData.forEach(row => {
-        let rowData = []
-        items.forEach(item => {
-          switch (item) {
-            case '売上金額':
-              rowData.push(row.revenue || 0)
-              break
-            case '受注件数':
-              rowData.push(row.orders || 0)
-              break
-            default:
-              rowData.push('N/A')
-          }
-        })
+      const { results: totalEstimates } = await env.DB.prepare(`
+        SELECT strftime('%Y-%m', created_at) as period, COUNT(*) as total
+        FROM estimates
+        WHERE created_at >= date('now', '-12 months')
+        GROUP BY strftime('%Y-%m', created_at)
+      `).all()
+
+      const totalMap: Record<string, number> = {}
+      totalEstimates?.forEach((r: any) => { totalMap[r.period] = r.total })
+
+      salesData.forEach((row: any) => {
+        const rowData: string[] = [row.period]
+        if (items.includes('売上金額')) rowData.push(String(row.revenue || 0))
+        if (items.includes('受注実績')) {
+          rowData.push(String(row.orders || 0))
+          const total = totalMap[row.period] || row.orders
+          const rate = total > 0 ? Math.round((row.orders / total) * 100) : 0
+          rowData.push(rate + '%')
+        }
         csvData += rowData.join(',') + '\n'
+      })
+    }
+
+    // 顧客情報データ
+    if (items.includes('顧客情報')) {
+      if (items.includes('売上金額') || items.includes('受注実績')) {
+        csvData += '\n' // セクション区切り
+      }
+      csvData += '顧客名,案件数,売上合計\n'
+
+      const { results: customerData } = await env.DB.prepare(`
+        SELECT 
+          c.company_name,
+          COUNT(DISTINCT p.id) as project_count,
+          COALESCE(SUM(e.total_amount), 0) as total_revenue
+        FROM customers c
+        LEFT JOIN projects p ON c.id = p.customer_id
+        LEFT JOIN estimates e ON p.id = e.project_id
+        GROUP BY c.id, c.company_name
+        ORDER BY total_revenue DESC
+      `).all()
+
+      customerData.forEach((row: any) => {
+        csvData += `${row.company_name},${row.project_count},${row.total_revenue}\n`
       })
     }
 
