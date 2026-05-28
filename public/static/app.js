@@ -11842,7 +11842,9 @@ const ReportManagement = {
       
       // CSV形式でデータをダウンロード
       const csvData = await this.generateCSVReport(selectedItems);
-      const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+      // BOM付きUTF-8でExcelでの文字化けを防止
+      const bom = '\uFEFF';
+      const blob = new Blob([bom + csvData], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       
       const url = URL.createObjectURL(blob);

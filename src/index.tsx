@@ -11377,7 +11377,9 @@ app.post('/api/reports/custom-csv', async (c) => {
       })
     }
 
-    return new Response(csvData, {
+    // BOM付きUTF-8でExcelでの文字化けを防止
+    const bom = '\uFEFF'
+    return new Response(bom + csvData, {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
         'Content-Disposition': `attachment; filename="custom_report_${new Date().toISOString().split('T')[0]}.csv"`
