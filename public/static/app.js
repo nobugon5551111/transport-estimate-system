@@ -4092,8 +4092,8 @@ const Step6Implementation = {
           const baseRate = officer.rate || officer.base_rate || 0;
           const transportFee = officer.transport_fee || officer.transport_rate || 0;
           const officerTotal = officer.total || (baseRate + transportFee);
-          details.push(`<div class="flex justify-between px-6 py-1 text-sm">
-            <span>${idx + 1}人目: ${typeLabel} ¥${baseRate.toLocaleString()} + 交通費(${transportLabel}) ¥${transportFee.toLocaleString()}</span>
+          details.push(`<div class="flex justify-between px-4 py-1 text-sm">
+            <span>&nbsp;&nbsp;${idx + 1}人目: ${typeLabel} ¥${baseRate.toLocaleString()} + 交通費(${transportLabel}) ¥${transportFee.toLocaleString()}</span>
             <span class="whitespace-nowrap ml-4">${Utils.formatCurrency(officerTotal)}</span>
           </div>`);
         });
@@ -4152,8 +4152,8 @@ const Step6Implementation = {
       </div>`);
       
       if (services.protection_floors > 0) {
-        details.push(`<div class="flex justify-between px-6 py-1 text-sm">
-          <span>養生作業（フロア単価） ${services.protection_floors}フロア × ¥${perFloorRate.toLocaleString()}</span>
+        details.push(`<div class="flex justify-between px-4 py-1 text-sm">
+          <span>&nbsp;&nbsp;養生作業（フロア単価） ${services.protection_floors}フロア × ¥${perFloorRate.toLocaleString()}</span>
           <span class="whitespace-nowrap ml-4">${Utils.formatCurrency(floorCost)}</span>
         </div>`);
       }
