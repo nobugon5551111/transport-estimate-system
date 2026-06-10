@@ -1554,7 +1554,7 @@ const Step3Implementation = {
     // カード上にプレビュー料金を表示
     Step3Implementation.showPricePreview();
     
-    // 編集モードの場合は既存の車両情報を案内表示
+    // 編集モードの場合は既存の車両情報を自動選択・プリフィル
     if (flowData.editMode && flowData.vehicle) {
       const vehicleInfo = flowData.vehicle;
       let infoText = '【編集中】前回の車両設定: ';
@@ -1575,8 +1575,43 @@ const Step3Implementation = {
       if (selectedArea) {
         const infoBanner = document.createElement('div');
         infoBanner.className = 'mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700';
-        infoBanner.innerHTML = `<i class="fas fa-info-circle mr-2"></i>${infoText}　<span class="text-xs text-blue-500">（下記から再選択してください）</span>`;
+        infoBanner.innerHTML = `<i class="fas fa-info-circle mr-2"></i>${infoText}　<span class="text-xs text-blue-500">（変更する場合は下記から再選択してください）</span>`;
         selectedArea.parentElement.appendChild(infoBanner);
+      }
+      
+      // 前回の便種を自動選択して料金計算を実行
+      const prevServiceType = vehicleInfo.service_type; // 'dedicated' or 'konsai'
+      if (prevServiceType === 'dedicated' || prevServiceType === 'konsai') {
+        // 便種カードをクリック状態にする
+        Step3Implementation.handleServiceTypeChange(prevServiceType);
+        
+        // チャーター便の場合、台数を復元
+        if (prevServiceType === 'dedicated' && vehicleInfo.vehicle_count > 1) {
+          // 車両ブロックを追加（2台目以降）
+          for (let i = 1; i < vehicleInfo.vehicle_count; i++) {
+            const addBtn = document.getElementById('addVehicleBtn');
+            if (addBtn) addBtn.click();
+          }
+          // 再計算
+          Step3Implementation.updateDedicatedPricing();
+        }
+        
+        // 混載便の場合、ワンマン割引を復元
+        if (prevServiceType === 'konsai' && vehicleInfo.oneman_discount) {
+          const onemanCb = document.getElementById('konsaiOnemanDiscount');
+          if (onemanCb && !onemanCb.disabled) {
+            onemanCb.checked = true;
+            Step3Implementation.updateKonsaiPricing();
+          }
+        }
+        
+        // currentVehicleInfoを直接セットしてnextStepBtnを有効化
+        if (!Step3Implementation.currentVehicleInfo) {
+          Step3Implementation.currentVehicleInfo = vehicleInfo;
+          document.getElementById('nextStepBtn').disabled = false;
+        }
+        
+        console.log('✅ 編集モード: 車両設定を自動復元完了', prevServiceType, vehicleInfo.vehicle_count);
       }
     }
     
