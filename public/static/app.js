@@ -1581,10 +1581,28 @@ const Step3Implementation = {
       }
       
       // 前回の便種を自動選択して料金計算を実行
-      const prevServiceType = vehicleInfo.service_type; // 'dedicated' or 'konsai'
+      let prevServiceType = vehicleInfo.service_type; // 'dedicated' or 'konsai'
+      // service_typeが空の場合、service_type_labelやtypeから推定
+      if (!prevServiceType || (prevServiceType !== 'dedicated' && prevServiceType !== 'konsai')) {
+        const label = vehicleInfo.service_type_label || vehicleInfo.type || '';
+        if (label.includes('チャーター') || label.includes('dedicated')) {
+          prevServiceType = 'dedicated';
+        } else if (label.includes('混載') || label.includes('konsai')) {
+          prevServiceType = 'konsai';
+        } else {
+          // デフォルトはチャーター便
+          prevServiceType = 'dedicated';
+        }
+      }
+      console.log('🚛 STEP3 editMode車両復元:', { prevServiceType, vehicleInfo_service_type: vehicleInfo.service_type, label: vehicleInfo.service_type_label, vehicle_count: vehicleInfo.vehicle_count });
       if (prevServiceType === 'dedicated' || prevServiceType === 'konsai') {
         // 便種カードをクリック状態にする
-        Step3Implementation.handleServiceTypeChange(prevServiceType);
+        try {
+          Step3Implementation.handleServiceTypeChange(prevServiceType);
+          console.log('✅ handleServiceTypeChange完了:', prevServiceType);
+        } catch (e) {
+          console.error('❌ handleServiceTypeChange エラー:', e);
+        }
         
         // チャーター便の場合、台数を復元
         if (prevServiceType === 'dedicated' && vehicleInfo.vehicle_count > 1) {
