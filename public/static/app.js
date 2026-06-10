@@ -974,16 +974,18 @@ if (typeof EstimateFlowImplementation === 'undefined') {
   submitProjectForm: async (event) => {
     event.preventDefault();
     
-    if (!EstimateFlowImplementation.selectedCustomer) {
-      Utils.showError('まず顧客を選択してください');
-      return;
-    }
-
     const form = event.target;
     const formData = new FormData(form);
     
+    // customer_idはフォームから取得（モーダル内のselectから）
+    const customerId = formData.get('customer_id');
+    if (!customerId) {
+      Utils.showError('顧客を選択してください');
+      return;
+    }
+
     const projectData = {
-      customer_id: EstimateFlowImplementation.selectedCustomer.id,
+      customer_id: customerId,
       name: formData.get('name'),
       description: formData.get('description'),
       status: formData.get('status'),
@@ -997,15 +999,16 @@ if (typeof EstimateFlowImplementation === 'undefined') {
       const response = await API.post('/projects', projectData);
       
       Utils.hideLoading(saveButton, '<i class="fas fa-save mr-2"></i>保存');
-      Utils.showSuccess(response.message);
+      Utils.showSuccess(response.message || '案件が正常に追加されました');
       
       // 案件セレクトボックスに追加
       const projectSelect = document.getElementById('projectSelect');
       const option = document.createElement('option');
       option.value = response.data.id;
-      option.textContent = `${response.data.name} (${EstimateFlowImplementation.getStatusLabel(response.data.status)})`;
+      option.textContent = `${projectData.name} (${EstimateFlowImplementation.getStatusLabel(projectData.status || 'initial')})`;
       option.selected = true;
       projectSelect.appendChild(option);
+      projectSelect.disabled = false;
       
       Modal.close('projectModal');
       form.reset();
@@ -6223,6 +6226,36 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (projectForm) {
       projectForm.addEventListener('submit', EstimateFlowImplementation.submitProjectForm);
+    }
+    
+    // 新規案件追加ボタンのクリックリスナー設定（Step1用）
+    const addProjectBtn = document.getElementById('addProjectBtn');
+    if (addProjectBtn) {
+      addProjectBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        if (typeof Modal !== 'undefined') {
+          Modal.open('projectModal');
+          // モーダル内の顧客セレクトに顧客リストを反映＆現在の選択をプリセット
+          setTimeout(() => {
+            const projectCustomerSelect = document.getElementById('projectCustomerId');
+            const mainCustomerSelect = document.getElementById('customerSelect');
+            if (projectCustomerSelect && mainCustomerSelect) {
+              // メインの顧客リストからオプションをコピー
+              let html = '<option value="">顧客を選択してください</option>';
+              Array.from(mainCustomerSelect.options).forEach(opt => {
+                if (opt.value && opt.value !== '') {
+                  html += `<option value="${opt.value}">${opt.textContent}</option>`;
+                }
+              });
+              projectCustomerSelect.innerHTML = html;
+              // 現在選択中の顧客をプリセット
+              if (mainCustomerSelect.value) {
+                projectCustomerSelect.value = mainCustomerSelect.value;
+              }
+            }
+          }, 100);
+        }
+      });
     }
   }
   
