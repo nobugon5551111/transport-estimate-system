@@ -4078,7 +4078,7 @@ const Step6Implementation = {
     if (services.parking_officer_cost > 0 || (services.parking_officer_data && services.parking_officer_data.length > 0)) {
       const officerData = services.parking_officer_data || [];
       if (officerData.length > 0) {
-        details.push(`<div class="flex justify-between px-4 py-2 font-semibold">
+        details.push(`<div class="flex justify-between px-4 py-2">
           <span>駐禁対策員（${officerData.length}人）</span>
           <span></span>
         </div>`);
