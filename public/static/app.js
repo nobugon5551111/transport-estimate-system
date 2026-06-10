@@ -4231,6 +4231,15 @@ const Step6Implementation = {
       </div>`);
       totalServicesCost += services.highway_fee;
     }
+
+    // 9. 4トン車追加（フリー入力）
+    if (services.additional_truck_cost > 0) {
+      details.push(`<div class="flex justify-between">
+        <span>4トン車追加 ${services.additional_truck_count || 0}台 × ¥${(services.additional_truck_unit_price || 0).toLocaleString()}</span>
+        <span>${Utils.formatCurrency(services.additional_truck_cost)}</span>
+      </div>`);
+      totalServicesCost += services.additional_truck_cost;
+    }
     
     // サービス費用合計を表示（再計算された費用を優先）
     if (details.length > 0) {
