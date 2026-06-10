@@ -2628,7 +2628,7 @@ app.get('/api/estimates/stats', async (c) => {
     const userId = c.req.header('X-User-ID') || 'test-user-001'
 
     // 基本統計を取得
-    const [totalResult, amountResult, monthlyResult, ordersResult] = await Promise.all([
+    const [totalResult, amountResult, monthlyResult, ordersResult, phaseResult] = await Promise.all([
       // 総見積数
       env.DB.prepare('SELECT COUNT(*) as total FROM estimates WHERE user_id = ?').bind(userId).first(),
       // 総見積金額
@@ -2644,19 +2644,55 @@ app.get('/api/estimates/stats', async (c) => {
         SELECT COUNT(*) as order_count
         FROM estimates e
         LEFT JOIN projects p ON e.project_id = p.id
-        WHERE e.user_id = ? AND p.status = 'order'
-      `).bind(userId).first()
+        WHERE e.user_id = ? AND (p.status IN ('won', 'formal_order', 'order'))
+      `).bind(userId).first(),
+      // フェーズ別集計（見積ライフサイクル）
+      env.DB.prepare(`
+        SELECT 
+          COALESCE(p.status, 'drafting') as status,
+          COUNT(*) as cnt
+        FROM estimates e
+        LEFT JOIN projects p ON e.project_id = p.id
+        WHERE e.user_id = ?
+        GROUP BY COALESCE(p.status, 'drafting')
+      `).bind(userId).all()
     ])
+
+    // フェーズ別に集計
+    const phaseMapping = {
+      drafting: 'production', pdf_generated: 'production', approval_requested: 'production',
+      pending_approval: 'approval', revision_requested: 'approval',
+      sent_to_customer: 'sent', under_review: 'sent', re_estimate_requested: 'sent',
+      formal_order: 'final', won: 'final', lost: 'final', cancelled: 'final',
+      // 旧ステータスのマッピング
+      initial: 'production', quote_sent: 'sent', under_consideration: 'sent',
+      order: 'final', order_day: 'final', order_night: 'final', completed: 'final', failed: 'final'
+    }
+    
+    const phaseCounts = { production: 0, approval: 0, sent: 0, final: 0 }
+    const statusCounts = {}
+    
+    if (phaseResult.results) {
+      for (const row of phaseResult.results) {
+        const status = row.status as string
+        const count = row.cnt as number
+        statusCounts[status] = count
+        const phase = phaseMapping[status] || 'production'
+        phaseCounts[phase] = (phaseCounts[phase] || 0) + count
+      }
+    }
 
     return c.json({
       success: true,
       data: {
         totalEstimates: totalResult?.total || 0,
-        totalAmount: totalResult?.total_amount || 0,
+        totalAmount: amountResult?.total_amount || 0,
         monthlyEstimates: monthlyResult?.monthly_count || 0,
         monthlyAmount: monthlyResult?.monthly_amount || 0,
         ordersCount: ordersResult?.order_count || 0,
-        pendingEstimates: (totalResult?.total || 0) - (ordersResult?.order_count || 0)
+        pendingEstimates: (totalResult?.total || 0) - (ordersResult?.order_count || 0),
+        phaseCounts: phaseCounts,
+        statusCounts: statusCounts
       }
     })
   } catch (error) {
@@ -2905,14 +2941,22 @@ app.put('/api/estimates/:id/status', async (c) => {
       }, 404)
     }
     
+    // 再見積もり依頼の場合：ステータスを一度 re_estimate_requested に記録してから drafting にリセット
+    let finalStatus = status
+    let additionalNote = ''
+    if (status === 're_estimate_requested') {
+      finalStatus = 'drafting'
+      additionalNote = '【再見積もり依頼】顧客からの再見積もり依頼により製作中に戻りました。'
+    }
+    
     // プロジェクトのステータスを更新
     await env.DB.prepare(`
       UPDATE projects 
       SET status = ?, updated_at = CURRENT_TIMESTAMP 
       WHERE id = ?
-    `).bind(status, estimate.project_id).run()
+    `).bind(finalStatus, estimate.project_id).run()
     
-    // ステータス履歴を記録
+    // ステータス履歴を記録（元のステータス変更を記録）
     await env.DB.prepare(`
       INSERT INTO status_history (project_id, old_status, new_status, notes, user_id)
       VALUES (?, ?, ?, ?, ?)
@@ -2924,9 +2968,25 @@ app.put('/api/estimates/:id/status', async (c) => {
       'test-user-001'
     ).run()
     
+    // 再見積もり依頼の場合は、drafting への戻りも履歴に記録
+    if (status === 're_estimate_requested') {
+      await env.DB.prepare(`
+        INSERT INTO status_history (project_id, old_status, new_status, notes, user_id)
+        VALUES (?, ?, ?, ?, ?)
+      `).bind(
+        estimate.project_id,
+        're_estimate_requested', 
+        'drafting', 
+        additionalNote + (comment ? ` 備考: ${comment}` : ''), 
+        'test-user-001'
+      ).run()
+    }
+    
     return c.json({ 
       success: true, 
-      message: 'ステータスを更新しました' 
+      message: status === 're_estimate_requested' 
+        ? '再見積もり依頼を受付し、製作中に戻しました' 
+        : 'ステータスを更新しました'
     })
     
   } catch (error) {
@@ -2955,12 +3015,20 @@ app.put('/api/projects/:id/status', async (c) => {
       return c.json({ error: '案件が見つかりません' }, 404)
     }
     
+    // 再見積もり依頼の場合：ステータスを一度記録してから drafting にリセット
+    let finalStatus = status
+    let additionalNote = ''
+    if (status === 're_estimate_requested') {
+      finalStatus = 'drafting'
+      additionalNote = '【再見積もり依頼】顧客からの再見積もり依頼により製作中に戻りました。'
+    }
+    
     // ステータスを更新
     await env.DB.prepare(`
       UPDATE projects 
       SET status = ?, updated_at = CURRENT_TIMESTAMP 
       WHERE id = ?
-    `).bind(status, projectId).run()
+    `).bind(finalStatus, projectId).run()
     
     // ステータス履歴を記録
     await env.DB.prepare(`
@@ -2974,9 +3042,25 @@ app.put('/api/projects/:id/status', async (c) => {
       'test-user-001'
     ).run()
     
+    // 再見積もり依頼の場合は、drafting への戻りも履歴に記録
+    if (status === 're_estimate_requested') {
+      await env.DB.prepare(`
+        INSERT INTO status_history (project_id, old_status, new_status, notes, user_id)
+        VALUES (?, ?, ?, ?, ?)
+      `).bind(
+        projectId,
+        're_estimate_requested', 
+        'drafting', 
+        additionalNote + (notes ? ` 備考: ${notes}` : ''), 
+        'test-user-001'
+      ).run()
+    }
+    
     return c.json({ 
       success: true, 
-      message: 'ステータスを更新しました' 
+      message: status === 're_estimate_requested' 
+        ? '再見積もり依頼を受付し、製作中に戻しました' 
+        : 'ステータスを更新しました' 
     })
   } catch (error) {
     console.error('ステータス更新エラー:', error)
@@ -3021,24 +3105,40 @@ app.get('/api/status-history', async (c) => {
   }
 })
 
-// API: ステータスオプション取得
+// API: ステータスオプション取得（見積ライフサイクル12段階）
 app.get('/api/status-options', async (c) => {
   try {
     const statusOptions = [
-      { value: 'initial', label: '初回コンタクト' },
-      { value: 'quote_sent', label: '見積書送信済み' },
-      { value: 'under_consideration', label: '受注検討中' },
-      { value: 'order_day', label: '受注（昼間）' },
-      { value: 'order_night', label: '受注（夜間）' },
-      { value: 'order', label: '受注' },
-      { value: 'completed', label: '完了' },
-      { value: 'failed', label: '失注' },
-      { value: 'cancelled', label: 'キャンセル' }
+      // フェーズ1: 製作中
+      { value: 'drafting', label: '担当者作成中', phase: 'production', color: 'gray', icon: 'edit' },
+      { value: 'pdf_generated', label: 'PDF生成済み', phase: 'production', color: 'gray', icon: 'file-pdf' },
+      { value: 'approval_requested', label: '決裁申請済み', phase: 'production', color: 'gray', icon: 'upload' },
+      // フェーズ2: 決裁待ち
+      { value: 'pending_approval', label: '管理者確認中', phase: 'approval', color: 'orange', icon: 'user-check' },
+      { value: 'revision_requested', label: '差戻し（修正依頼）', phase: 'approval', color: 'purple', icon: 'undo' },
+      // フェーズ3: 送信済み/検討中
+      { value: 'sent_to_customer', label: '顧客送信済み', phase: 'sent', color: 'blue', icon: 'envelope' },
+      { value: 'under_review', label: '顧客検討中', phase: 'sent', color: 'blue', icon: 'search' },
+      { value: 're_estimate_requested', label: '再見積もり依頼', phase: 'sent', color: 'blue', icon: 'question-circle' },
+      // フェーズ4: 最終結果
+      { value: 'formal_order', label: '正式注文', phase: 'final', color: 'green', icon: 'handshake' },
+      { value: 'won', label: '受注', phase: 'final', color: 'green', icon: 'trophy' },
+      { value: 'lost', label: '失注', phase: 'final', color: 'red', icon: 'times-circle' },
+      { value: 'cancelled', label: 'キャンセル', phase: 'final', color: 'red', icon: 'ban' }
+    ]
+    
+    // フェーズ情報も返す
+    const phases = [
+      { key: 'production', label: '製作中', color: 'gray', icon: 'edit' },
+      { key: 'approval', label: '決裁待ち', color: 'orange', icon: 'clock' },
+      { key: 'sent', label: '送信済み/検討中', color: 'blue', icon: 'envelope-open-text' },
+      { key: 'final', label: '最終結果', color: 'green', icon: 'flag-checkered' }
     ]
     
     return c.json({ 
       success: true, 
-      data: statusOptions 
+      data: statusOptions,
+      phases: phases
     })
   } catch (error) {
     console.error('ステータスオプション取得エラー:', error)
@@ -3892,6 +3992,51 @@ app.get('/', (c) => {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* 見積ライフサイクル・フェーズサマリー */}
+          <div className="bg-white shadow rounded-lg mb-8 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              <i className="fas fa-stream mr-2 text-blue-500"></i>
+              見積ライフサイクル
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4" id="lifecycleSummary">
+              <div className="text-center p-4 bg-gray-50 rounded-lg border-2 border-gray-200">
+                <div className="flex items-center justify-center w-10 h-10 bg-gray-200 rounded-full mx-auto mb-2">
+                  <i className="fas fa-edit text-gray-600"></i>
+                </div>
+                <div className="text-2xl font-bold text-gray-700" id="phase_production">-</div>
+                <div className="text-xs text-gray-500 mt-1">製作中</div>
+              </div>
+              <div className="text-center p-4 bg-orange-50 rounded-lg border-2 border-orange-200">
+                <div className="flex items-center justify-center w-10 h-10 bg-orange-200 rounded-full mx-auto mb-2">
+                  <i className="fas fa-clock text-orange-600"></i>
+                </div>
+                <div className="text-2xl font-bold text-orange-700" id="phase_approval">-</div>
+                <div className="text-xs text-orange-500 mt-1">決裁待ち</div>
+              </div>
+              <div className="text-center p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
+                <div className="flex items-center justify-center w-10 h-10 bg-blue-200 rounded-full mx-auto mb-2">
+                  <i className="fas fa-envelope-open-text text-blue-600"></i>
+                </div>
+                <div className="text-2xl font-bold text-blue-700" id="phase_sent">-</div>
+                <div className="text-xs text-blue-500 mt-1">送信済み/検討中</div>
+              </div>
+              <div className="text-center p-4 bg-green-50 rounded-lg border-2 border-green-200">
+                <div className="flex items-center justify-center w-10 h-10 bg-green-200 rounded-full mx-auto mb-2">
+                  <i className="fas fa-flag-checkered text-green-600"></i>
+                </div>
+                <div className="text-2xl font-bold text-green-700" id="phase_final">-</div>
+                <div className="text-xs text-green-500 mt-1">受注/失注</div>
+              </div>
+            </div>
+            {/* プログレスバー */}
+            <div className="mt-4 h-3 bg-gray-100 rounded-full overflow-hidden flex" id="lifecycleProgressBar">
+              <div className="bg-gray-400 h-full transition-all" id="progress_production" style="width: 0%"></div>
+              <div className="bg-orange-400 h-full transition-all" id="progress_approval" style="width: 0%"></div>
+              <div className="bg-blue-400 h-full transition-all" id="progress_sent" style="width: 0%"></div>
+              <div className="bg-green-400 h-full transition-all" id="progress_final" style="width: 0%"></div>
             </div>
           </div>
 
@@ -9516,13 +9661,26 @@ app.get('/customers', (c) => {
                 </label>
                 <select name="new_status" id="statusChangeNewStatus" className="form-select" required>
                   <option value="">選択してください</option>
-                  <option value="initial">初回コンタクト</option>
-                  <option value="quote_sent">見積書送信済み</option>
-                  <option value="under_consideration">受注検討中</option>
-                  <option value="order">受注</option>
-                  <option value="completed">完了</option>
-                  <option value="failed">失注</option>
-                  <option value="cancelled">キャンセル</option>
+                  <optgroup label="── 製作中 ──">
+                    <option value="drafting">担当者作成中</option>
+                    <option value="pdf_generated">PDF生成済み</option>
+                    <option value="approval_requested">決裁申請済み</option>
+                  </optgroup>
+                  <optgroup label="── 決裁待ち ──">
+                    <option value="pending_approval">管理者確認中</option>
+                    <option value="revision_requested">差戻し（修正依頼）</option>
+                  </optgroup>
+                  <optgroup label="── 送信済み/検討中 ──">
+                    <option value="sent_to_customer">顧客送信済み</option>
+                    <option value="under_review">顧客検討中</option>
+                    <option value="re_estimate_requested">再見積もり依頼</option>
+                  </optgroup>
+                  <optgroup label="── 最終結果 ──">
+                    <option value="formal_order">正式注文</option>
+                    <option value="won">受注</option>
+                    <option value="lost">失注</option>
+                    <option value="cancelled">キャンセル</option>
+                  </optgroup>
                 </select>
               </div>
               <div>
@@ -10052,15 +10210,26 @@ app.get('/estimates', (c) => {
                   onChange="EstimateManagement.filterEstimates()"
                 >
                   <option value="">すべてのステータス</option>
-                  <option value="initial">初回コンタクト</option>
-                  <option value="quote_sent">見積書送信済み</option>
-                  <option value="under_consideration">受注検討中</option>
-                  <option value="order_day">受注（昼間）</option>
-                  <option value="order_night">受注（夜間）</option>
-                  <option value="order">受注</option>
-                  <option value="completed">完了</option>
-                  <option value="failed">失注</option>
-                  <option value="cancelled">キャンセル</option>
+                  <optgroup label="── 製作中 ──">
+                    <option value="drafting">担当者作成中</option>
+                    <option value="pdf_generated">PDF生成済み</option>
+                    <option value="approval_requested">決裁申請済み</option>
+                  </optgroup>
+                  <optgroup label="── 決裁待ち ──">
+                    <option value="pending_approval">管理者確認中</option>
+                    <option value="revision_requested">差戻し（修正依頼）</option>
+                  </optgroup>
+                  <optgroup label="── 送信済み/検討中 ──">
+                    <option value="sent_to_customer">顧客送信済み</option>
+                    <option value="under_review">顧客検討中</option>
+                    <option value="re_estimate_requested">再見積もり依頼</option>
+                  </optgroup>
+                  <optgroup label="── 最終結果 ──">
+                    <option value="formal_order">正式注文</option>
+                    <option value="won">受注</option>
+                    <option value="lost">失注</option>
+                    <option value="cancelled">キャンセル</option>
+                  </optgroup>
                 </select>
               </div>
               
@@ -10271,13 +10440,26 @@ app.get('/estimates', (c) => {
                 </label>
                 <select id="statusChangeSelect" className="form-select w-full">
                   <option value="">選択してください</option>
-                  <option value="initial">初回コンタクト</option>
-                  <option value="quote_sent">見積書送信済み</option>
-                  <option value="under_consideration">受注検討中</option>
-                  <option value="order">受注</option>
-                  <option value="completed">完了</option>
-                  <option value="failed">失注</option>
-                  <option value="cancelled">キャンセル</option>
+                  <optgroup label="── 製作中 ──">
+                    <option value="drafting">担当者作成中</option>
+                    <option value="pdf_generated">PDF生成済み</option>
+                    <option value="approval_requested">決裁申請済み</option>
+                  </optgroup>
+                  <optgroup label="── 決裁待ち ──">
+                    <option value="pending_approval">管理者確認中</option>
+                    <option value="revision_requested">差戻し（修正依頼）</option>
+                  </optgroup>
+                  <optgroup label="── 送信済み/検討中 ──">
+                    <option value="sent_to_customer">顧客送信済み</option>
+                    <option value="under_review">顧客検討中</option>
+                    <option value="re_estimate_requested">再見積もり依頼</option>
+                  </optgroup>
+                  <optgroup label="── 最終結果 ──">
+                    <option value="formal_order">正式注文</option>
+                    <option value="won">受注</option>
+                    <option value="lost">失注</option>
+                    <option value="cancelled">キャンセル</option>
+                  </optgroup>
                 </select>
               </div>
               
@@ -17009,8 +17191,16 @@ app.put('/api/projects/:id/status', async (c) => {
     const userId = c.req.header('X-User-ID') || 'test-user-001'
     const { status, comment } = await c.req.json()
     
-    // ステータスバリデーション
-    const validStatuses = ['initial', 'quote_sent', 'under_consideration', 'order', 'failed', 'completed', 'cancelled']
+    // ステータスバリデーション（新12ステータス + 旧ステータス互換）
+    const validStatuses = [
+      // 新ライフサイクル12ステータス
+      'drafting', 'pdf_generated', 'approval_requested',
+      'pending_approval', 'revision_requested',
+      'sent_to_customer', 'under_review', 're_estimate_requested',
+      'formal_order', 'won', 'lost', 'cancelled',
+      // 旧ステータス（後方互換）
+      'initial', 'quote_sent', 'under_consideration', 'order', 'failed', 'completed'
+    ]
     if (!validStatuses.includes(status)) {
       return c.json({
         success: false,
@@ -17032,12 +17222,20 @@ app.put('/api/projects/:id/status', async (c) => {
     
     const oldStatus = project.status
     
+    // 再見積もり依頼の場合：drafting にリセット
+    let finalStatus = status
+    let additionalNote = ''
+    if (status === 're_estimate_requested') {
+      finalStatus = 'drafting'
+      additionalNote = '【再見積もり依頼】顧客からの再見積もり依頼により製作中に戻りました。'
+    }
+    
     // ステータス更新
     const updateResult = await env.DB.prepare(`
       UPDATE projects 
       SET status = ?, updated_at = CURRENT_TIMESTAMP 
       WHERE id = ? AND user_id = ?
-    `).bind(status, projectId, userId).run()
+    `).bind(finalStatus, projectId, userId).run()
     
     if (!updateResult.success) {
       throw new Error('ステータスの更新に失敗しました')
@@ -17050,13 +17248,30 @@ app.put('/api/projects/:id/status', async (c) => {
       ) VALUES (?, ?, ?, ?, ?, ?, ?)
     `).bind(
       projectId,
-      null, // estimate_id は案件レベルの変更なのでnull
+      null,
       oldStatus,
       status,
       comment || '',
       userId,
       userId
     ).run()
+    
+    // 再見積もり依頼の場合は、drafting への戻りも履歴に記録
+    if (status === 're_estimate_requested') {
+      await env.DB.prepare(`
+        INSERT INTO status_history (
+          project_id, estimate_id, old_status, new_status, comment, changed_by, user_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        projectId,
+        null,
+        're_estimate_requested',
+        'drafting',
+        additionalNote + (comment ? ` 備考: ${comment}` : ''),
+        userId,
+        userId
+      ).run()
+    }
     
     // 更新された案件情報を取得
     const updatedProject = await env.DB.prepare(`
@@ -17109,12 +17324,20 @@ app.put('/api/estimates/:id/status', async (c) => {
     const projectId = estimate.project_id
     const oldStatus = estimate.project_status
     
+    // 再見積もり依頼の場合：drafting にリセット
+    let finalStatus = status
+    let additionalNote = ''
+    if (status === 're_estimate_requested') {
+      finalStatus = 'drafting'
+      additionalNote = '【再見積もり依頼】顧客からの再見積もり依頼により製作中に戻りました。'
+    }
+    
     // 案件ステータス更新
     const updateResult = await env.DB.prepare(`
       UPDATE projects 
       SET status = ?, updated_at = CURRENT_TIMESTAMP 
       WHERE id = ? AND user_id = ?
-    `).bind(status, projectId, userId).run()
+    `).bind(finalStatus, projectId, userId).run()
     
     if (!updateResult.success) {
       throw new Error('ステータスの更新に失敗しました')
@@ -17135,9 +17358,28 @@ app.put('/api/estimates/:id/status', async (c) => {
       userId
     ).run()
     
+    // 再見積もり依頼の場合は、drafting への戻りも履歴に記録
+    if (status === 're_estimate_requested') {
+      await env.DB.prepare(`
+        INSERT INTO status_history (
+          project_id, estimate_id, old_status, new_status, comment, changed_by, user_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        projectId,
+        estimateId,
+        're_estimate_requested',
+        'drafting',
+        additionalNote + (comment ? ` 備考: ${comment}` : ''),
+        userId,
+        userId
+      ).run()
+    }
+    
     return c.json({
       success: true,
-      message: 'ステータスを更新しました'
+      message: status === 're_estimate_requested' 
+        ? '再見積もり依頼を受付し、製作中に戻しました' 
+        : 'ステータスを更新しました'
     })
     
   } catch (error) {

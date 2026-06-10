@@ -9004,13 +9004,27 @@ const CustomerManagement = {
   // ステータス設定取得
   getStatusConfig: (status) => {
     const configs = {
-      'initial': { label: '初回コンタクト', class: 'bg-gray-100 text-gray-800' },
-      'quote_sent': { label: '見積書送信済み', class: 'bg-yellow-100 text-yellow-800' },
-      'under_consideration': { label: '受注検討中', class: 'bg-blue-100 text-blue-800' },
+      // 新ステータス（12段階）
+      'drafting': { label: '担当者作成中', class: 'bg-gray-100 text-gray-800' },
+      'pdf_generated': { label: 'PDF生成済み', class: 'bg-gray-200 text-gray-800' },
+      'approval_requested': { label: '決裁申請済み', class: 'bg-gray-300 text-gray-900' },
+      'pending_approval': { label: '管理者確認中', class: 'bg-orange-100 text-orange-800' },
+      'revision_requested': { label: '差戻し（修正依頼）', class: 'bg-purple-100 text-purple-800' },
+      'sent_to_customer': { label: '顧客送信済み', class: 'bg-blue-100 text-blue-800' },
+      'under_review': { label: '顧客検討中', class: 'bg-blue-200 text-blue-900' },
+      're_estimate_requested': { label: '再見積もり依頼', class: 'bg-indigo-100 text-indigo-800' },
+      'formal_order': { label: '正式注文', class: 'bg-emerald-100 text-emerald-800' },
+      'won': { label: '受注', class: 'bg-green-100 text-green-800' },
+      'lost': { label: '失注', class: 'bg-red-100 text-red-800' },
+      'cancelled': { label: 'キャンセル', class: 'bg-gray-200 text-gray-600' },
+      // 旧ステータス互換
+      'initial': { label: '担当者作成中', class: 'bg-gray-100 text-gray-800' },
+      'quote_sent': { label: '顧客送信済み', class: 'bg-blue-100 text-blue-800' },
+      'under_consideration': { label: '顧客検討中', class: 'bg-blue-200 text-blue-900' },
       'order': { label: '受注', class: 'bg-green-100 text-green-800' },
       'failed': { label: '失注', class: 'bg-red-100 text-red-800' }
     };
-    return configs[status] || { label: status, class: 'bg-gray-100 text-gray-800' };
+    return configs[status] || { label: status || '不明', class: 'bg-gray-100 text-gray-800' };
   },
 
   // データフィルタリング
@@ -9549,6 +9563,28 @@ const StatusManagement = {
   currentType: null,
   currentId: null,
   currentStatus: null,
+  
+  // ステータスオプション（12段階ライフサイクル）
+  statusOptions: [
+    { value: 'drafting', label: '担当者作成中', phase: 'production', color: 'gray' },
+    { value: 'pdf_generated', label: 'PDF生成済み', phase: 'production', color: 'gray' },
+    { value: 'approval_requested', label: '決裁申請済み', phase: 'production', color: 'gray' },
+    { value: 'pending_approval', label: '管理者確認中', phase: 'approval', color: 'orange' },
+    { value: 'revision_requested', label: '差戻し（修正依頼）', phase: 'approval', color: 'purple' },
+    { value: 'sent_to_customer', label: '顧客送信済み', phase: 'sent', color: 'blue' },
+    { value: 'under_review', label: '顧客検討中', phase: 'sent', color: 'blue' },
+    { value: 're_estimate_requested', label: '再見積もり依頼', phase: 'sent', color: 'indigo' },
+    { value: 'formal_order', label: '正式注文', phase: 'final', color: 'green' },
+    { value: 'won', label: '受注', phase: 'final', color: 'green' },
+    { value: 'lost', label: '失注', phase: 'final', color: 'red' },
+    { value: 'cancelled', label: 'キャンセル', phase: 'final', color: 'red' },
+    // 旧ステータス互換
+    { value: 'initial', label: '担当者作成中', phase: 'production', color: 'gray' },
+    { value: 'quote_sent', label: '顧客送信済み', phase: 'sent', color: 'blue' },
+    { value: 'under_consideration', label: '顧客検討中', phase: 'sent', color: 'blue' },
+    { value: 'order', label: '受注', phase: 'final', color: 'green' },
+    { value: 'failed', label: '失注', phase: 'final', color: 'red' }
+  ],
 
   // ステータス変更モーダルを表示（同期呼び出し用ラッパー）
   showStatusChangeModal: (type, id, currentStatus) => {
@@ -10006,16 +10042,32 @@ const EstimateManagement = {
   // プロジェクトステータス設定取得
   getProjectStatusConfig: (status) => {
     const configs = {
-      'initial': { label: '初回コンタクト', class: 'bg-gray-100 text-gray-800' },
-      'quote_sent': { label: '見積書送信済み', class: 'bg-yellow-100 text-yellow-800' },
-      'under_consideration': { label: '受注検討中', class: 'bg-blue-100 text-blue-800' },
-      'order_day': { label: '受注（昼間）', class: 'bg-green-100 text-green-800' },
-      'order_night': { label: '受注（夜間）', class: 'bg-purple-100 text-purple-800' },
-      'order': { label: '受注', class: 'bg-green-100 text-green-800' },
-      'completed': { label: '完了', class: 'bg-green-200 text-green-900' },
-      'failed': { label: '失注', class: 'bg-red-100 text-red-800' },
-      'cancelled': { label: 'キャンセル', class: 'bg-gray-200 text-gray-600' },
-      'unknown': { label: '不明', class: 'bg-gray-100 text-gray-800' }
+      // フェーズ1: 製作中
+      'drafting': { label: '担当者作成中', class: 'bg-gray-100 text-gray-800', icon: 'edit' },
+      'pdf_generated': { label: 'PDF生成済み', class: 'bg-gray-200 text-gray-800', icon: 'file-pdf' },
+      'approval_requested': { label: '決裁申請済み', class: 'bg-gray-300 text-gray-900', icon: 'upload' },
+      // フェーズ2: 決裁待ち
+      'pending_approval': { label: '管理者確認中', class: 'bg-orange-100 text-orange-800', icon: 'user-check' },
+      'revision_requested': { label: '差戻し（修正依頼）', class: 'bg-purple-100 text-purple-800', icon: 'undo' },
+      // フェーズ3: 送信済み/検討中
+      'sent_to_customer': { label: '顧客送信済み', class: 'bg-blue-100 text-blue-800', icon: 'envelope' },
+      'under_review': { label: '顧客検討中', class: 'bg-blue-200 text-blue-900', icon: 'search' },
+      're_estimate_requested': { label: '再見積もり依頼', class: 'bg-indigo-100 text-indigo-800', icon: 'question-circle' },
+      // フェーズ4: 最終結果
+      'formal_order': { label: '正式注文', class: 'bg-emerald-100 text-emerald-800', icon: 'handshake' },
+      'won': { label: '受注', class: 'bg-green-100 text-green-800', icon: 'trophy' },
+      'lost': { label: '失注', class: 'bg-red-100 text-red-800', icon: 'times-circle' },
+      'cancelled': { label: 'キャンセル', class: 'bg-gray-200 text-gray-600', icon: 'ban' },
+      // 旧ステータス互換
+      'initial': { label: '担当者作成中', class: 'bg-gray-100 text-gray-800', icon: 'edit' },
+      'quote_sent': { label: '顧客送信済み', class: 'bg-blue-100 text-blue-800', icon: 'envelope' },
+      'under_consideration': { label: '顧客検討中', class: 'bg-blue-200 text-blue-900', icon: 'search' },
+      'order_day': { label: '受注', class: 'bg-green-100 text-green-800', icon: 'trophy' },
+      'order_night': { label: '受注', class: 'bg-green-100 text-green-800', icon: 'trophy' },
+      'order': { label: '受注', class: 'bg-green-100 text-green-800', icon: 'trophy' },
+      'completed': { label: '受注', class: 'bg-green-200 text-green-900', icon: 'trophy' },
+      'failed': { label: '失注', class: 'bg-red-100 text-red-800', icon: 'times-circle' },
+      'unknown': { label: '不明', class: 'bg-gray-100 text-gray-800', icon: 'question' }
     };
     return configs[status] || configs.unknown;
   },
@@ -10667,11 +10719,26 @@ const EstimateManagement = {
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">案件ステータス</label>
               <select id="editProjectStatus" class="form-select">
-                <option value="initial" ${estimate.project_status === 'initial' ? 'selected' : ''}>初回コンタクト</option>
-                <option value="quote_sent" ${estimate.project_status === 'quote_sent' ? 'selected' : ''}>見積書送信済み</option>
-                <option value="under_consideration" ${estimate.project_status === 'under_consideration' ? 'selected' : ''}>受注検討中</option>
-                <option value="order" ${estimate.project_status === 'order' ? 'selected' : ''}>受注</option>
-                <option value="failed" ${estimate.project_status === 'failed' ? 'selected' : ''}>失注</option>
+                <optgroup label="── 製作中 ──">
+                  <option value="drafting" ${(estimate.project_status === 'drafting' || estimate.project_status === 'initial') ? 'selected' : ''}>担当者作成中</option>
+                  <option value="pdf_generated" ${estimate.project_status === 'pdf_generated' ? 'selected' : ''}>PDF生成済み</option>
+                  <option value="approval_requested" ${estimate.project_status === 'approval_requested' ? 'selected' : ''}>決裁申請済み</option>
+                </optgroup>
+                <optgroup label="── 決裁待ち ──">
+                  <option value="pending_approval" ${estimate.project_status === 'pending_approval' ? 'selected' : ''}>管理者確認中</option>
+                  <option value="revision_requested" ${estimate.project_status === 'revision_requested' ? 'selected' : ''}>差戻し（修正依頼）</option>
+                </optgroup>
+                <optgroup label="── 送信済み/検討中 ──">
+                  <option value="sent_to_customer" ${(estimate.project_status === 'sent_to_customer' || estimate.project_status === 'quote_sent') ? 'selected' : ''}>顧客送信済み</option>
+                  <option value="under_review" ${(estimate.project_status === 'under_review' || estimate.project_status === 'under_consideration') ? 'selected' : ''}>顧客検討中</option>
+                  <option value="re_estimate_requested" ${estimate.project_status === 're_estimate_requested' ? 'selected' : ''}>再見積もり依頼</option>
+                </optgroup>
+                <optgroup label="── 最終結果 ──">
+                  <option value="formal_order" ${estimate.project_status === 'formal_order' ? 'selected' : ''}>正式注文</option>
+                  <option value="won" ${(estimate.project_status === 'won' || estimate.project_status === 'order') ? 'selected' : ''}>受注</option>
+                  <option value="lost" ${(estimate.project_status === 'lost' || estimate.project_status === 'failed') ? 'selected' : ''}>失注</option>
+                  <option value="cancelled" ${estimate.project_status === 'cancelled' ? 'selected' : ''}>キャンセル</option>
+                </optgroup>
               </select>
             </div>
           </div>
@@ -12263,6 +12330,48 @@ const Dashboard = {
       document.getElementById('orderedEstimates').textContent = '-';
       document.getElementById('consideringEstimates').textContent = '-';
       document.getElementById('monthlySales').textContent = '-';
+    }
+    
+    // ライフサイクルフェーズ集計を読み込み
+    Dashboard.loadLifecycleSummary();
+  },
+  
+  // 見積ライフサイクルフェーズ集計
+  loadLifecycleSummary: async () => {
+    try {
+      const response = await API.get('/estimates/stats');
+      if (response && response.success && response.data && response.data.phaseCounts) {
+        const pc = response.data.phaseCounts;
+        const total = (pc.production || 0) + (pc.approval || 0) + (pc.sent || 0) + (pc.final || 0);
+        
+        // 件数を表示
+        const prodEl = document.getElementById('phase_production');
+        const apprEl = document.getElementById('phase_approval');
+        const sentEl = document.getElementById('phase_sent');
+        const finalEl = document.getElementById('phase_final');
+        
+        if (prodEl) prodEl.textContent = pc.production || 0;
+        if (apprEl) apprEl.textContent = pc.approval || 0;
+        if (sentEl) sentEl.textContent = pc.sent || 0;
+        if (finalEl) finalEl.textContent = pc.final || 0;
+        
+        // プログレスバーを更新
+        if (total > 0) {
+          const progProd = document.getElementById('progress_production');
+          const progAppr = document.getElementById('progress_approval');
+          const progSent = document.getElementById('progress_sent');
+          const progFinal = document.getElementById('progress_final');
+          
+          if (progProd) progProd.style.width = `${(pc.production / total * 100).toFixed(1)}%`;
+          if (progAppr) progAppr.style.width = `${(pc.approval / total * 100).toFixed(1)}%`;
+          if (progSent) progSent.style.width = `${(pc.sent / total * 100).toFixed(1)}%`;
+          if (progFinal) progFinal.style.width = `${(pc.final / total * 100).toFixed(1)}%`;
+        }
+        
+        console.log('ライフサイクル集計を更新しました', pc);
+      }
+    } catch (error) {
+      console.error('ライフサイクル集計取得エラー:', error);
     }
   }
 };
