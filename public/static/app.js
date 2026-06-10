@@ -1555,6 +1555,7 @@ const Step3Implementation = {
     Step3Implementation.showPricePreview();
     
     // 編集モードの場合は既存の車両情報を自動選択・プリフィル
+    console.log('🔍 STEP3 editMode判定:', { editMode: flowData.editMode, hasVehicle: !!flowData.vehicle, vehicle: flowData.vehicle });
     if (flowData.editMode && flowData.vehicle) {
       const vehicleInfo = flowData.vehicle;
       let infoText = '【編集中】前回の車両設定: ';
@@ -10902,7 +10903,10 @@ const EstimateManagement = {
           area_name: estimate.delivery_area || ''
         },
         vehicle: {
-          service_type: estimate.service_type || '',
+          service_type: estimate.service_type || 
+            (estimate.vehicle_type === 'チャーター便' ? 'dedicated' : 
+             estimate.vehicle_type === '混載便' ? 'konsai' : 
+             (estimate.operation_type === '混載' ? 'konsai' : 'dedicated')),
           service_type_label: estimate.vehicle_type || '',
           type: estimate.vehicle_type || '',
           operation: estimate.operation_type || '終日',

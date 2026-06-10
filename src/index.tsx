@@ -6043,12 +6043,9 @@ app.get('/estimate/step3', (c) => {
       {/* JavaScript初期化 */}
       <script dangerouslySetInnerHTML={{
         __html: `
-        // ページ初期化
-        window.addEventListener('load', function() {
-          if (typeof Step3Implementation !== 'undefined') {
-            Step3Implementation.initialize();
-          }
-        });`
+        // ページ初期化（app.jsのDOMContentLoadedで実行されるため、ここでは不要）
+        // Step3Implementation.initialize() は app.js 側で呼び出し済み
+        `
       }}></script>
     </div>
   )
