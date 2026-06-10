@@ -3024,6 +3024,13 @@ const Step5Implementation = {
       if (flowData.services.highway_fee) {
         document.getElementById('highway_fee').value = flowData.services.highway_fee;
       }
+      // 4トン車追加プリフィル
+      if (flowData.services.additional_truck_count) {
+        document.getElementById('additional_truck_count').value = flowData.services.additional_truck_count;
+      }
+      if (flowData.services.additional_truck_unit_price) {
+        document.getElementById('additional_truck_unit_price').value = flowData.services.additional_truck_unit_price;
+      }
     }
 
     // 初期費用計算
@@ -3146,6 +3153,16 @@ const Step5Implementation = {
     const parkingFee = parseInt(document.getElementById('parking_fee').value) || 0;
     const highwayFee = parseInt(document.getElementById('highway_fee').value) || 0;
 
+    // 4トン車追加（フリー入力）
+    const additionalTruckCount = parseInt(document.getElementById('additional_truck_count')?.value) || 0;
+    const additionalTruckUnitPrice = parseInt(document.getElementById('additional_truck_unit_price')?.value) || 0;
+    const additionalTruckCost = additionalTruckCount * additionalTruckUnitPrice;
+    // 4トン車小計表示を更新
+    const truckSubtotalEl = document.getElementById('additional_truck_subtotal');
+    if (truckSubtotalEl) {
+      truckSubtotalEl.textContent = additionalTruckCost > 0 ? Utils.formatCurrency(additionalTruckCost) : '¥0';
+    }
+
     // 各費用計算（安全なアクセス）
     const rates = Step5Implementation.serviceRates || {};
     
@@ -3157,6 +3174,7 @@ const Step5Implementation = {
       protection_work: 0,
       material_collection: (rates.material_collection && rates.material_collection[materialCollection]) || 0,
       construction: constructionCost,
+      additional_truck: additionalTruckCost,
       parking_fee: parkingFee,
       highway_fee: highwayFee
     };
@@ -3200,7 +3218,7 @@ const Step5Implementation = {
     // 全サービス費用の合計を計算（作業時間帯割増も含む）
     const totalServicesCost = costs.site_survey + costs.parking_officer + costs.transport_vehicle + costs.waste_disposal + 
                              costs.protection_work + costs.material_collection + costs.construction + 
-                             costs.work_time_multiplier + costs.parking_fee + costs.highway_fee;
+                             costs.additional_truck + costs.work_time_multiplier + costs.parking_fee + costs.highway_fee;
 
     // 内訳表示を生成
     const breakdown = [];
@@ -3224,6 +3242,7 @@ const Step5Implementation = {
     }
     if (costs.parking_fee > 0) breakdown.push(`実費：駐車料金: ${Utils.formatCurrency(costs.parking_fee)}`);
     if (costs.highway_fee > 0) breakdown.push(`実費：高速料金: ${Utils.formatCurrency(costs.highway_fee)}`);
+    if (costs.additional_truck > 0) breakdown.push(`4トン車追加 ${additionalTruckCount}台×${Utils.formatCurrency(additionalTruckUnitPrice)}: ${Utils.formatCurrency(costs.additional_truck)}`);
 
     const costDisplay = document.getElementById('servicesCostDisplay');
     const breakdownDiv = document.getElementById('servicesBreakdown');
@@ -3266,6 +3285,9 @@ const Step5Implementation = {
       construction_cost: costs.construction || 0,
       work_time_type: workTimeType,
       work_time_multiplier: workTimeMultiplier,
+      additional_truck_count: additionalTruckCount || 0,
+      additional_truck_unit_price: additionalTruckUnitPrice || 0,
+      additional_truck_cost: additionalTruckCost || 0,
       parking_fee: parkingFee || 0,
       highway_fee: highwayFee || 0,
       total_cost: totalServicesCost || 0,  // 確実に数値にする
@@ -4598,6 +4620,17 @@ const Step6Implementation = {
         amount: services.highway_fee
       });
     }
+
+    // 4トン車追加（フリー入力）
+    if (services.additional_truck_cost > 0) {
+      lineItems.services.items.push({
+        description: `4トン車追加 ${services.additional_truck_count || 0}台`,
+        detail: `@ ¥${(services.additional_truck_unit_price || 0).toLocaleString()}`,
+        quantity: services.additional_truck_count || 0,
+        unit_price: services.additional_truck_unit_price || 0,
+        amount: services.additional_truck_cost
+      });
+    }
     
     lineItems.services.subtotal = lineItems.services.items.reduce((sum, item) => sum + item.amount, 0);
 
@@ -4708,7 +4741,8 @@ const Step6Implementation = {
                                (services.material_collection_cost || 0) + 
                                (services.construction_cost || 0) + 
                                (services.parking_fee || 0) + 
-                               (services.highway_fee || 0);
+                               (services.highway_fee || 0) +
+                               (services.additional_truck_cost || 0);
       
       // 作業時間帯割増費用を再計算（再計算された車両・スタッフ費用に適用）
       if (services.work_time_multiplier && services.work_time_multiplier > 1.0) {
@@ -10873,6 +10907,9 @@ const EstimateManagement = {
           work_time_multiplier: estimate.work_time_multiplier || 1.0,
           parking_fee: estimate.parking_fee || 0,
           highway_fee: estimate.highway_fee || 0,
+          additional_truck_count: estimate.additional_truck_count || 0,
+          additional_truck_unit_price: estimate.additional_truck_unit_price || 0,
+          additional_truck_cost: estimate.additional_truck_cost || 0,
           notes: estimate.notes || ''
         },
         estimate_type: estimate.estimate_type || 'standard_a'

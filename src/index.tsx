@@ -2809,6 +2809,9 @@ app.put('/api/estimates/:id', async (c) => {
         total_amount = ?,
         notes = ?,
         customer_contact_person = ?,
+        additional_truck_count = ?,
+        additional_truck_unit_price = ?,
+        additional_truck_cost = ?,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).bind(
@@ -2865,7 +2868,8 @@ app.put('/api/estimates/:id', async (c) => {
                            (data.material_collection_cost || 0) + 
                            (data.construction_cost || 0) + 
                            (data.parking_fee || 0) + 
-                           (data.highway_fee || 0);
+                           (data.highway_fee || 0) +
+                           (data.additional_truck_cost || 0);
         return vehicleCost + staffCost + servicesCost;
       })(),
       data.tax_rate || 0.1,
@@ -2879,7 +2883,8 @@ app.put('/api/estimates/:id', async (c) => {
                            (data.material_collection_cost || 0) + 
                            (data.construction_cost || 0) + 
                            (data.parking_fee || 0) + 
-                           (data.highway_fee || 0);
+                           (data.highway_fee || 0) +
+                           (data.additional_truck_cost || 0);
         const calculatedSubtotal = vehicleCost + staffCost + servicesCost;
         const taxRate = data.tax_rate || 0.1;
         return Math.floor(calculatedSubtotal * taxRate);
@@ -2894,7 +2899,8 @@ app.put('/api/estimates/:id', async (c) => {
                            (data.material_collection_cost || 0) + 
                            (data.construction_cost || 0) + 
                            (data.parking_fee || 0) + 
-                           (data.highway_fee || 0);
+                           (data.highway_fee || 0) +
+                           (data.additional_truck_cost || 0);
         const calculatedSubtotal = vehicleCost + staffCost + servicesCost;
         const taxRate = data.tax_rate || 0.1;
         const calculatedTaxAmount = Math.floor(calculatedSubtotal * taxRate);
@@ -2902,6 +2908,9 @@ app.put('/api/estimates/:id', async (c) => {
       })(),
       data.notes || '',
       data.customer_contact_person || '',
+      data.additional_truck_count || 0,
+      data.additional_truck_unit_price || 0,
+      data.additional_truck_cost || 0,
       estimateId
     ).run()
 
@@ -7022,6 +7031,51 @@ app.get('/estimate/step5', (c) => {
                 </div>
               </div>
 
+              {/* 4トン車追加（フリー入力） */}
+              <div className="border rounded-lg p-4">
+                <div className="flex items-center mb-4">
+                  <i className="fas fa-truck-moving text-green-500 text-xl mr-3"></i>
+                  <h4 className="text-lg font-medium text-gray-900">4トン車追加</h4>
+                  <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">フリー入力</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">台数</label>
+                    <div className="flex items-center space-x-3">
+                      <input 
+                        type="number" 
+                        id="additional_truck_count" 
+                        className="form-input w-20" 
+                        min="0" 
+                        max="20" 
+                        value="0"
+                        onChange="updateServicesCost()"
+                      />
+                      <span className="text-sm text-gray-600">台</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">単価（1台あたり）</label>
+                    <div className="flex items-center space-x-3">
+                      <input 
+                        type="number" 
+                        id="additional_truck_unit_price" 
+                        className="form-input w-32" 
+                        min="0" 
+                        step="1000"
+                        value="0"
+                        onChange="updateServicesCost()"
+                      />
+                      <span className="text-sm text-gray-600">円</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">小計</label>
+                    <p className="text-lg font-bold text-green-600 mt-1" id="additional_truck_subtotal">¥0</p>
+                  </div>
+                </div>
+              </div>
+
               {/* サービス費用表示 */}
               <div id="servicesCostDisplay" className="p-4 bg-orange-50 border border-orange-200 rounded-lg hidden">
                 <h4 className="text-lg font-medium text-orange-900 mb-2">
@@ -7652,13 +7706,15 @@ app.post('/api/estimates', async (c) => {
         external_contractor_cost, 
         uses_multiple_vehicles, notes, line_items_json, created_by_name, customer_contact_person,
         delivery_distance_km, transport_vehicle_fee, road_permit_fee, survey_fee, oneman_discount_applied,
-        estimate_type, valid_until
+        estimate_type, valid_until,
+        additional_truck_count, additional_truck_unit_price, additional_truck_cost
       ) VALUES (
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
         ?, ?, ?, ?, ?, ?, 
         ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?
       )
     `).bind(
       data.customer_id,
@@ -7723,7 +7779,10 @@ app.post('/api/estimates', async (c) => {
       data.survey_fee || 0,
       data.oneman_discount_applied || 0,
       estimateType,
-      data.valid_until || null
+      data.valid_until || null,
+      data.additional_truck_count || 0,
+      data.additional_truck_unit_price || 0,
+      data.additional_truck_cost || 0
     ).run()
     
     console.log('見積保存結果:', result)
