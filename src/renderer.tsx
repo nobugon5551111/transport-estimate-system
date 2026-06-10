@@ -66,7 +66,7 @@ export const renderer = jsxRenderer(({ children }) => {
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         
         {/* 共通JavaScript */}
-        <script src="/static/app.js?v=1766551870&cache=bust"></script>
+        <script src="/static/app.js?v=1768900000&cache=bust"></script>
       </body>
     </html>
   )

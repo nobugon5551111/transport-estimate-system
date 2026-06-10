@@ -1555,7 +1555,7 @@ const Step3Implementation = {
     Step3Implementation.showPricePreview();
     
     // 編集モードの場合は既存の車両情報を自動選択・プリフィル
-    console.log('🔍 STEP3 editMode判定:', { editMode: flowData.editMode, hasVehicle: !!flowData.vehicle, vehicle: flowData.vehicle });
+    console.log('🔍 STEP3 editMode判定 v2:', { editMode: flowData.editMode, hasVehicle: !!flowData.vehicle, service_type: flowData.vehicle?.service_type, service_type_label: flowData.vehicle?.service_type_label });
     if (flowData.editMode && flowData.vehicle) {
       const vehicleInfo = flowData.vehicle;
       let infoText = '【編集中】前回の車両設定: ';
