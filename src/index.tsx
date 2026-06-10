@@ -10400,37 +10400,37 @@ app.get('/estimates', (c) => {
           </div>
           
           <div className="overflow-x-auto">
-            <table className="min-w-full table">
+            <table className="w-full table-fixed">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="table-header">
+                  <th className="w-8 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                     <input type="checkbox" id="selectAll" onChange="EstimateManagement.toggleSelectAll()" />
                   </th>
-                  <th className="table-header cursor-pointer" onclick="EstimateManagement.sortEstimates('estimate_number')">
-                    見積番号 <i className="fas fa-sort ml-1"></i>
+                  <th className="w-[130px] px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer" onclick="EstimateManagement.sortEstimates('estimate_number')">
+                    見積番号 <i className="fas fa-sort ml-0.5 text-gray-400"></i>
                   </th>
-                  <th className="table-header cursor-pointer" onclick="EstimateManagement.sortEstimates('customer_name')">
-                    顧客名 <i className="fas fa-sort ml-1"></i>
+                  <th className="w-[90px] px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer" onclick="EstimateManagement.sortEstimates('customer_name')">
+                    顧客名 <i className="fas fa-sort ml-0.5 text-gray-400"></i>
                   </th>
-                  <th className="table-header cursor-pointer" onclick="EstimateManagement.sortEstimates('project_name')">
-                    案件名 <i className="fas fa-sort ml-1"></i>
+                  <th className="w-[110px] px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer" onclick="EstimateManagement.sortEstimates('project_name')">
+                    案件名 <i className="fas fa-sort ml-0.5 text-gray-400"></i>
                   </th>
-                  <th className="table-header cursor-pointer" onclick="EstimateManagement.sortEstimates('delivery_area')">
-                    エリア <i className="fas fa-sort ml-1"></i>
+                  <th className="w-[50px] px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase cursor-pointer" onclick="EstimateManagement.sortEstimates('delivery_area')">
+                    エリア
                   </th>
-                  <th className="table-header cursor-pointer" onclick="EstimateManagement.sortEstimates('total_amount')">
-                    見積金額 <i className="fas fa-sort ml-1"></i>
+                  <th className="w-[90px] px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer" onclick="EstimateManagement.sortEstimates('total_amount')">
+                    金額 <i className="fas fa-sort ml-0.5 text-gray-400"></i>
                   </th>
-                  <th className="table-header cursor-pointer" onclick="EstimateManagement.sortEstimates('created_at')">
-                    作成日 <i className="fas fa-sort ml-1"></i>
+                  <th className="w-[80px] px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer" onclick="EstimateManagement.sortEstimates('created_at')">
+                    作成日 <i className="fas fa-sort ml-0.5 text-gray-400"></i>
                   </th>
-                  <th className="table-header cursor-pointer" onclick="EstimateManagement.sortEstimates('created_by_name')">
-                    作成者 <i className="fas fa-sort ml-1"></i>
+                  <th className="w-[60px] px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer" onclick="EstimateManagement.sortEstimates('created_by_name')">
+                    作成者
                   </th>
-                  <th className="table-header">
-                    ステータス
+                  <th className="w-[70px] px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase">
+                    状態
                   </th>
-                  <th className="table-header">
+                  <th className="w-[120px] px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase">
                     操作
                   </th>
                 </tr>

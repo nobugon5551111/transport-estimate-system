@@ -10157,102 +10157,78 @@ const EstimateManagement = {
       
       return `
         <tr class="hover:bg-gray-50 ${isSelected ? 'bg-blue-50' : ''}">
-          <td class="px-6 py-4 whitespace-nowrap">
+          <td class="px-2 py-3 whitespace-nowrap">
             <input 
               type="checkbox" 
               ${isSelected ? 'checked' : ''}
               onChange="EstimateManagement.toggleEstimateSelection(${estimate.id})"
             />
           </td>
-          <td class="px-6 py-4 whitespace-nowrap">
-            <div class="text-sm font-medium text-gray-900">${estimate.estimate_number}</div>
-            <div class="mt-1">${EstimateManagement.getEstimateTypeBadge(estimate)}</div>
+          <td class="px-2 py-3 whitespace-nowrap">
+            <div class="text-xs font-medium text-gray-900">${estimate.estimate_number}</div>
+            <div class="mt-0.5">${EstimateManagement.getEstimateTypeBadge(estimate)}</div>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap">
-            <div class="text-sm text-gray-900">${customerName}</div>
+          <td class="px-2 py-3">
+            <div class="text-xs text-gray-900 max-w-[80px] truncate" title="${customerName}">${customerName}</div>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap">
-            <div class="text-sm text-gray-900 max-w-xs truncate" title="${projectName}">
+          <td class="px-2 py-3">
+            <div class="text-xs text-gray-900 max-w-[100px] truncate" title="${projectName}">
               ${projectName}
             </div>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap">
-            <div class="text-sm text-gray-900">${estimate.delivery_area}エリア</div>
+          <td class="px-2 py-3 whitespace-nowrap text-center">
+            <div class="text-xs text-gray-900">${estimate.delivery_area}</div>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap">
-            <div class="text-sm font-medium text-gray-900">${Utils.formatCurrency(estimate.total_amount)}</div>
+          <td class="px-2 py-3 whitespace-nowrap text-right">
+            <div class="text-xs font-medium text-gray-900">${Utils.formatCurrency(estimate.total_amount)}</div>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap">
-            <div class="text-sm text-gray-500">${Utils.formatDate(estimate.created_at).split(' ')[0]}</div>
+          <td class="px-2 py-3 whitespace-nowrap">
+            <div class="text-xs text-gray-500">${Utils.formatDate(estimate.created_at).split(' ')[0]}</div>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap">
-            <div class="text-sm text-gray-600">
-              <i class="fas fa-user mr-1 text-gray-400"></i>
-              ${estimate.created_by_name || '未設定'}
-            </div>
+          <td class="px-2 py-3 whitespace-nowrap">
+            <div class="text-xs text-gray-600">${estimate.created_by_name || '-'}</div>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap">
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusConfig.class}">
+          <td class="px-2 py-3 whitespace-nowrap">
+            <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${statusConfig.class}">
               ${statusConfig.label}
             </span>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-            <div class="flex space-x-2">
+          <td class="px-2 py-3 whitespace-nowrap text-sm">
+            <div class="flex flex-wrap gap-1">
               <button 
                 onClick="EstimateManagement.viewEstimateDetail(${estimate.id})" 
-                class="text-blue-600 hover:text-blue-800"
+                class="w-7 h-7 inline-flex items-center justify-center rounded text-blue-600 hover:bg-blue-50"
                 title="詳細表示"
               >
-                <i class="fas fa-eye"></i>
+                <i class="fas fa-eye text-xs"></i>
               </button>
               <button 
                 onClick="EstimateManagement.editEstimate(${estimate.id})" 
-                class="text-green-600 hover:text-green-800"
+                class="w-7 h-7 inline-flex items-center justify-center rounded text-green-600 hover:bg-green-50"
                 title="編集"
               >
-                <i class="fas fa-edit"></i>
-              </button>
-              <button 
-                onClick="AIFeatures.generateEmail(${estimate.id}, 'quote_initial')" 
-                class="text-indigo-600 hover:text-indigo-800"
-                title="AIメール生成"
-              >
-                <i class="fas fa-envelope-open-text"></i>
-              </button>
-              <button 
-                onClick="AIFeatures.predictOrderProbability(${estimate.id})" 
-                class="text-orange-600 hover:text-orange-800"
-                title="AI受注確率予測"
-              >
-                <i class="fas fa-brain"></i>
+                <i class="fas fa-edit text-xs"></i>
               </button>
               <button 
                 onClick="EstimateManagement.generatePDF(${estimate.id})" 
-                class="text-purple-600 hover:text-purple-800"
+                class="w-7 h-7 inline-flex items-center justify-center rounded text-purple-600 hover:bg-purple-50"
                 title="PDF生成"
               >
-                <i class="fas fa-file-pdf"></i>
-              </button>
-              <button 
-                onClick="StatusManagement.showStatusChangeModal('estimate', ${estimate.id}, '${project ? project.status || 'initial' : 'initial'}')" 
-                class="text-blue-600 hover:text-blue-800"
-                title="ステータス変更"
-              >
-                <i class="fas fa-exchange-alt"></i>
+                <i class="fas fa-file-pdf text-xs"></i>
               </button>
               <button 
                 onClick="EstimateManagement.copyEstimate(${estimate.id})" 
-                class="text-yellow-600 hover:text-yellow-800"
+                class="w-7 h-7 inline-flex items-center justify-center rounded text-yellow-600 hover:bg-yellow-50"
                 title="複製"
               >
-                <i class="fas fa-copy"></i>
+                <i class="fas fa-copy text-xs"></i>
               </button>
               <button 
                 onClick="EstimateManagement.deleteEstimate(${estimate.id})" 
-                class="text-red-600 hover:text-red-800"
+                class="w-7 h-7 inline-flex items-center justify-center rounded text-red-600 hover:bg-red-50"
                 title="削除"
               >
-                <i class="fas fa-trash"></i>
+                <i class="fas fa-trash text-xs"></i>
               </button>
             </div>
           </td>
