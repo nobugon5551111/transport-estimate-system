@@ -12483,6 +12483,34 @@ app.get('/api/settings/basic-old', async (c) => {
 
 // 新規見積作成ページ（タイプ選択へリダイレクト）
 app.get('/estimate/new', (c) => {
+  // 編集モードの場合はリダイレクトせず、editMode検出用の軽量ページを返す
+  const isEdit = c.req.query('edit') === 'true'
+  const editId = c.req.query('id')
+  
+  if (isEdit && editId) {
+    return c.html(`<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>見積編集</title></head>
+<body>
+<script>
+  // sessionStorageからeditMode情報を読み取りStep2へ直接遷移
+  const savedFlow = sessionStorage.getItem('estimateFlow');
+  if (savedFlow) {
+    const flowData = JSON.parse(savedFlow);
+    if (flowData.editMode && flowData.customer && flowData.project) {
+      flowData.step = 2;
+      sessionStorage.setItem('estimateFlow', JSON.stringify(flowData));
+      sessionStorage.setItem('estimate_type', flowData.estimate_type || 'standard_a');
+      window.location.href = '/estimate/step2';
+    } else {
+      window.location.href = '/estimate/type-select';
+    }
+  } else {
+    window.location.href = '/estimate/type-select';
+  }
+</script>
+</body></html>`)
+  }
+  
   return c.redirect('/estimate/type-select')
 })
 
