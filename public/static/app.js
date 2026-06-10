@@ -1604,27 +1604,57 @@ const Step3Implementation = {
           console.error('❌ handleServiceTypeChange エラー:', e);
         }
         
-        // チャーター便の場合、台数を復元
-        if (prevServiceType === 'dedicated' && vehicleInfo.vehicle_count > 1) {
-          // 車両ブロックを追加（2台目以降）
-          for (let i = 1; i < vehicleInfo.vehicle_count; i++) {
-            const addBtn = document.getElementById('addVehicleBtn');
-            if (addBtn) addBtn.click();
+        // チャーター便の場合、台数とワンマン割引を復元
+        if (prevServiceType === 'dedicated') {
+          // 2台目以降の車両ブロックを追加
+          if (vehicleInfo.vehicle_count > 1) {
+            for (let i = 1; i < vehicleInfo.vehicle_count; i++) {
+              // addDedicatedVehicle()を直接呼び出す（addVehicleBtnはIDなし）
+              Step3Implementation.addDedicatedVehicle();
+            }
+            console.log('🚛 車両ブロック追加完了:', vehicleInfo.vehicle_count, '台');
           }
-          // 再計算
+          
+          // ワンマン割引チェックボックスを復元
+          if (vehicleInfo.oneman_discount) {
+            const checkboxes = document.querySelectorAll('.dedicated-oneman-cb');
+            console.log('🚛 ワンマン割引復元: チェックボックス数=', checkboxes.length, ', oneman_discount=', vehicleInfo.oneman_discount);
+            // discounted_count があればその数だけ、なければ全車両にチェック
+            const discountCount = vehicleInfo.discounted_count || checkboxes.length;
+            checkboxes.forEach((cb, idx) => {
+              if (idx < discountCount && !cb.disabled) {
+                cb.checked = true;
+              }
+            });
+          }
+          
+          // 付帯費用のチェックボックスを復元
+          if (vehicleInfo.has_road_permit) {
+            const rpCb = document.getElementById('dedicatedAncillary_road_permit');
+            if (rpCb) rpCb.checked = true;
+          }
+          if (vehicleInfo.has_transport_vehicle) {
+            const tvCb = document.getElementById('dedicatedAncillary_transport_vehicle');
+            if (tvCb) tvCb.checked = true;
+          }
+          
+          // 再計算して料金表示を更新 & nextStepBtn有効化
           Step3Implementation.updateDedicatedPricing();
         }
         
         // 混載便の場合、ワンマン割引を復元
-        if (prevServiceType === 'konsai' && vehicleInfo.oneman_discount) {
-          const onemanCb = document.getElementById('konsaiOnemanDiscount');
-          if (onemanCb && !onemanCb.disabled) {
-            onemanCb.checked = true;
-            Step3Implementation.updateKonsaiPricing();
+        if (prevServiceType === 'konsai') {
+          if (vehicleInfo.oneman_discount) {
+            const onemanCb = document.getElementById('konsaiOnemanDiscount');
+            if (onemanCb && !onemanCb.disabled) {
+              onemanCb.checked = true;
+            }
           }
+          // 再計算してnextStepBtn有効化
+          Step3Implementation.updateKonsaiPricing();
         }
         
-        // currentVehicleInfoを直接セットしてnextStepBtnを有効化
+        // 万が一 currentVehicleInfo が設定されていない場合のフォールバック
         if (!Step3Implementation.currentVehicleInfo) {
           Step3Implementation.currentVehicleInfo = vehicleInfo;
           document.getElementById('nextStepBtn').disabled = false;
@@ -10939,7 +10969,27 @@ const EstimateManagement = {
           vehicle_charter_unit_price: estimate.vehicle_charter_unit_price || 0,
           external_contractor_cost: estimate.external_contractor_cost || 0,
           uses_multiple_vehicles: estimate.uses_multiple_vehicles || false,
-          oneman_discount: estimate.oneman_discount_applied ? true : false
+          oneman_discount: estimate.oneman_discount_applied ? true : false,
+          // line_items_jsonから付帯費用・割引台数を推定
+          has_road_permit: (() => {
+            try {
+              const lij = JSON.parse(estimate.line_items_json || '{}');
+              return lij.vehicle?.items?.some(it => it.description && it.description.includes('道路許可')) || false;
+            } catch(e) { return false; }
+          })(),
+          has_transport_vehicle: (() => {
+            try {
+              const lij = JSON.parse(estimate.line_items_json || '{}');
+              return lij.vehicle?.items?.some(it => it.description && it.description.includes('車両輸送')) || false;
+            } catch(e) { return false; }
+          })(),
+          discounted_count: (() => {
+            try {
+              const lij = JSON.parse(estimate.line_items_json || '{}');
+              const discountItem = lij.vehicle?.items?.find(it => it.description && it.description.includes('ワンマン割引'));
+              return discountItem ? (discountItem.quantity || 0) : 0;
+            } catch(e) { return 0; }
+          })()
         },
         staff: {
           supervisor_count: estimate.supervisor_count || 0,
