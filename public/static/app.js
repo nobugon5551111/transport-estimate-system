@@ -439,6 +439,28 @@ if (typeof EstimateFlow === 'undefined') {
   initialize: () => {
     console.log('EstimateFlow初期化開始');
     
+    // 編集モードの検出
+    const urlParams = new URLSearchParams(window.location.search);
+    const isEditMode = urlParams.get('edit') === 'true';
+    const editId = urlParams.get('id');
+    
+    if (isEditMode && editId) {
+      // 編集モード: セッションストレージから復元して自動的にStep2へ遷移
+      const savedFlow = sessionStorage.getItem('estimateFlow');
+      if (savedFlow) {
+        const flowData = JSON.parse(savedFlow);
+        if (flowData.editMode && flowData.customer && flowData.project) {
+          console.log('✅ 編集モード検出: 見積ID=' + editId + ' 自動的にStep2へ遷移');
+          // Step2に直接遷移（データは既にセッションに格納済み）
+          flowData.step = 2;
+          sessionStorage.setItem('estimateFlow', JSON.stringify(flowData));
+          sessionStorage.setItem('estimate_type', flowData.estimate_type || 'standard_a');
+          window.location.href = '/estimate/step2';
+          return;
+        }
+      }
+    }
+    
     // セッションストレージから前回のデータを復元
     try {
       const savedFlow = sessionStorage.getItem('estimateFlow');
@@ -1532,6 +1554,32 @@ const Step3Implementation = {
     // カード上にプレビュー料金を表示
     Step3Implementation.showPricePreview();
     
+    // 編集モードの場合は既存の車両情報を案内表示
+    if (flowData.editMode && flowData.vehicle) {
+      const vehicleInfo = flowData.vehicle;
+      let infoText = '【編集中】前回の車両設定: ';
+      if (vehicleInfo.service_type_label) {
+        infoText += vehicleInfo.service_type_label;
+      } else if (vehicleInfo.type) {
+        infoText += vehicleInfo.type;
+      }
+      if (vehicleInfo.vehicle_count > 1) {
+        infoText += ` ${vehicleInfo.vehicle_count}台`;
+      }
+      if (vehicleInfo.cost) {
+        infoText += ` (¥${Number(vehicleInfo.cost).toLocaleString()})`;
+      }
+      
+      // 案内バナーを挿入
+      const selectedArea = document.getElementById('selectedArea');
+      if (selectedArea) {
+        const infoBanner = document.createElement('div');
+        infoBanner.className = 'mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700';
+        infoBanner.innerHTML = `<i class="fas fa-info-circle mr-2"></i>${infoText}　<span class="text-xs text-blue-500">（下記から再選択してください）</span>`;
+        selectedArea.parentElement.appendChild(infoBanner);
+      }
+    }
+    
     console.log('STEP3 初期化完了 - エリア:', Step3Implementation.currentArea);
   },
 
@@ -2212,6 +2260,18 @@ const Step4Implementation = {
         'temp_staff_half_day',
         'temp_staff_full_day'
       ];
+
+      // 編集モードの場合は既存スタッフデータをプリフィル
+      if (flowData.editMode && flowData.staff) {
+        console.log('📝 編集モード: スタッフデータをプリフィル', flowData.staff);
+        staffInputs.forEach(inputId => {
+          const element = document.getElementById(inputId);
+          if (element && flowData.staff[inputId] !== undefined) {
+            element.value = flowData.staff[inputId];
+            console.log(`✅ プリフィル: ${inputId} = ${flowData.staff[inputId]}`);
+          }
+        });
+      }
 
       staffInputs.forEach(inputId => {
         const element = document.getElementById(inputId);
@@ -3531,12 +3591,29 @@ const Step6Implementation = {
       };
     }
 
-    // 見積番号と作成日を生成
-    const estimateNumber = `EST-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`;
+    // 見積番号と作成日を生成（編集モードの場合は既存番号を使用）
+    let estimateNumber;
+    if (flowData.editMode && flowData.editEstimateNumber) {
+      estimateNumber = flowData.editEstimateNumber;
+    } else {
+      estimateNumber = `EST-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`;
+    }
     const createDate = new Date().toLocaleDateString('ja-JP');
     
     document.getElementById('estimateNumber').textContent = estimateNumber;
     document.getElementById('createDate').textContent = createDate;
+    
+    // 編集モードの場合はタイトルと保存ボタンテキストを変更
+    if (flowData.editMode) {
+      const pageTitle = document.querySelector('h1, .page-title, [class*="title"]');
+      if (pageTitle && pageTitle.textContent.includes('見積')) {
+        pageTitle.innerHTML = '<i class="fas fa-edit mr-2"></i>見積編集 - ' + estimateNumber;
+      }
+      const saveBtn = document.getElementById('saveEstimateBtn');
+      if (saveBtn) {
+        saveBtn.innerHTML = '<i class="fas fa-save mr-2"></i>見積を更新';
+      }
+    }
 
     // 各セクションの情報を表示（非同期対応）
     Step6Implementation.displayCustomerInfo();
@@ -4923,10 +5000,26 @@ const Step6Implementation = {
         staff_cost: cleanedEstimateData.staff_cost
       });
       
-      const response = await API.post('/estimates', cleanedEstimateData);
+      // 編集モード判定
+      const flowDataForSave = JSON.parse(sessionStorage.getItem('estimateFlow') || '{}');
+      const isEditMode = flowDataForSave.editMode === true;
+      const editEstimateId = flowDataForSave.editEstimateId;
+      
+      let response;
+      if (isEditMode && editEstimateId) {
+        // 編集モード: PUT で既存見積を更新
+        console.log('📝 編集モード: 見積ID=' + editEstimateId + ' を更新');
+        response = await API.put(`/estimates/${editEstimateId}`, cleanedEstimateData);
+      } else {
+        // 新規作成モード: POST
+        response = await API.post('/estimates', cleanedEstimateData);
+      }
       
       if (response.success) {
-        Utils.showSuccess('見積の保存が完了しました！上記のPDF生成やメール生成ボタンをご利用ください。');
+        const successMsg = isEditMode 
+          ? '見積の更新が完了しました！' 
+          : '見積の保存が完了しました！上記のPDF生成やメール生成ボタンをご利用ください。';
+        Utils.showSuccess(successMsg);
         
         // 保存された見積IDを保存
         if (response.data && response.data.id) {
@@ -4940,6 +5033,13 @@ const Step6Implementation = {
         saveBtn.disabled = true;
         saveBtn.innerHTML = '<i class="fas fa-check mr-2"></i>保存完了';
         saveBtn.className = 'btn-success opacity-50 cursor-not-allowed';
+        
+        // 編集モードの場合は3秒後に管理画面に戻る
+        if (isEditMode) {
+          setTimeout(() => {
+            window.location.href = '/#estimates';
+          }, 2000);
+        }
         
       } else {
         Utils.showError('見積の保存に失敗しました: ' + response.error);
@@ -10687,122 +10787,108 @@ const EstimateManagement = {
   editEstimate: async (estimateId) => {
     try {
       EstimateManagement.currentEstimateId = estimateId;
+      Utils.showLoading('見積データを読み込み中...');
       
       // 見積詳細を取得
       const response = await API.get(`/estimates/${estimateId}`);
       if (!response.success) {
+        Utils.hideLoading();
         Utils.showError('見積データの取得に失敗しました');
         return;
       }
       
       const estimate = response.data;
       
-      // 編集モーダルのコンテンツを生成
-      const editContent = `
-        <div class="space-y-6">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">見積番号</label>
-              <input type="text" value="${estimate.estimate_number || ''}" disabled 
-                     class="form-input bg-gray-100" />
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">顧客名</label>
-              <input type="text" value="${estimate.customer_name || ''}" disabled 
-                     class="form-input bg-gray-100" />
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">案件名</label>
-              <input type="text" value="${estimate.project_name || ''}" disabled 
-                     class="form-input bg-gray-100" />
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">案件ステータス</label>
-              <select id="editProjectStatus" class="form-select">
-                <optgroup label="── 製作中 ──">
-                  <option value="drafting" ${(estimate.project_status === 'drafting' || estimate.project_status === 'initial') ? 'selected' : ''}>担当者作成中</option>
-                  <option value="pdf_generated" ${estimate.project_status === 'pdf_generated' ? 'selected' : ''}>PDF生成済み</option>
-                  <option value="approval_requested" ${estimate.project_status === 'approval_requested' ? 'selected' : ''}>決裁申請済み</option>
-                </optgroup>
-                <optgroup label="── 決裁待ち ──">
-                  <option value="pending_approval" ${estimate.project_status === 'pending_approval' ? 'selected' : ''}>管理者確認中</option>
-                  <option value="revision_requested" ${estimate.project_status === 'revision_requested' ? 'selected' : ''}>差戻し（修正依頼）</option>
-                </optgroup>
-                <optgroup label="── 送信済み/検討中 ──">
-                  <option value="sent_to_customer" ${(estimate.project_status === 'sent_to_customer' || estimate.project_status === 'quote_sent') ? 'selected' : ''}>顧客送信済み</option>
-                  <option value="under_review" ${(estimate.project_status === 'under_review' || estimate.project_status === 'under_consideration') ? 'selected' : ''}>顧客検討中</option>
-                  <option value="re_estimate_requested" ${estimate.project_status === 're_estimate_requested' ? 'selected' : ''}>再見積もり依頼</option>
-                </optgroup>
-                <optgroup label="── 最終結果 ──">
-                  <option value="formal_order" ${estimate.project_status === 'formal_order' ? 'selected' : ''}>正式注文</option>
-                  <option value="won" ${(estimate.project_status === 'won' || estimate.project_status === 'order') ? 'selected' : ''}>受注</option>
-                  <option value="lost" ${(estimate.project_status === 'lost' || estimate.project_status === 'failed') ? 'selected' : ''}>失注</option>
-                  <option value="cancelled" ${estimate.project_status === 'cancelled' ? 'selected' : ''}>キャンセル</option>
-                </optgroup>
-              </select>
-            </div>
-          </div>
-          
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">配送先住所</label>
-            <input type="text" id="editDeliveryAddress" value="${estimate.delivery_address || ''}" 
-                   class="form-input" />
-          </div>
-          
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">車両費用</label>
-              <input type="number" id="editVehicleCost" value="${estimate.vehicle_cost || 0}" 
-                     class="form-input" min="0" />
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">スタッフ費用</label>
-              <input type="number" id="editStaffCost" value="${estimate.staff_cost || 0}" 
-                     class="form-input" min="0" />
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">総額</label>
-              <input type="number" id="editTotalAmount" value="${estimate.total_amount || 0}" 
-                     class="form-input" min="0" />
-            </div>
-          </div>
-          
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">備考</label>
-            <textarea id="editNotes" rows="3" class="form-textarea" 
-                      placeholder="編集理由やメモを入力...">${estimate.notes || ''}</textarea>
-          </div>
-          
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">ステータス変更理由（記録用）</label>
-            <textarea id="editStatusNotes" rows="2" class="form-textarea" 
-                      placeholder="ステータス変更の理由を入力..."></textarea>
-          </div>
-        </div>
-      `;
-      
-      document.getElementById('estimateEditContent').innerHTML = editContent;
-      
-      // 金額の自動計算
-      const vehicleCostInput = document.getElementById('editVehicleCost');
-      const staffCostInput = document.getElementById('editStaffCost');
-      const totalAmountInput = document.getElementById('editTotalAmount');
-      
-      const updateTotal = () => {
-        const vehicleCost = parseFloat(vehicleCostInput.value) || 0;
-        const staffCost = parseFloat(staffCostInput.value) || 0;
-        const subtotal = vehicleCost + staffCost;
-        const taxAmount = Math.round(subtotal * 0.1);
-        const totalAmount = subtotal + taxAmount;
-        totalAmountInput.value = totalAmount;
+      // 既存見積データをestimateFlow形式に変換してセッションストレージに格納
+      const flowData = {
+        step: 6,
+        editMode: true,
+        editEstimateId: estimateId,
+        editEstimateNumber: estimate.estimate_number || '',
+        customer: {
+          id: estimate.customer_id,
+          name: estimate.customer_name || '',
+          contact_person: estimate.customer_contact_person || '',
+          phone: estimate.customer_phone || '',
+          email: estimate.customer_email || ''
+        },
+        project: {
+          id: estimate.project_id,
+          name: estimate.project_name || '',
+          status: estimate.project_status || 'drafting'
+        },
+        delivery: {
+          address: estimate.delivery_address || '',
+          postal_code: estimate.delivery_postal_code || '',
+          area: estimate.delivery_area || '',
+          area_name: estimate.delivery_area || ''
+        },
+        vehicle: {
+          service_type: estimate.service_type || '',
+          service_type_label: estimate.vehicle_type || '',
+          type: estimate.vehicle_type || '',
+          operation: estimate.operation_type || '終日',
+          cost: estimate.vehicle_cost || 0,
+          unit_price: estimate.vehicle_dedicated_unit_price || 0,
+          vehicle_count: estimate.vehicle_dedicated_count || 1,
+          vehicle_2t_count: estimate.vehicle_2t_count || 0,
+          vehicle_4t_count: estimate.vehicle_4t_count || 0,
+          vehicle_dedicated_count: estimate.vehicle_dedicated_count || 0,
+          vehicle_charter_count: estimate.vehicle_charter_count || 0,
+          vehicle_dedicated_unit_price: estimate.vehicle_dedicated_unit_price || 0,
+          vehicle_charter_unit_price: estimate.vehicle_charter_unit_price || 0,
+          external_contractor_cost: estimate.external_contractor_cost || 0,
+          uses_multiple_vehicles: estimate.uses_multiple_vehicles || false,
+          oneman_discount: estimate.oneman_discount_applied ? true : false
+        },
+        staff: {
+          supervisor_count: estimate.supervisor_count || 0,
+          leader_count: estimate.leader_count || 0,
+          m2_staff_half_day: estimate.m2_staff_half_day || 0,
+          m2_staff_full_day: estimate.m2_staff_full_day || 0,
+          temp_staff_half_day: estimate.temp_staff_half_day || 0,
+          temp_staff_full_day: estimate.temp_staff_full_day || 0,
+          total_cost: estimate.staff_cost || 0,
+          staff_cost: estimate.staff_cost || 0
+        },
+        services: {
+          parking_officer_hours: estimate.parking_officer_hours || 0,
+          parking_officer_cost: estimate.parking_officer_cost || 0,
+          transport_vehicles: estimate.transport_vehicles || 0,
+          transport_within_20km: estimate.transport_within_20km || false,
+          transport_distance: estimate.transport_distance || 0,
+          transport_fuel_cost: estimate.transport_fuel_cost || 0,
+          transport_cost: estimate.transport_cost || 0,
+          waste_disposal_size: estimate.waste_disposal_size || 'none',
+          waste_disposal_cost: estimate.waste_disposal_cost || 0,
+          protection_work: estimate.protection_work || false,
+          protection_floors: estimate.protection_floors || 0,
+          protection_cost: estimate.protection_cost || 0,
+          material_collection_size: estimate.material_collection_size || 'none',
+          material_collection_cost: estimate.material_collection_cost || 0,
+          construction_m2_staff: estimate.construction_m2_staff || 0,
+          construction_partner: estimate.construction_partner || '',
+          construction_cost: estimate.construction_cost || 0,
+          work_time_type: estimate.work_time_type || 'normal',
+          work_time_multiplier: estimate.work_time_multiplier || 1.0,
+          parking_fee: estimate.parking_fee || 0,
+          highway_fee: estimate.highway_fee || 0,
+          notes: estimate.notes || ''
+        },
+        estimate_type: estimate.estimate_type || 'standard_a'
       };
       
-      vehicleCostInput.addEventListener('input', updateTotal);
-      staffCostInput.addEventListener('input', updateTotal);
+      // セッションストレージに保存
+      sessionStorage.setItem('estimateFlow', JSON.stringify(flowData));
+      sessionStorage.setItem('estimate_type', flowData.estimate_type);
       
-      Modal.open('estimateEditModal');
+      Utils.hideLoading();
+      
+      // 見積作成ページ（Step1）に遷移 - editModeパラメータ付き
+      window.location.href = `/estimate/new?edit=true&id=${estimateId}`;
       
     } catch (error) {
+      Utils.hideLoading();
       Utils.showError('見積編集の準備に失敗しました: ' + error.message);
     }
   },

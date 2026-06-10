@@ -2761,6 +2761,19 @@ app.put('/api/estimates/:id', async (c) => {
       UPDATE estimates 
       SET 
         delivery_address = ?,
+        delivery_postal_code = ?,
+        delivery_area = ?,
+        vehicle_type = ?,
+        operation_type = ?,
+        oneman_discount_applied = ?,
+        vehicle_2t_count = ?,
+        vehicle_4t_count = ?,
+        vehicle_dedicated_count = ?,
+        vehicle_charter_count = ?,
+        vehicle_dedicated_unit_price = ?,
+        vehicle_charter_unit_price = ?,
+        external_contractor_cost = ?,
+        uses_multiple_vehicles = ?,
         vehicle_cost = ?,
         staff_cost = ?,
         supervisor_count = ?,
@@ -2795,10 +2808,24 @@ app.put('/api/estimates/:id', async (c) => {
         tax_amount = ?,
         total_amount = ?,
         notes = ?,
+        customer_contact_person = ?,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).bind(
       data.delivery_address || '',
+      data.delivery_postal_code || '',
+      data.delivery_area || '',
+      data.vehicle_type || '',
+      data.operation_type || '',
+      data.oneman_discount_applied || 0,
+      data.vehicle_2t_count || 0,
+      data.vehicle_4t_count || 0,
+      data.vehicle_dedicated_count || 0,
+      data.vehicle_charter_count || 0,
+      data.vehicle_dedicated_unit_price || 0,
+      data.vehicle_charter_unit_price || 0,
+      data.external_contractor_cost || 0,
+      data.uses_multiple_vehicles ? 1 : 0,
       data.vehicle_cost || 0,
       data.staff_cost || 0,
       data.supervisor_count || 0,
@@ -2829,7 +2856,6 @@ app.put('/api/estimates/:id', async (c) => {
       data.parking_fee || 0,
       data.highway_fee || 0,
       (() => {
-        // バックエンドでサービス費用を含む正しい小計を計算
         const vehicleCost = data.vehicle_cost || 0;
         const staffCost = data.staff_cost || 0;
         const servicesCost = (data.parking_officer_cost || 0) + 
@@ -2840,12 +2866,10 @@ app.put('/api/estimates/:id', async (c) => {
                            (data.construction_cost || 0) + 
                            (data.parking_fee || 0) + 
                            (data.highway_fee || 0);
-        
         return vehicleCost + staffCost + servicesCost;
       })(),
       data.tax_rate || 0.1,
       (() => {
-        // 消費税を再計算
         const vehicleCost = data.vehicle_cost || 0;
         const staffCost = data.staff_cost || 0;
         const servicesCost = (data.parking_officer_cost || 0) + 
@@ -2856,13 +2880,11 @@ app.put('/api/estimates/:id', async (c) => {
                            (data.construction_cost || 0) + 
                            (data.parking_fee || 0) + 
                            (data.highway_fee || 0);
-        
         const calculatedSubtotal = vehicleCost + staffCost + servicesCost;
         const taxRate = data.tax_rate || 0.1;
         return Math.floor(calculatedSubtotal * taxRate);
       })(),
       (() => {
-        // 合計金額を再計算
         const vehicleCost = data.vehicle_cost || 0;
         const staffCost = data.staff_cost || 0;
         const servicesCost = (data.parking_officer_cost || 0) + 
@@ -2873,13 +2895,13 @@ app.put('/api/estimates/:id', async (c) => {
                            (data.construction_cost || 0) + 
                            (data.parking_fee || 0) + 
                            (data.highway_fee || 0);
-        
         const calculatedSubtotal = vehicleCost + staffCost + servicesCost;
         const taxRate = data.tax_rate || 0.1;
         const calculatedTaxAmount = Math.floor(calculatedSubtotal * taxRate);
         return calculatedSubtotal + calculatedTaxAmount;
       })(),
       data.notes || '',
+      data.customer_contact_person || '',
       estimateId
     ).run()
 
