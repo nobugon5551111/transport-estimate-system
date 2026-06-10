@@ -39,6 +39,9 @@
 }
 
 .form-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
   background-color: #ffffff;
   border-color: #d1d5db;
   border-width: 1px;
