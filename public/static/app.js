@@ -4094,7 +4094,7 @@ const Step6Implementation = {
           const officerTotal = officer.total || (baseRate + transportFee);
           details.push(`<div class="flex justify-between px-6 py-1 text-sm">
             <span>${idx + 1}人目: ${typeLabel} ¥${baseRate.toLocaleString()} + 交通費(${transportLabel}) ¥${transportFee.toLocaleString()}</span>
-            <span>${Utils.formatCurrency(officerTotal)}</span>
+            <span class="whitespace-nowrap ml-4">${Utils.formatCurrency(officerTotal)}</span>
           </div>`);
         });
         totalServicesCost += services.parking_officer_cost;
@@ -4103,7 +4103,7 @@ const Step6Implementation = {
         totalServicesCost += services.parking_officer_cost;
         details.push(`<div class="flex justify-between px-4 py-2">
           <span>駐禁対策員</span>
-          <span>${Utils.formatCurrency(services.parking_officer_cost)}</span>
+          <span class="whitespace-nowrap ml-4">${Utils.formatCurrency(services.parking_officer_cost)}</span>
         </div>`);
       }
       console.log('📊 駐禁対策員:', { data: officerData, cost: services.parking_officer_cost });
@@ -4120,9 +4120,9 @@ const Step6Implementation = {
       } else {
         distanceText = `${services.transport_distance}km × ¥${ratePerKm.toLocaleString()}/km + 燃料費¥${services.transport_fuel_cost || 0}`;
       }
-      details.push(`<div class="flex justify-between">
+      details.push(`<div class="flex justify-between px-4 py-2">
         <span>人員輸送車両 ${services.transport_vehicles}台（${distanceText}）</span>
-        <span>${Utils.formatCurrency(services.transport_cost)}</span>
+        <span class="whitespace-nowrap ml-4">${Utils.formatCurrency(services.transport_cost)}</span>
       </div>`);
       totalServicesCost += services.transport_cost;
       console.log('🚐 人員輸送車両:', { vehicles: services.transport_vehicles, cost: services.transport_cost });
@@ -4132,9 +4132,9 @@ const Step6Implementation = {
     if (services.waste_disposal_size && services.waste_disposal_size !== 'none') {
       const wasteRates = (Step5Implementation.serviceRates || {}).waste_disposal || { small: 8000, medium: 15000, large: 25000 };
       const sizeMap = { small: `小 (¥${(wasteRates.small || 8000).toLocaleString()})`, medium: `中 (¥${(wasteRates.medium || 15000).toLocaleString()})`, large: `大 (¥${(wasteRates.large || 25000).toLocaleString()})` };
-      details.push(`<div class="flex justify-between">
+      details.push(`<div class="flex justify-between px-4 py-2">
         <span>引き取り廃棄（${sizeMap[services.waste_disposal_size] || services.waste_disposal_size}）</span>
-        <span>${Utils.formatCurrency(services.waste_disposal_cost)}</span>
+        <span class="whitespace-nowrap ml-4">${Utils.formatCurrency(services.waste_disposal_cost)}</span>
       </div>`);
       totalServicesCost += services.waste_disposal_cost;
       console.log('🗑️ 引き取り廃棄:', { size: services.waste_disposal_size, cost: services.waste_disposal_cost });
@@ -4146,15 +4146,15 @@ const Step6Implementation = {
       const perFloorRate = Step5Implementation.serviceRates?.protection_work_per_floor || 3000;
       const floorCost = perFloorRate * (services.protection_floors || 1);
       
-      details.push(`<div class="flex justify-between">
+      details.push(`<div class="flex justify-between px-4 py-2">
         <span>養生作業（基本料金）</span>
-        <span>${Utils.formatCurrency(baseRate)}</span>
+        <span class="whitespace-nowrap ml-4">${Utils.formatCurrency(baseRate)}</span>
       </div>`);
       
       if (services.protection_floors > 0) {
-        details.push(`<div class="flex justify-between">
-          <span>&nbsp;&nbsp;養生作業（フロア単価） ${services.protection_floors}フロア × ¥${perFloorRate.toLocaleString()}</span>
-          <span>${Utils.formatCurrency(floorCost)}</span>
+        details.push(`<div class="flex justify-between px-6 py-1 text-sm">
+          <span>養生作業（フロア単価） ${services.protection_floors}フロア × ¥${perFloorRate.toLocaleString()}</span>
+          <span class="whitespace-nowrap ml-4">${Utils.formatCurrency(floorCost)}</span>
         </div>`);
       }
       
@@ -4166,9 +4166,9 @@ const Step6Implementation = {
     if (services.material_collection_size && services.material_collection_size !== 'none') {
       const matRates = (Step5Implementation.serviceRates || {}).material_collection || { few: 6000, medium: 12000, many: 20000 };
       const sizeMap = { few: `少 (¥${(matRates.few || 6000).toLocaleString()})`, medium: `中 (¥${(matRates.medium || 12000).toLocaleString()})`, many: `多 (¥${(matRates.many || 20000).toLocaleString()})` };
-      details.push(`<div class="flex justify-between">
+      details.push(`<div class="flex justify-between px-4 py-2">
         <span>残材回収（${sizeMap[services.material_collection_size] || services.material_collection_size}）</span>
-        <span>${Utils.formatCurrency(services.material_collection_cost)}</span>
+        <span class="whitespace-nowrap ml-4">${Utils.formatCurrency(services.material_collection_cost)}</span>
       </div>`);
       totalServicesCost += services.material_collection_cost;
       console.log('♻️ 残材回収:', { size: services.material_collection_size, cost: services.material_collection_cost });
@@ -4178,14 +4178,14 @@ const Step6Implementation = {
     if (services.construction_cost > 0) {
       const constructionRate = (Step5Implementation.serviceRates || {}).construction_m2_staff || 12500;
       if (services.construction_m2_staff > 0) {
-        details.push(`<div class="flex justify-between">
+        details.push(`<div class="flex justify-between px-4 py-2">
           <span>施工 M2スタッフ ${services.construction_m2_staff}人 (¥${constructionRate.toLocaleString()}/人)</span>
-          <span>${Utils.formatCurrency(services.construction_cost)}</span>
+          <span class="whitespace-nowrap ml-4">${Utils.formatCurrency(services.construction_cost)}</span>
         </div>`);
       } else if (services.construction_partner) {
-        details.push(`<div class="flex justify-between">
+        details.push(`<div class="flex justify-between px-4 py-2">
           <span>施工 協力会社（${services.construction_partner}）</span>
-          <span>${Utils.formatCurrency(services.construction_cost)}</span>
+          <span class="whitespace-nowrap ml-4">${Utils.formatCurrency(services.construction_cost)}</span>
         </div>`);
       }
       totalServicesCost += services.construction_cost;
@@ -4201,9 +4201,9 @@ const Step6Implementation = {
       const multiplierCost = (recalculatedVehicleCost + recalculatedStaffCost) * (services.work_time_multiplier - 1.0);
       const multiplierPercent = Math.round((services.work_time_multiplier - 1.0) * 100);
       const workTimeLabel = services.work_time_type === 'overtime' ? '割増作業時間（PM6:00〜翌AM8:00）' : (services.work_time_type || '割増');
-      details.push(`<div class="flex justify-between">
+      details.push(`<div class="flex justify-between px-4 py-2">
         <span>作業時間帯割増（${workTimeLabel}：+${multiplierPercent}%）</span>
-        <span>${Utils.formatCurrency(multiplierCost)}</span>
+        <span class="whitespace-nowrap ml-4">${Utils.formatCurrency(multiplierCost)}</span>
       </div>`);
       totalServicesCost += multiplierCost;
       console.log('⏰ 作業時間帯割増:', { 
@@ -4217,26 +4217,26 @@ const Step6Implementation = {
     
     // 8. 実費項目
     if (services.parking_fee > 0) {
-      details.push(`<div class="flex justify-between">
+      details.push(`<div class="flex justify-between px-4 py-2">
         <span>実費：駐車料金</span>
-        <span>${Utils.formatCurrency(services.parking_fee)}</span>
+        <span class="whitespace-nowrap ml-4">${Utils.formatCurrency(services.parking_fee)}</span>
       </div>`);
       totalServicesCost += services.parking_fee;
     }
     
     if (services.highway_fee > 0) {
-      details.push(`<div class="flex justify-between">
+      details.push(`<div class="flex justify-between px-4 py-2">
         <span>実費：高速料金</span>
-        <span>${Utils.formatCurrency(services.highway_fee)}</span>
+        <span class="whitespace-nowrap ml-4">${Utils.formatCurrency(services.highway_fee)}</span>
       </div>`);
       totalServicesCost += services.highway_fee;
     }
 
     // 9. 4トン車追加（フリー入力）
     if (services.additional_truck_cost > 0) {
-      details.push(`<div class="flex justify-between">
+      details.push(`<div class="flex justify-between px-4 py-2">
         <span>4トン車追加 ${services.additional_truck_count || 0}台 × ¥${(services.additional_truck_unit_price || 0).toLocaleString()}</span>
-        <span>${Utils.formatCurrency(services.additional_truck_cost)}</span>
+        <span class="whitespace-nowrap ml-4">${Utils.formatCurrency(services.additional_truck_cost)}</span>
       </div>`);
       totalServicesCost += services.additional_truck_cost;
     }
