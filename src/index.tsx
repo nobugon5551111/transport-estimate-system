@@ -17553,6 +17553,56 @@ app.get('/api/status-options', (c) => {
   })
 })
 
+// ==========================================
+// 顧客ID/パスワード管理API（管理者用）
+// ※ /api/customers/:id より前に定義してルート競合を回避
+// ==========================================
+
+// 顧客のログイン情報一覧取得
+app.get('/api/customers/login-info', async (c) => {
+  const { env } = c
+  try {
+    const { results } = await env.DB.prepare(`
+      SELECT id, name, login_id, login_password FROM customers ORDER BY name
+    `).all()
+    return c.json({ success: true, data: results })
+  } catch (error) {
+    console.error('顧客ログイン情報取得エラー:', error)
+    return c.json({ success: false, message: '取得に失敗しました' }, 500)
+  }
+})
+
+// 顧客ログインID/パスワード設定・更新
+app.put('/api/customers/:id/login-info', async (c) => {
+  const { env } = c
+  try {
+    const customerId = c.req.param('id')
+    const { login_id, login_password } = await c.req.json()
+    
+    if (!login_id || !login_password) {
+      return c.json({ success: false, message: 'IDとパスワードを入力してください' }, 400)
+    }
+    
+    // login_idの重複チェック
+    const existing = await env.DB.prepare(`
+      SELECT id FROM customers WHERE login_id = ? AND id != ?
+    `).bind(login_id, customerId).first()
+    
+    if (existing) {
+      return c.json({ success: false, message: 'このログインIDは既に使用されています' }, 409)
+    }
+    
+    await env.DB.prepare(`
+      UPDATE customers SET login_id = ?, login_password = ? WHERE id = ?
+    `).bind(login_id, login_password, customerId).run()
+    
+    return c.json({ success: true, message: 'ログイン情報を更新しました' })
+  } catch (error) {
+    console.error('顧客ログイン情報更新エラー:', error)
+    return c.json({ success: false, message: '更新に失敗しました' }, 500)
+  }
+})
+
 // 顧客詳細取得API
 app.get('/api/customers/:id', async (c) => {
   try {
@@ -20667,54 +20717,7 @@ app.put('/api/quote-requests/:id/status', async (c) => {
   }
 })
 
-// ==========================================
-// 顧客ID/パスワード管理API（管理者用）
-// ==========================================
-
-// 顧客のログイン情報一覧取得
-app.get('/api/customers/login-info', async (c) => {
-  const { env } = c
-  try {
-    const { results } = await env.DB.prepare(`
-      SELECT id, name, login_id, login_password FROM customers ORDER BY name
-    `).all()
-    return c.json({ success: true, data: results })
-  } catch (error) {
-    console.error('顧客ログイン情報取得エラー:', error)
-    return c.json({ success: false, message: '取得に失敗しました' }, 500)
-  }
-})
-
-// 顧客ログインID/パスワード設定・更新
-app.put('/api/customers/:id/login-info', async (c) => {
-  const { env } = c
-  try {
-    const customerId = c.req.param('id')
-    const { login_id, login_password } = await c.req.json()
-    
-    if (!login_id || !login_password) {
-      return c.json({ success: false, message: 'IDとパスワードを入力してください' }, 400)
-    }
-    
-    // login_idの重複チェック
-    const existing = await env.DB.prepare(`
-      SELECT id FROM customers WHERE login_id = ? AND id != ?
-    `).bind(login_id, customerId).first()
-    
-    if (existing) {
-      return c.json({ success: false, message: 'このログインIDは既に使用されています' }, 409)
-    }
-    
-    await env.DB.prepare(`
-      UPDATE customers SET login_id = ?, login_password = ? WHERE id = ?
-    `).bind(login_id, login_password, customerId).run()
-    
-    return c.json({ success: true, message: 'ログイン情報を更新しました' })
-  } catch (error) {
-    console.error('顧客ログイン情報更新エラー:', error)
-    return c.json({ success: false, message: '更新に失敗しました' }, 500)
-  }
-})
+// (顧客ID/パスワード管理APIはルート競合回避のため前方に定義済み)
 
 // ==========================================
 // 見積依頼フォームページ（顧客向け）
