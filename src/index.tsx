@@ -20489,6 +20489,1182 @@ app.post('/api/settings/api', async (c) => {
   }
 })
 
+// ==========================================
+// 見積依頼フォーム（顧客向け）API
+// ==========================================
+
+// 顧客ログインAPI
+app.post('/api/quote-request/login', async (c) => {
+  const { env } = c
+  try {
+    const { login_id, login_password } = await c.req.json()
+    
+    if (!login_id || !login_password) {
+      return c.json({ success: false, message: 'IDとパスワードを入力してください' }, 400)
+    }
+    
+    const customer = await env.DB.prepare(`
+      SELECT id, name, login_id FROM customers 
+      WHERE login_id = ? AND login_password = ?
+    `).bind(login_id, login_password).first()
+    
+    if (!customer) {
+      return c.json({ success: false, message: 'IDまたはパスワードが正しくありません' }, 401)
+    }
+    
+    return c.json({
+      success: true,
+      customer: {
+        id: customer.id,
+        name: customer.name,
+        login_id: customer.login_id
+      }
+    })
+  } catch (error) {
+    console.error('顧客ログインエラー:', error)
+    return c.json({ success: false, message: 'ログインに失敗しました' }, 500)
+  }
+})
+
+// 見積依頼送信API
+app.post('/api/quote-requests', async (c) => {
+  const { env } = c
+  try {
+    const body = await c.req.json()
+    
+    // 必須チェック
+    const required = ['customer_id', 'contact_person', 'project_name', 'delivery_date', 
+                      'delivery_time', 'delivery_postal_code', 'building_type', 'installation_floor']
+    for (const field of required) {
+      if (!body[field]) {
+        return c.json({ success: false, message: `${field}は必須項目です` }, 400)
+      }
+    }
+    
+    // items_jsonバリデーション
+    let items = []
+    try {
+      items = typeof body.items_json === 'string' ? JSON.parse(body.items_json) : body.items_json
+      if (!Array.isArray(items) || items.length === 0) {
+        return c.json({ success: false, message: '品目を1つ以上追加してください' }, 400)
+      }
+    } catch (e) {
+      return c.json({ success: false, message: '品目データが不正です' }, 400)
+    }
+    
+    const result = await env.DB.prepare(`
+      INSERT INTO quote_requests (
+        customer_id, contact_person, project_name,
+        delivery_date, delivery_time, delivery_postal_code, pickup_location,
+        items_json,
+        building_type, installation_floor, has_elevator, elevator_size,
+        has_parking, has_protection_work, protection_scope,
+        has_hoisting, has_crane, delivery_route_info,
+        notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      body.customer_id,
+      body.contact_person,
+      body.project_name,
+      body.delivery_date,
+      body.delivery_time,
+      body.delivery_postal_code,
+      body.pickup_location || '',
+      JSON.stringify(items),
+      body.building_type,
+      body.installation_floor,
+      body.has_elevator || '無',
+      body.elevator_size || '',
+      body.has_parking || '無',
+      body.has_protection_work || '無',
+      body.protection_scope || '',
+      body.has_hoisting || '無',
+      body.has_crane || '無',
+      body.delivery_route_info || '',
+      body.notes || ''
+    ).run()
+    
+    return c.json({
+      success: true,
+      message: '見積依頼を送信しました',
+      id: result.meta.last_row_id
+    })
+  } catch (error) {
+    console.error('見積依頼送信エラー:', error)
+    return c.json({ success: false, message: '見積依頼の送信に失敗しました' }, 500)
+  }
+})
+
+// 見積依頼一覧取得API（管理者用）
+app.get('/api/quote-requests', async (c) => {
+  const { env } = c
+  try {
+    const status = c.req.query('status')
+    let sql = `
+      SELECT qr.*, c.name as customer_name 
+      FROM quote_requests qr
+      LEFT JOIN customers c ON qr.customer_id = c.id
+    `
+    const params: any[] = []
+    if (status) {
+      sql += ' WHERE qr.status = ?'
+      params.push(status)
+    }
+    sql += ' ORDER BY qr.created_at DESC'
+    
+    const stmt = params.length > 0 
+      ? env.DB.prepare(sql).bind(...params)
+      : env.DB.prepare(sql)
+    const { results } = await stmt.all()
+    
+    return c.json({ success: true, data: results })
+  } catch (error) {
+    console.error('見積依頼一覧取得エラー:', error)
+    return c.json({ success: false, message: '見積依頼の取得に失敗しました' }, 500)
+  }
+})
+
+// 見積依頼詳細取得API
+app.get('/api/quote-requests/:id', async (c) => {
+  const { env } = c
+  try {
+    const id = c.req.param('id')
+    const request = await env.DB.prepare(`
+      SELECT qr.*, c.name as customer_name 
+      FROM quote_requests qr
+      LEFT JOIN customers c ON qr.customer_id = c.id
+      WHERE qr.id = ?
+    `).bind(id).first()
+    
+    if (!request) {
+      return c.json({ success: false, message: '見積依頼が見つかりません' }, 404)
+    }
+    
+    return c.json({ success: true, data: request })
+  } catch (error) {
+    console.error('見積依頼詳細取得エラー:', error)
+    return c.json({ success: false, message: '見積依頼の取得に失敗しました' }, 500)
+  }
+})
+
+// 見積依頼ステータス更新API（管理者用）
+app.put('/api/quote-requests/:id/status', async (c) => {
+  const { env } = c
+  try {
+    const id = c.req.param('id')
+    const { status, processed_by } = await c.req.json()
+    
+    await env.DB.prepare(`
+      UPDATE quote_requests 
+      SET status = ?, processed_by = ?, processed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).bind(status, processed_by || '', id).run()
+    
+    return c.json({ success: true, message: 'ステータスを更新しました' })
+  } catch (error) {
+    console.error('見積依頼ステータス更新エラー:', error)
+    return c.json({ success: false, message: 'ステータスの更新に失敗しました' }, 500)
+  }
+})
+
+// ==========================================
+// 顧客ID/パスワード管理API（管理者用）
+// ==========================================
+
+// 顧客のログイン情報一覧取得
+app.get('/api/customers/login-info', async (c) => {
+  const { env } = c
+  try {
+    const { results } = await env.DB.prepare(`
+      SELECT id, name, login_id, login_password FROM customers ORDER BY name
+    `).all()
+    return c.json({ success: true, data: results })
+  } catch (error) {
+    console.error('顧客ログイン情報取得エラー:', error)
+    return c.json({ success: false, message: '取得に失敗しました' }, 500)
+  }
+})
+
+// 顧客ログインID/パスワード設定・更新
+app.put('/api/customers/:id/login-info', async (c) => {
+  const { env } = c
+  try {
+    const customerId = c.req.param('id')
+    const { login_id, login_password } = await c.req.json()
+    
+    if (!login_id || !login_password) {
+      return c.json({ success: false, message: 'IDとパスワードを入力してください' }, 400)
+    }
+    
+    // login_idの重複チェック
+    const existing = await env.DB.prepare(`
+      SELECT id FROM customers WHERE login_id = ? AND id != ?
+    `).bind(login_id, customerId).first()
+    
+    if (existing) {
+      return c.json({ success: false, message: 'このログインIDは既に使用されています' }, 409)
+    }
+    
+    await env.DB.prepare(`
+      UPDATE customers SET login_id = ?, login_password = ? WHERE id = ?
+    `).bind(login_id, login_password, customerId).run()
+    
+    return c.json({ success: true, message: 'ログイン情報を更新しました' })
+  } catch (error) {
+    console.error('顧客ログイン情報更新エラー:', error)
+    return c.json({ success: false, message: '更新に失敗しました' }, 500)
+  }
+})
+
+// ==========================================
+// 見積依頼フォームページ（顧客向け）
+// ==========================================
+app.get('/quote-request', (c) => {
+  const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>見積依頼フォーム</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    body { font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif; }
+    .required-mark { color: #dc2626; font-weight: bold; }
+    .form-input { 
+      border: 1px solid #d1d5db; border-radius: 6px; padding: 8px 12px; 
+      width: 100%; font-size: 14px; transition: border-color 0.2s;
+    }
+    .form-input:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+    .form-select {
+      border: 1px solid #d1d5db; border-radius: 6px; padding: 8px 12px;
+      width: 100%; font-size: 14px; appearance: none; -webkit-appearance: none; -moz-appearance: none;
+      background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E") no-repeat right 12px center;
+      background-size: 12px;
+    }
+    .form-select:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+    .section-title {
+      background: #1e40af; color: white; padding: 10px 16px; border-radius: 6px;
+      font-size: 16px; font-weight: bold; margin-bottom: 16px;
+    }
+    .item-card {
+      border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px;
+      margin-bottom: 12px; background: #f9fafb;
+    }
+    .btn-primary {
+      background: #2563eb; color: white; padding: 10px 24px; border-radius: 6px;
+      font-weight: bold; cursor: pointer; border: none; font-size: 14px;
+      transition: background 0.2s;
+    }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-danger {
+      background: #dc2626; color: white; padding: 6px 12px; border-radius: 4px;
+      font-size: 12px; cursor: pointer; border: none;
+    }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-secondary {
+      background: #6b7280; color: white; padding: 8px 16px; border-radius: 6px;
+      font-size: 13px; cursor: pointer; border: none;
+    }
+    .btn-secondary:hover { background: #4b5563; }
+    .login-container {
+      max-width: 400px; margin: 100px auto; padding: 40px;
+      background: white; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+    }
+    .form-container { max-width: 800px; margin: 30px auto; padding: 20px; }
+    .error-msg { color: #dc2626; font-size: 13px; margin-top: 4px; display: none; }
+    .success-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;
+      z-index: 9999;
+    }
+    .success-card {
+      background: white; border-radius: 12px; padding: 40px; text-align: center; max-width: 400px;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <!-- ログイン画面 -->
+  <div id="loginSection">
+    <div class="login-container">
+      <div class="text-center mb-6">
+        <i class="fas fa-truck text-4xl text-blue-600 mb-3"></i>
+        <h1 class="text-xl font-bold text-gray-800">見積依頼フォーム</h1>
+        <p class="text-sm text-gray-500 mt-1">お客様ID・パスワードでログインしてください</p>
+      </div>
+      <div id="loginError" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm" style="display:none;"></div>
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-1">お客様ID</label>
+        <input type="text" id="loginId" class="form-input" placeholder="お客様IDを入力">
+      </div>
+      <div class="mb-6">
+        <label class="block text-sm font-medium text-gray-700 mb-1">パスワード</label>
+        <input type="password" id="loginPassword" class="form-input" placeholder="パスワードを入力">
+      </div>
+      <button onclick="doLogin()" class="btn-primary w-full text-center">
+        <i class="fas fa-sign-in-alt mr-2"></i>ログイン
+      </button>
+    </div>
+  </div>
+
+  <!-- 見積依頼フォーム本体 -->
+  <div id="formSection" style="display:none;">
+    <div class="form-container">
+      <!-- ヘッダー -->
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h1 class="text-2xl font-bold text-gray-800">
+            <i class="fas fa-file-alt text-blue-600 mr-2"></i>見積依頼フォーム
+          </h1>
+          <p class="text-sm text-gray-500 mt-1">
+            <span class="required-mark">※</span>は必須項目です
+          </p>
+        </div>
+        <div class="text-right">
+          <p class="text-sm text-gray-600">ログイン中: <span id="customerNameDisplay" class="font-bold"></span></p>
+          <button onclick="doLogout()" class="text-xs text-blue-600 underline mt-1 cursor-pointer">ログアウト</button>
+        </div>
+      </div>
+
+      <!-- 顧客情報（自動入力） -->
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">社名</label>
+            <input type="text" id="companyName" class="form-input bg-gray-100" readonly>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              <span class="required-mark">※</span>ご担当者名
+            </label>
+            <input type="text" id="contactPerson" class="form-input" placeholder="ご担当者名を入力">
+          </div>
+        </div>
+      </div>
+
+      <!-- 案件名 -->
+      <div class="mb-6">
+        <label class="block text-sm font-medium text-gray-700 mb-1">
+          <span class="required-mark">※</span>案件名（納品先名称）
+        </label>
+        <input type="text" id="projectName" class="form-input" placeholder="例: ○○ホテル 客室改装">
+      </div>
+
+      <!-- セクション1: 配送先・ルート情報 -->
+      <div class="mb-6">
+        <div class="section-title">
+          <i class="fas fa-map-marker-alt mr-2"></i>1. 配送先・ルート情報
+        </div>
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              <span class="required-mark">※</span>希望納品日
+            </label>
+            <input type="date" id="deliveryDate" class="form-input">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              <span class="required-mark">※</span>希望納品時間
+            </label>
+            <select id="deliveryTime" class="form-select">
+              <option value="">選択してください</option>
+              <option value="午前（9:00-12:00）">午前（9:00-12:00）</option>
+              <option value="午後（13:00-17:00）">午後（13:00-17:00）</option>
+              <option value="指定なし">指定なし</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              <span class="required-mark">※</span>配送先郵便番号
+            </label>
+            <input type="text" id="deliveryPostalCode" class="form-input" placeholder="例: 100-0001">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">引取先（ある場合）</label>
+            <input type="text" id="pickupLocation" class="form-input" placeholder="引取先の住所を入力">
+          </div>
+        </div>
+      </div>
+
+      <!-- セクション2: 家具情報 -->
+      <div class="mb-6">
+        <div class="section-title">
+          <i class="fas fa-couch mr-2"></i>2. 配送する家具の情報
+        </div>
+        <div id="itemsContainer">
+          <!-- 品目カードが動的に追加される -->
+        </div>
+        <button onclick="addItem()" class="btn-secondary mt-2">
+          <i class="fas fa-plus mr-1"></i>品目を追加
+        </button>
+      </div>
+
+      <!-- セクション3: 設置環境 -->
+      <div class="mb-6">
+        <div class="section-title">
+          <i class="fas fa-building mr-2"></i>3. 配送先の設置環境
+        </div>
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              <span class="required-mark">※</span>建物種別
+            </label>
+            <select id="buildingType" class="form-select">
+              <option value="">選択してください</option>
+              <option value="戸建て">戸建て</option>
+              <option value="マンション">マンション</option>
+              <option value="ビル">ビル</option>
+              <option value="ホテル・旅館">ホテル・旅館</option>
+              <option value="店舗">店舗</option>
+              <option value="その他">その他</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              <span class="required-mark">※</span>設置階
+            </label>
+            <select id="installationFloor" class="form-select">
+              <option value="">選択してください</option>
+              <option value="1階">1階</option>
+              <option value="2階">2階</option>
+              <option value="3階">3階</option>
+              <option value="4階">4階</option>
+              <option value="5階以上">5階以上</option>
+              <option value="地下1階">地下1階</option>
+              <option value="地下2階以下">地下2階以下</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">エレベーター</label>
+            <select id="hasElevator" class="form-select" onchange="toggleElevatorSize()">
+              <option value="無">無</option>
+              <option value="有">有</option>
+            </select>
+          </div>
+          <div id="elevatorSizeGroup" style="display:none;">
+            <label class="block text-sm font-medium text-gray-700 mb-1">エレベーターサイズ</label>
+            <select id="elevatorSize" class="form-select">
+              <option value="">選択してください</option>
+              <option value="9人乗り以下">9人乗り以下</option>
+              <option value="11人乗り">11人乗り</option>
+              <option value="13人乗り以上">13人乗り以上</option>
+              <option value="荷物用">荷物用</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">駐車スペース</label>
+            <select id="hasParking" class="form-select">
+              <option value="無">無</option>
+              <option value="有">有</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">養生作業</label>
+            <select id="hasProtectionWork" class="form-select" onchange="toggleProtectionScope()">
+              <option value="無">無</option>
+              <option value="有">有</option>
+            </select>
+          </div>
+        </div>
+        <div id="protectionScopeGroup" style="display:none;" class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1">養生範囲</label>
+          <input type="text" id="protectionScope" class="form-input" placeholder="例: エントランスから客室まで">
+        </div>
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">吊り上げ作業</label>
+            <select id="hasHoisting" class="form-select">
+              <option value="無">無</option>
+              <option value="有">有</option>
+              <option value="不明">不明</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">クレーン使用</label>
+            <select id="hasCrane" class="form-select">
+              <option value="無">無</option>
+              <option value="有">有</option>
+              <option value="不明">不明</option>
+            </select>
+          </div>
+        </div>
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1">搬入経路情報</label>
+          <textarea id="deliveryRouteInfo" class="form-input" rows="2" placeholder="搬入経路に関する特記事項があれば入力"></textarea>
+        </div>
+      </div>
+
+      <!-- 備考 -->
+      <div class="mb-6">
+        <div class="section-title">
+          <i class="fas fa-comment-alt mr-2"></i>備考
+        </div>
+        <textarea id="notes" class="form-input" rows="4" placeholder="その他ご要望・注意事項があればご記入ください"></textarea>
+      </div>
+
+      <!-- 送信ボタン -->
+      <div class="text-center mt-8 mb-12">
+        <button onclick="submitQuoteRequest()" class="btn-primary text-lg px-12 py-3">
+          <i class="fas fa-paper-plane mr-2"></i>見積依頼を送信する
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 送信完了オーバーレイ -->
+  <div id="successOverlay" class="success-overlay" style="display:none;">
+    <div class="success-card">
+      <i class="fas fa-check-circle text-5xl text-green-500 mb-4"></i>
+      <h2 class="text-xl font-bold text-gray-800 mb-2">送信完了</h2>
+      <p class="text-gray-600 mb-6">見積依頼を受け付けました。<br>担当者より折り返しご連絡いたします。</p>
+      <button onclick="resetForm()" class="btn-primary">新しい依頼を作成</button>
+    </div>
+  </div>
+
+  <script>
+  // 品名×材質マッピング
+  const materialMapping = {
+    'ソファ': ['木質', '布張り', '革張り'],
+    'テーブル': ['木質', 'ガラス', '大理石'],
+    'チェア': ['木質', 'スチール'],
+    'キャビネット': ['木質', 'スチール', '大理石'],
+    '照明': ['引掛けシーリング', '天井取付', '床置き'],
+    'ベッド': ['木質', 'スチール'],
+    'デスク': ['木質', 'ガラス', 'スチール'],
+    'その他': ['木質', 'スチール', 'ガラス', '大理石', 'その他']
+  };
+
+  let currentCustomer = null;
+  let itemCount = 0;
+
+  // ログイン処理
+  async function doLogin() {
+    const loginId = document.getElementById('loginId').value.trim();
+    const loginPassword = document.getElementById('loginPassword').value.trim();
+    const errorDiv = document.getElementById('loginError');
+    
+    if (!loginId || !loginPassword) {
+      errorDiv.textContent = 'IDとパスワードを入力してください';
+      errorDiv.style.display = 'block';
+      return;
+    }
+    
+    try {
+      const res = await fetch('/api/quote-request/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login_id: loginId, login_password: loginPassword })
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        currentCustomer = data.customer;
+        document.getElementById('loginSection').style.display = 'none';
+        document.getElementById('formSection').style.display = 'block';
+        document.getElementById('companyName').value = data.customer.name;
+        document.getElementById('customerNameDisplay').textContent = data.customer.name;
+        errorDiv.style.display = 'none';
+        addItem(); // 最初の品目を追加
+      } else {
+        errorDiv.textContent = data.message;
+        errorDiv.style.display = 'block';
+      }
+    } catch (e) {
+      errorDiv.textContent = '通信エラーが発生しました';
+      errorDiv.style.display = 'block';
+    }
+  }
+
+  // ログアウト
+  function doLogout() {
+    currentCustomer = null;
+    document.getElementById('formSection').style.display = 'none';
+    document.getElementById('loginSection').style.display = 'block';
+    document.getElementById('loginId').value = '';
+    document.getElementById('loginPassword').value = '';
+  }
+
+  // 品目追加
+  function addItem() {
+    itemCount++;
+    const container = document.getElementById('itemsContainer');
+    const card = document.createElement('div');
+    card.className = 'item-card';
+    card.id = 'item-' + itemCount;
+    
+    const productOptions = Object.keys(materialMapping).map(p => 
+      '<option value="' + p + '">' + p + '</option>'
+    ).join('');
+    
+    card.innerHTML = \`
+      <div class="flex justify-between items-center mb-3">
+        <span class="font-bold text-sm text-gray-700">品目 #\${itemCount}</span>
+        \${itemCount > 1 ? '<button onclick="removeItem(' + itemCount + ')" class="btn-danger"><i class="fas fa-trash mr-1"></i>削除</button>' : ''}
+      </div>
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1"><span class="required-mark">※</span>品名</label>
+          <select class="form-select item-product" data-item="\${itemCount}" onchange="updateMaterials(this)">
+            <option value="">選択してください</option>
+            \${productOptions}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1"><span class="required-mark">※</span>材質</label>
+          <select class="form-select item-material" data-item="\${itemCount}">
+            <option value="">品名を先に選択</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-3 mb-3">
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1"><span class="required-mark">※</span>数量</label>
+          <input type="number" class="form-input item-quantity" min="1" value="1" data-item="\${itemCount}">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">サイズ（3辺計cm）</label>
+          <input type="number" class="form-input item-size" placeholder="例: 250" data-item="\${itemCount}">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">重量（kg）</label>
+          <input type="number" class="form-input item-weight" placeholder="例: 30" data-item="\${itemCount}">
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">備考</label>
+        <input type="text" class="form-input item-notes" placeholder="特記事項があれば" data-item="\${itemCount}">
+      </div>
+    \`;
+    container.appendChild(card);
+  }
+
+  // 品目削除
+  function removeItem(id) {
+    const card = document.getElementById('item-' + id);
+    if (card) card.remove();
+  }
+
+  // 材質プルダウン連動
+  function updateMaterials(selectEl) {
+    const itemId = selectEl.dataset.item;
+    const product = selectEl.value;
+    const materialSelect = document.querySelector('.item-material[data-item="' + itemId + '"]');
+    
+    materialSelect.innerHTML = '<option value="">選択してください</option>';
+    
+    if (product && materialMapping[product]) {
+      materialMapping[product].forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m;
+        materialSelect.appendChild(opt);
+      });
+    }
+  }
+
+  // エレベーターサイズ表示切替
+  function toggleElevatorSize() {
+    const has = document.getElementById('hasElevator').value;
+    document.getElementById('elevatorSizeGroup').style.display = has === '有' ? 'block' : 'none';
+  }
+
+  // 養生範囲表示切替
+  function toggleProtectionScope() {
+    const has = document.getElementById('hasProtectionWork').value;
+    document.getElementById('protectionScopeGroup').style.display = has === '有' ? 'block' : 'none';
+  }
+
+  // 品目データ収集
+  function collectItems() {
+    const items = [];
+    const cards = document.querySelectorAll('.item-card');
+    cards.forEach(card => {
+      const itemId = card.id.replace('item-', '');
+      const product = card.querySelector('.item-product')?.value;
+      const material = card.querySelector('.item-material')?.value;
+      const quantity = card.querySelector('.item-quantity')?.value;
+      const size = card.querySelector('.item-size')?.value;
+      const weight = card.querySelector('.item-weight')?.value;
+      const notes = card.querySelector('.item-notes')?.value;
+      
+      if (product) {
+        items.push({
+          product: product,
+          material: material || '',
+          quantity: parseInt(quantity) || 1,
+          size: size ? parseInt(size) : null,
+          weight: weight ? parseFloat(weight) : null,
+          notes: notes || ''
+        });
+      }
+    });
+    return items;
+  }
+
+  // バリデーション
+  function validateForm() {
+    const errors = [];
+    if (!document.getElementById('contactPerson').value.trim()) errors.push('ご担当者名');
+    if (!document.getElementById('projectName').value.trim()) errors.push('案件名');
+    if (!document.getElementById('deliveryDate').value) errors.push('希望納品日');
+    if (!document.getElementById('deliveryTime').value) errors.push('希望納品時間');
+    if (!document.getElementById('deliveryPostalCode').value.trim()) errors.push('配送先郵便番号');
+    if (!document.getElementById('buildingType').value) errors.push('建物種別');
+    if (!document.getElementById('installationFloor').value) errors.push('設置階');
+    
+    const items = collectItems();
+    if (items.length === 0) errors.push('品目（1つ以上必要）');
+    
+    items.forEach((item, idx) => {
+      if (!item.product) errors.push('品目' + (idx+1) + 'の品名');
+      if (!item.material) errors.push('品目' + (idx+1) + 'の材質');
+    });
+    
+    return errors;
+  }
+
+  // 送信処理
+  async function submitQuoteRequest() {
+    const errors = validateForm();
+    if (errors.length > 0) {
+      alert('以下の必須項目を入力してください:\\n\\n' + errors.join('\\n'));
+      return;
+    }
+    
+    const items = collectItems();
+    
+    const payload = {
+      customer_id: currentCustomer.id,
+      contact_person: document.getElementById('contactPerson').value.trim(),
+      project_name: document.getElementById('projectName').value.trim(),
+      delivery_date: document.getElementById('deliveryDate').value,
+      delivery_time: document.getElementById('deliveryTime').value,
+      delivery_postal_code: document.getElementById('deliveryPostalCode').value.trim(),
+      pickup_location: document.getElementById('pickupLocation').value.trim(),
+      items_json: items,
+      building_type: document.getElementById('buildingType').value,
+      installation_floor: document.getElementById('installationFloor').value,
+      has_elevator: document.getElementById('hasElevator').value,
+      elevator_size: document.getElementById('elevatorSize').value,
+      has_parking: document.getElementById('hasParking').value,
+      has_protection_work: document.getElementById('hasProtectionWork').value,
+      protection_scope: document.getElementById('protectionScope').value.trim(),
+      has_hoisting: document.getElementById('hasHoisting').value,
+      has_crane: document.getElementById('hasCrane').value,
+      delivery_route_info: document.getElementById('deliveryRouteInfo').value.trim(),
+      notes: document.getElementById('notes').value.trim()
+    };
+    
+    try {
+      const res = await fetch('/api/quote-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        document.getElementById('successOverlay').style.display = 'flex';
+      } else {
+        alert('エラー: ' + data.message);
+      }
+    } catch (e) {
+      alert('通信エラーが発生しました。再度お試しください。');
+    }
+  }
+
+  // フォームリセット
+  function resetForm() {
+    document.getElementById('successOverlay').style.display = 'none';
+    document.getElementById('contactPerson').value = '';
+    document.getElementById('projectName').value = '';
+    document.getElementById('deliveryDate').value = '';
+    document.getElementById('deliveryTime').value = '';
+    document.getElementById('deliveryPostalCode').value = '';
+    document.getElementById('pickupLocation').value = '';
+    document.getElementById('buildingType').value = '';
+    document.getElementById('installationFloor').value = '';
+    document.getElementById('hasElevator').value = '無';
+    document.getElementById('elevatorSize').value = '';
+    document.getElementById('elevatorSizeGroup').style.display = 'none';
+    document.getElementById('hasParking').value = '無';
+    document.getElementById('hasProtectionWork').value = '無';
+    document.getElementById('protectionScope').value = '';
+    document.getElementById('protectionScopeGroup').style.display = 'none';
+    document.getElementById('hasHoisting').value = '無';
+    document.getElementById('hasCrane').value = '無';
+    document.getElementById('deliveryRouteInfo').value = '';
+    document.getElementById('notes').value = '';
+    document.getElementById('itemsContainer').innerHTML = '';
+    itemCount = 0;
+    addItem();
+  }
+
+  // Enterキーでログイン
+  document.getElementById('loginPassword').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') doLogin();
+  });
+  document.getElementById('loginId').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') doLogin();
+  });
+  </script>
+</body>
+</html>`;
+  return c.html(html)
+})
+
+// ==========================================
+// 管理者側：顧客ログイン管理ページ
+// ==========================================
+app.get('/admin/customer-login', (c) => {
+  const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>顧客ログイン管理</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    body { font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif; }
+    .form-input { border: 1px solid #d1d5db; border-radius: 6px; padding: 6px 10px; font-size: 13px; width: 100%; }
+    .form-input:focus { outline: none; border-color: #2563eb; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen p-6">
+  <div class="max-w-5xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-xl font-bold text-gray-800">
+        <i class="fas fa-users-cog text-blue-600 mr-2"></i>顧客ログインID/パスワード管理
+      </h1>
+      <a href="/" class="text-sm text-blue-600 hover:underline">
+        <i class="fas fa-arrow-left mr-1"></i>管理画面に戻る
+      </a>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow-sm border p-4">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b bg-gray-50">
+            <th class="text-left py-2 px-3">ID</th>
+            <th class="text-left py-2 px-3">顧客名</th>
+            <th class="text-left py-2 px-3">ログインID</th>
+            <th class="text-left py-2 px-3">パスワード</th>
+            <th class="text-center py-2 px-3">操作</th>
+          </tr>
+        </thead>
+        <tbody id="customerTable">
+          <tr><td colspan="5" class="text-center py-8 text-gray-400">読み込み中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+      <p class="text-sm text-yellow-800">
+        <i class="fas fa-info-circle mr-1"></i>
+        ここで設定したID/パスワードで、お客様は<a href="/quote-request" class="text-blue-600 underline">見積依頼フォーム</a>にログインできます。
+      </p>
+    </div>
+  </div>
+
+  <script>
+  let customers = [];
+
+  async function loadCustomers() {
+    try {
+      const res = await fetch('/api/customers/login-info');
+      const data = await res.json();
+      if (data.success) {
+        customers = data.data;
+        renderTable();
+      }
+    } catch (e) {
+      console.error('読み込みエラー:', e);
+    }
+  }
+
+  function renderTable() {
+    const tbody = document.getElementById('customerTable');
+    if (customers.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-gray-400">顧客が登録されていません</td></tr>';
+      return;
+    }
+    
+    tbody.innerHTML = customers.map(c => \`
+      <tr class="border-b hover:bg-gray-50" id="row-\${c.id}">
+        <td class="py-2 px-3 text-gray-500">\${c.id}</td>
+        <td class="py-2 px-3 font-medium">\${c.name}</td>
+        <td class="py-2 px-3">
+          <input type="text" class="form-input" id="login-id-\${c.id}" 
+                 value="\${c.login_id || ''}" placeholder="ログインIDを設定">
+        </td>
+        <td class="py-2 px-3">
+          <input type="text" class="form-input" id="login-pw-\${c.id}" 
+                 value="\${c.login_password || ''}" placeholder="パスワードを設定">
+        </td>
+        <td class="py-2 px-3 text-center">
+          <button onclick="saveLoginInfo(\${c.id})" 
+                  class="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700">
+            <i class="fas fa-save mr-1"></i>保存
+          </button>
+        </td>
+      </tr>
+    \`).join('');
+  }
+
+  async function saveLoginInfo(id) {
+    const loginId = document.getElementById('login-id-' + id).value.trim();
+    const loginPw = document.getElementById('login-pw-' + id).value.trim();
+    
+    if (!loginId || !loginPw) {
+      alert('IDとパスワードの両方を入力してください');
+      return;
+    }
+    
+    try {
+      const res = await fetch('/api/customers/' + id + '/login-info', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login_id: loginId, login_password: loginPw })
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        alert('保存しました');
+      } else {
+        alert('エラー: ' + data.message);
+      }
+    } catch (e) {
+      alert('通信エラーが発生しました');
+    }
+  }
+
+  loadCustomers();
+  </script>
+</body>
+</html>`;
+  return c.html(html)
+})
+
+// 管理者側：見積依頼一覧ページ
+app.get('/admin/quote-requests', (c) => {
+  const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>見積依頼一覧</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    body { font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif; }
+    .status-pending { background: #fef3c7; color: #92400e; }
+    .status-processing { background: #dbeafe; color: #1e40af; }
+    .status-completed { background: #d1fae5; color: #065f46; }
+    .status-rejected { background: #fee2e2; color: #991b1b; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen p-6">
+  <div class="max-w-6xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-xl font-bold text-gray-800">
+        <i class="fas fa-inbox text-blue-600 mr-2"></i>見積依頼一覧
+      </h1>
+      <a href="/" class="text-sm text-blue-600 hover:underline">
+        <i class="fas fa-arrow-left mr-1"></i>管理画面に戻る
+      </a>
+    </div>
+    
+    <div class="flex gap-2 mb-4">
+      <button onclick="filterStatus('')" class="px-3 py-1 rounded text-sm bg-gray-200 hover:bg-gray-300" id="filter-all">全て</button>
+      <button onclick="filterStatus('pending')" class="px-3 py-1 rounded text-sm bg-yellow-100 hover:bg-yellow-200" id="filter-pending">未処理</button>
+      <button onclick="filterStatus('processing')" class="px-3 py-1 rounded text-sm bg-blue-100 hover:bg-blue-200" id="filter-processing">対応中</button>
+      <button onclick="filterStatus('completed')" class="px-3 py-1 rounded text-sm bg-green-100 hover:bg-green-200" id="filter-completed">完了</button>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border overflow-hidden">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b bg-gray-50">
+            <th class="text-left py-2 px-3">ID</th>
+            <th class="text-left py-2 px-3">顧客名</th>
+            <th class="text-left py-2 px-3">案件名</th>
+            <th class="text-left py-2 px-3">希望日</th>
+            <th class="text-left py-2 px-3">品目数</th>
+            <th class="text-center py-2 px-3">ステータス</th>
+            <th class="text-left py-2 px-3">依頼日時</th>
+            <th class="text-center py-2 px-3">操作</th>
+          </tr>
+        </thead>
+        <tbody id="requestsTable">
+          <tr><td colspan="8" class="text-center py-8 text-gray-400">読み込み中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 詳細モーダル -->
+  <div id="detailModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center" style="display:none;">
+    <div class="bg-white rounded-lg w-full max-w-2xl max-h-[80vh] overflow-y-auto p-6 m-4">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-bold">見積依頼詳細</h2>
+        <button onclick="closeDetail()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-xl"></i></button>
+      </div>
+      <div id="detailContent"></div>
+    </div>
+  </div>
+
+  <script>
+  let allRequests = [];
+
+  async function loadRequests(status) {
+    try {
+      let url = '/api/quote-requests';
+      if (status) url += '?status=' + status;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.success) {
+        allRequests = data.data;
+        renderRequests();
+      }
+    } catch (e) {
+      console.error('読み込みエラー:', e);
+    }
+  }
+
+  function filterStatus(status) {
+    loadRequests(status);
+  }
+
+  function getStatusBadge(status) {
+    const map = {
+      'pending': '<span class="status-pending px-2 py-1 rounded text-xs font-medium">未処理</span>',
+      'processing': '<span class="status-processing px-2 py-1 rounded text-xs font-medium">対応中</span>',
+      'completed': '<span class="status-completed px-2 py-1 rounded text-xs font-medium">完了</span>',
+      'rejected': '<span class="status-rejected px-2 py-1 rounded text-xs font-medium">却下</span>'
+    };
+    return map[status] || status;
+  }
+
+  function renderRequests() {
+    const tbody = document.getElementById('requestsTable');
+    if (allRequests.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-gray-400">見積依頼がありません</td></tr>';
+      return;
+    }
+    
+    tbody.innerHTML = allRequests.map(r => {
+      let itemCount = 0;
+      try { itemCount = JSON.parse(r.items_json).length; } catch(e) {}
+      return \`
+        <tr class="border-b hover:bg-gray-50">
+          <td class="py-2 px-3 text-gray-500">\${r.id}</td>
+          <td class="py-2 px-3">\${r.customer_name || '-'}</td>
+          <td class="py-2 px-3 font-medium">\${r.project_name}</td>
+          <td class="py-2 px-3">\${r.delivery_date}</td>
+          <td class="py-2 px-3 text-center">\${itemCount}点</td>
+          <td class="py-2 px-3 text-center">\${getStatusBadge(r.status)}</td>
+          <td class="py-2 px-3 text-xs text-gray-500">\${new Date(r.created_at).toLocaleString('ja-JP')}</td>
+          <td class="py-2 px-3 text-center">
+            <button onclick="showDetail(\${r.id})" class="text-blue-600 hover:underline text-xs mr-2">詳細</button>
+            <button onclick="updateStatus(\${r.id}, 'processing')" class="text-yellow-600 hover:underline text-xs mr-1">対応中</button>
+            <button onclick="updateStatus(\${r.id}, 'completed')" class="text-green-600 hover:underline text-xs">完了</button>
+          </td>
+        </tr>
+      \`;
+    }).join('');
+  }
+
+  async function showDetail(id) {
+    try {
+      const res = await fetch('/api/quote-requests/' + id);
+      const data = await res.json();
+      if (data.success) {
+        const r = data.data;
+        let items = [];
+        try { items = JSON.parse(r.items_json); } catch(e) {}
+        
+        document.getElementById('detailContent').innerHTML = \`
+          <div class="space-y-3 text-sm">
+            <div class="grid grid-cols-2 gap-3">
+              <div><span class="text-gray-500">顧客名:</span> <strong>\${r.customer_name}</strong></div>
+              <div><span class="text-gray-500">担当者:</span> <strong>\${r.contact_person}</strong></div>
+              <div><span class="text-gray-500">案件名:</span> <strong>\${r.project_name}</strong></div>
+              <div><span class="text-gray-500">ステータス:</span> \${getStatusBadge(r.status)}</div>
+            </div>
+            <hr>
+            <h3 class="font-bold">配送先・ルート情報</h3>
+            <div class="grid grid-cols-2 gap-3">
+              <div><span class="text-gray-500">希望日:</span> \${r.delivery_date}</div>
+              <div><span class="text-gray-500">希望時間:</span> \${r.delivery_time}</div>
+              <div><span class="text-gray-500">郵便番号:</span> \${r.delivery_postal_code}</div>
+              <div><span class="text-gray-500">引取先:</span> \${r.pickup_location || '-'}</div>
+            </div>
+            <hr>
+            <h3 class="font-bold">家具情報（\${items.length}品目）</h3>
+            <table class="w-full border text-xs">
+              <thead><tr class="bg-gray-100"><th class="border p-1">品名</th><th class="border p-1">材質</th><th class="border p-1">数量</th><th class="border p-1">サイズ</th><th class="border p-1">重量</th><th class="border p-1">備考</th></tr></thead>
+              <tbody>\${items.map(i => \`<tr><td class="border p-1">\${i.product}</td><td class="border p-1">\${i.material}</td><td class="border p-1">\${i.quantity}</td><td class="border p-1">\${i.size || '-'}</td><td class="border p-1">\${i.weight ? i.weight+'kg' : '-'}</td><td class="border p-1">\${i.notes || '-'}</td></tr>\`).join('')}</tbody>
+            </table>
+            <hr>
+            <h3 class="font-bold">設置環境</h3>
+            <div class="grid grid-cols-2 gap-3">
+              <div><span class="text-gray-500">建物種別:</span> \${r.building_type}</div>
+              <div><span class="text-gray-500">設置階:</span> \${r.installation_floor}</div>
+              <div><span class="text-gray-500">EV:</span> \${r.has_elevator}\${r.elevator_size ? '('+r.elevator_size+')' : ''}</div>
+              <div><span class="text-gray-500">駐車:</span> \${r.has_parking}</div>
+              <div><span class="text-gray-500">養生:</span> \${r.has_protection_work}\${r.protection_scope ? '('+r.protection_scope+')' : ''}</div>
+              <div><span class="text-gray-500">吊り上げ:</span> \${r.has_hoisting}</div>
+              <div><span class="text-gray-500">クレーン:</span> \${r.has_crane}</div>
+            </div>
+            \${r.delivery_route_info ? '<div><span class="text-gray-500">搬入経路:</span> '+r.delivery_route_info+'</div>' : ''}
+            \${r.notes ? '<hr><h3 class="font-bold">備考</h3><p>'+r.notes+'</p>' : ''}
+          </div>
+        \`;
+        document.getElementById('detailModal').style.display = 'flex';
+      }
+    } catch (e) {
+      alert('詳細の読み込みに失敗しました');
+    }
+  }
+
+  function closeDetail() {
+    document.getElementById('detailModal').style.display = 'none';
+  }
+
+  async function updateStatus(id, status) {
+    if (!confirm('ステータスを更新しますか？')) return;
+    try {
+      const res = await fetch('/api/quote-requests/' + id + '/status', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: status })
+      });
+      const data = await res.json();
+      if (data.success) {
+        loadRequests('');
+      } else {
+        alert('エラー: ' + data.message);
+      }
+    } catch (e) {
+      alert('通信エラーが発生しました');
+    }
+  }
+
+  loadRequests('');
+  </script>
+</body>
+</html>`;
+  return c.html(html)
+})
+
 // Cloudflare Cron Trigger対応
 export default {
   fetch: app.fetch,
