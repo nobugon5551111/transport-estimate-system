@@ -17603,6 +17603,55 @@ app.put('/api/customers/:id/login-info', async (c) => {
   }
 })
 
+// 新規顧客追加（ログイン情報付き）
+app.post('/api/customers/add-with-login', async (c) => {
+  const { env } = c
+  try {
+    const { name, contact_person, phone, email, login_id, login_password } = await c.req.json()
+    
+    if (!name) {
+      return c.json({ success: false, message: '顧客名を入力してください' }, 400)
+    }
+    if (!login_id || !login_password) {
+      return c.json({ success: false, message: 'ログインIDとパスワードを入力してください' }, 400)
+    }
+    
+    // login_idの重複チェック
+    const existing = await env.DB.prepare(`
+      SELECT id FROM customers WHERE login_id = ?
+    `).bind(login_id).first()
+    
+    if (existing) {
+      return c.json({ success: false, message: 'このログインIDは既に使用されています' }, 409)
+    }
+    
+    // user_idは管理者として固定
+    const userId = 'admin'
+    
+    const result = await env.DB.prepare(`
+      INSERT INTO customers (name, contact_person, phone, email, user_id, login_id, login_password)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      name,
+      contact_person || '',
+      phone || '',
+      email || '',
+      userId,
+      login_id,
+      login_password
+    ).run()
+    
+    return c.json({
+      success: true,
+      message: '顧客を追加しました',
+      id: result.meta.last_row_id
+    })
+  } catch (error) {
+    console.error('顧客追加エラー:', error)
+    return c.json({ success: false, message: '顧客の追加に失敗しました' }, 500)
+  }
+})
+
 // 顧客詳細取得API
 app.get('/api/customers/:id', async (c) => {
   try {
@@ -21338,33 +21387,48 @@ app.get('/admin/customer-login', (c) => {
   <style>
     body { font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif; }
     .form-input { border: 1px solid #d1d5db; border-radius: 6px; padding: 6px 10px; font-size: 13px; width: 100%; }
-    .form-input:focus { outline: none; border-color: #2563eb; }
+    .form-input:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.1); }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 50; display: flex; align-items: center; justify-content: center; }
+    .modal-card { background: white; border-radius: 12px; padding: 24px; width: 100%; max-width: 500px; margin: 16px; }
+    .badge-active { background: #d1fae5; color: #065f46; }
+    .badge-inactive { background: #fee2e2; color: #991b1b; }
   </style>
 </head>
 <body class="bg-gray-50 min-h-screen p-6">
-  <div class="max-w-5xl mx-auto">
+  <div class="max-w-6xl mx-auto">
     <div class="flex items-center justify-between mb-6">
       <h1 class="text-xl font-bold text-gray-800">
         <i class="fas fa-users-cog text-blue-600 mr-2"></i>顧客ログインID/パスワード管理
       </h1>
-      <a href="/" class="text-sm text-blue-600 hover:underline">
-        <i class="fas fa-arrow-left mr-1"></i>管理画面に戻る
-      </a>
+      <div class="flex items-center gap-3">
+        <button onclick="openAddModal()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+          <i class="fas fa-user-plus mr-2"></i>新規顧客追加
+        </button>
+        <a href="/" class="text-sm text-blue-600 hover:underline">
+          <i class="fas fa-arrow-left mr-1"></i>管理画面に戻る
+        </a>
+      </div>
     </div>
     
+    <!-- 顧客一覧テーブル -->
     <div class="bg-white rounded-lg shadow-sm border p-4">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-medium text-gray-600"><i class="fas fa-list mr-1"></i>登録済み顧客一覧</h2>
+        <span id="customerCount" class="text-xs text-gray-400"></span>
+      </div>
       <table class="w-full text-sm">
         <thead>
           <tr class="border-b bg-gray-50">
-            <th class="text-left py-2 px-3">ID</th>
+            <th class="text-left py-2 px-3 w-12">No</th>
             <th class="text-left py-2 px-3">顧客名</th>
             <th class="text-left py-2 px-3">ログインID</th>
             <th class="text-left py-2 px-3">パスワード</th>
-            <th class="text-center py-2 px-3">操作</th>
+            <th class="text-center py-2 px-3 w-16">状態</th>
+            <th class="text-center py-2 px-3 w-40">操作</th>
           </tr>
         </thead>
         <tbody id="customerTable">
-          <tr><td colspan="5" class="text-center py-8 text-gray-400">読み込み中...</td></tr>
+          <tr><td colspan="6" class="text-center py-8 text-gray-400">読み込み中...</td></tr>
         </tbody>
       </table>
     </div>
@@ -21372,8 +21436,58 @@ app.get('/admin/customer-login', (c) => {
     <div class="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
       <p class="text-sm text-yellow-800">
         <i class="fas fa-info-circle mr-1"></i>
-        ここで設定したID/パスワードで、お客様は<a href="/quote-request" class="text-blue-600 underline">見積依頼フォーム</a>にログインできます。
+        ここで設定したID/パスワードで、お客様は<a href="/quote-request" class="text-blue-600 underline" target="_blank">見積依頼フォーム</a>にログインできます。
+        ログインIDとパスワードが未設定の顧客はフォームにログインできません。
       </p>
+    </div>
+  </div>
+
+  <!-- 新規顧客追加モーダル -->
+  <div id="addModal" class="modal-overlay" style="display:none;">
+    <div class="modal-card">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-gray-800">
+          <i class="fas fa-user-plus text-green-600 mr-2"></i>新規顧客追加
+        </h3>
+        <button onclick="closeAddModal()" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">顧客名 <span class="text-red-500">*</span></label>
+          <input type="text" id="newCustomerName" class="form-input" placeholder="例: 株式会社○○">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">担当者名</label>
+          <input type="text" id="newContactPerson" class="form-input" placeholder="例: 田中太郎">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">電話番号</label>
+          <input type="text" id="newPhone" class="form-input" placeholder="例: 06-1234-5678">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">メール</label>
+          <input type="email" id="newEmail" class="form-input" placeholder="例: info@example.com">
+        </div>
+        <hr class="my-2">
+        <p class="text-xs text-gray-500 font-medium">見積依頼フォーム用ログイン情報</p>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">ログインID <span class="text-red-500">*</span></label>
+            <input type="text" id="newLoginId" class="form-input" placeholder="例: customer01">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">パスワード <span class="text-red-500">*</span></label>
+            <input type="text" id="newLoginPassword" class="form-input" placeholder="例: pass1234">
+          </div>
+        </div>
+      </div>
+      <div id="addError" class="mt-3 text-sm text-red-600" style="display:none;"></div>
+      <div class="flex justify-end gap-3 mt-6">
+        <button onclick="closeAddModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">キャンセル</button>
+        <button onclick="addNewCustomer()" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium">
+          <i class="fas fa-check mr-1"></i>追加する
+        </button>
+      </div>
     </div>
   </div>
 
@@ -21395,14 +21509,21 @@ app.get('/admin/customer-login', (c) => {
 
   function renderTable() {
     const tbody = document.getElementById('customerTable');
+    document.getElementById('customerCount').textContent = customers.length + '件';
+    
     if (customers.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-gray-400">顧客が登録されていません</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-400">顧客が登録されていません。「新規顧客追加」から追加してください。</td></tr>';
       return;
     }
     
-    tbody.innerHTML = customers.map(c => \`
+    tbody.innerHTML = customers.map((c, idx) => {
+      const hasLogin = c.login_id && c.login_password;
+      const statusBadge = hasLogin 
+        ? '<span class="badge-active px-2 py-0.5 rounded text-xs font-medium">有効</span>'
+        : '<span class="badge-inactive px-2 py-0.5 rounded text-xs font-medium">未設定</span>';
+      return \`
       <tr class="border-b hover:bg-gray-50" id="row-\${c.id}">
-        <td class="py-2 px-3 text-gray-500">\${c.id}</td>
+        <td class="py-2 px-3 text-gray-400 text-xs">\${idx + 1}</td>
         <td class="py-2 px-3 font-medium">\${c.name}</td>
         <td class="py-2 px-3">
           <input type="text" class="form-input" id="login-id-\${c.id}" 
@@ -21412,14 +21533,19 @@ app.get('/admin/customer-login', (c) => {
           <input type="text" class="form-input" id="login-pw-\${c.id}" 
                  value="\${c.login_password || ''}" placeholder="パスワードを設定">
         </td>
+        <td class="py-2 px-3 text-center">\${statusBadge}</td>
         <td class="py-2 px-3 text-center">
           <button onclick="saveLoginInfo(\${c.id})" 
-                  class="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700">
+                  class="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 mr-1">
             <i class="fas fa-save mr-1"></i>保存
+          </button>
+          <button onclick="deleteCustomer(\${c.id}, '\${c.name.replace(/'/g, "\\\\'")}')" 
+                  class="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600">
+            <i class="fas fa-trash"></i>
           </button>
         </td>
       </tr>
-    \`).join('');
+    \`;}).join('');
   }
 
   async function saveLoginInfo(id) {
@@ -21441,6 +21567,7 @@ app.get('/admin/customer-login', (c) => {
       
       if (data.success) {
         alert('保存しました');
+        loadCustomers();
       } else {
         alert('エラー: ' + data.message);
       }
@@ -21448,6 +21575,92 @@ app.get('/admin/customer-login', (c) => {
       alert('通信エラーが発生しました');
     }
   }
+
+  function openAddModal() {
+    document.getElementById('addModal').style.display = 'flex';
+    document.getElementById('newCustomerName').value = '';
+    document.getElementById('newContactPerson').value = '';
+    document.getElementById('newPhone').value = '';
+    document.getElementById('newEmail').value = '';
+    document.getElementById('newLoginId').value = '';
+    document.getElementById('newLoginPassword').value = '';
+    document.getElementById('addError').style.display = 'none';
+    document.getElementById('newCustomerName').focus();
+  }
+
+  function closeAddModal() {
+    document.getElementById('addModal').style.display = 'none';
+  }
+
+  async function addNewCustomer() {
+    const name = document.getElementById('newCustomerName').value.trim();
+    const contactPerson = document.getElementById('newContactPerson').value.trim();
+    const phone = document.getElementById('newPhone').value.trim();
+    const email = document.getElementById('newEmail').value.trim();
+    const loginId = document.getElementById('newLoginId').value.trim();
+    const loginPassword = document.getElementById('newLoginPassword').value.trim();
+    const errorDiv = document.getElementById('addError');
+    
+    if (!name) {
+      errorDiv.textContent = '顧客名を入力してください';
+      errorDiv.style.display = 'block';
+      return;
+    }
+    if (!loginId || !loginPassword) {
+      errorDiv.textContent = 'ログインIDとパスワードを入力してください';
+      errorDiv.style.display = 'block';
+      return;
+    }
+    
+    try {
+      const res = await fetch('/api/customers/add-with-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, contact_person: contactPerson, phone, email, login_id: loginId, login_password: loginPassword })
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        closeAddModal();
+        loadCustomers();
+        alert('顧客「' + name + '」を追加しました');
+      } else {
+        errorDiv.textContent = data.message;
+        errorDiv.style.display = 'block';
+      }
+    } catch (e) {
+      errorDiv.textContent = '通信エラーが発生しました';
+      errorDiv.style.display = 'block';
+    }
+  }
+
+  async function deleteCustomer(id, name) {
+    if (!confirm('顧客「' + name + '」を削除しますか？\\nこの操作は取り消せません。')) return;
+    
+    try {
+      const res = await fetch('/api/customers/' + id + '/login-info', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login_id: '', login_password: '' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        loadCustomers();
+      }
+    } catch (e) {
+      alert('通信エラーが発生しました');
+    }
+  }
+
+  // Enterキーで追加
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && document.getElementById('addModal').style.display === 'flex') {
+      addNewCustomer();
+    }
+    if (e.key === 'Escape') {
+      closeAddModal();
+    }
+  });
 
   loadCustomers();
   </script>
