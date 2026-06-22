@@ -10227,7 +10227,7 @@ const EstimateManagement = {
             </span>
           </td>
           <td class="px-2 py-3 whitespace-nowrap text-sm">
-            <div class="grid grid-cols-3 gap-1">
+            <div class="grid grid-cols-4 gap-1">
               <button 
                 onClick="EstimateManagement.viewEstimateDetail(${estimate.id})" 
                 class="w-7 h-7 inline-flex items-center justify-center rounded text-blue-600 hover:bg-blue-50"
@@ -10241,6 +10241,13 @@ const EstimateManagement = {
                 title="編集"
               >
                 <i class="fas fa-edit text-xs"></i>
+              </button>
+              <button 
+                onClick="EstimateManagement.changeEstimateStatus(${estimate.id}, '${project ? project.status || 'initial' : 'initial'}')" 
+                class="w-7 h-7 inline-flex items-center justify-center rounded text-teal-600 hover:bg-teal-50"
+                title="ステータス変更"
+              >
+                <i class="fas fa-exchange-alt text-xs"></i>
               </button>
               <button 
                 onClick="EstimateManagement.generatePDF(${estimate.id})" 
@@ -11158,6 +11165,88 @@ const EstimateManagement = {
           printWindow.print();
         }, 1000);
       });
+    }
+  },
+
+  changeEstimateStatus: (estimateId, currentStatus) => {
+    const statusOptions = [
+      { value: 'drafting', label: '担当者作成中' },
+      { value: 'pdf_generated', label: 'PDF生成済み' },
+      { value: 'approval_requested', label: '決裁申請済み' },
+      { value: 'pending_approval', label: '管理者確認中' },
+      { value: 'revision_requested', label: '差戻し（修正依頼）' },
+      { value: 'sent_to_customer', label: '顧客送信済み' },
+      { value: 'under_review', label: '顧客検討中' },
+      { value: 're_estimate_requested', label: '再見積もり依頼' },
+      { value: 'formal_order', label: '正式注文' },
+      { value: 'won', label: '受注' },
+      { value: 'lost', label: '失注' },
+      { value: 'cancelled', label: 'キャンセル' }
+    ];
+
+    const optionsHtml = statusOptions.map(opt => 
+      `<option value="${opt.value}" ${opt.value === currentStatus ? 'selected' : ''}>${opt.label}</option>`
+    ).join('');
+
+    const modalHtml = `
+      <div id="statusChangeModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-96">
+          <h3 class="text-lg font-bold mb-4">ステータス変更</h3>
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">新しいステータス</label>
+            <select id="newStatusSelect" class="w-full border rounded-md px-3 py-2 text-sm">
+              ${optionsHtml}
+            </select>
+          </div>
+          <div class="flex justify-end gap-2">
+            <button onclick="document.getElementById('statusChangeModal').remove()" class="px-4 py-2 text-sm bg-gray-200 rounded hover:bg-gray-300">キャンセル</button>
+            <button onclick="EstimateManagement.submitStatusChange(${estimateId})" class="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">変更</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // 既存モーダルがあれば削除
+    const existing = document.getElementById('statusChangeModal');
+    if (existing) existing.remove();
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+  },
+
+  submitStatusChange: async (estimateId) => {
+    const newStatus = document.getElementById('newStatusSelect')?.value;
+    if (!newStatus) return;
+
+    try {
+      Utils.showLoading('ステータス更新中...');
+      
+      // 見積に紐づく案件のステータスを更新
+      const estimate = EstimateManagement.estimatesData.find(e => e.id === estimateId);
+      if (!estimate || !estimate.project_id) {
+        Utils.hideLoading();
+        Utils.showError('案件情報が見つかりません');
+        return;
+      }
+
+      const response = await fetch(`/api/projects/${estimate.project_id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (!response.ok) throw new Error('ステータス更新に失敗しました');
+
+      Utils.hideLoading();
+      Utils.showSuccess('ステータスを更新しました');
+      
+      // モーダルを閉じる
+      document.getElementById('statusChangeModal')?.remove();
+      
+      // データを再読み込み
+      await EstimateManagement.refreshEstimates();
+    } catch (error) {
+      Utils.hideLoading();
+      Utils.showError('ステータス更新エラー: ' + error.message);
     }
   },
 

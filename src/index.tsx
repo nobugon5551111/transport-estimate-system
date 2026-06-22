@@ -10430,7 +10430,7 @@ app.get('/estimates', (c) => {
                   <th className="w-[70px] px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase">
                     状態
                   </th>
-                  <th className="w-[160px] px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase">
+                  <th className="w-[180px] px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase">
                     操作
                   </th>
                 </tr>
