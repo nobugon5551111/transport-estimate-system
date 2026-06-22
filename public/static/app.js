@@ -11172,7 +11172,7 @@ const EstimateManagement = {
     const statusOptions = [
       { value: 'drafting', label: '担当者作成中' },
       { value: 'pdf_generated', label: 'PDF生成済み' },
-      { value: 'approval_requested', label: '決裁申請済み' },
+      { value: 'approval_requested', label: '決裁申請済み（承認申請）', isApproval: true },
       { value: 'pending_approval', label: '管理者確認中' },
       { value: 'revision_requested', label: '差戻し（修正依頼）' },
       { value: 'sent_to_customer', label: '顧客送信済み' },
@@ -11194,9 +11194,23 @@ const EstimateManagement = {
           <h3 class="text-lg font-bold mb-4">ステータス変更</h3>
           <div class="mb-4">
             <label class="block text-sm font-medium text-gray-700 mb-1">新しいステータス</label>
-            <select id="newStatusSelect" class="w-full border rounded-md px-3 py-2 text-sm">
+            <select id="newStatusSelect" class="w-full border rounded-md px-3 py-2 text-sm" onchange="EstimateManagement.onStatusSelectChange()">
               ${optionsHtml}
             </select>
+          </div>
+          <div id="approvalSection" class="mb-4" style="display:none;">
+            <label class="block text-sm font-medium text-gray-700 mb-1">承認者を選択 <span class="text-red-500">*</span></label>
+            <select id="approverSelect" class="w-full border rounded-md px-3 py-2 text-sm">
+              <option value="">読み込み中...</option>
+            </select>
+            <div class="mt-2">
+              <label class="block text-sm font-medium text-gray-700 mb-1">申請者名</label>
+              <input type="text" id="requesterName" class="w-full border rounded-md px-3 py-2 text-sm" placeholder="あなたの氏名" value="">
+            </div>
+            <div class="mt-2">
+              <label class="block text-sm font-medium text-gray-700 mb-1">申請コメント</label>
+              <textarea id="requestComment" rows="2" class="w-full border rounded-md px-3 py-2 text-sm" placeholder="承認者への伝達事項（任意）"></textarea>
+            </div>
           </div>
           <div class="flex justify-end gap-2">
             <button onclick="document.getElementById('statusChangeModal').remove()" class="px-4 py-2 text-sm bg-gray-200 rounded hover:bg-gray-300">キャンセル</button>
@@ -11211,11 +11225,84 @@ const EstimateManagement = {
     if (existing) existing.remove();
     
     document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    // 初期表示チェック
+    EstimateManagement.onStatusSelectChange();
+  },
+
+  onStatusSelectChange: () => {
+    const select = document.getElementById('newStatusSelect');
+    const section = document.getElementById('approvalSection');
+    if (!select || !section) return;
+    
+    if (select.value === 'approval_requested') {
+      section.style.display = 'block';
+      // 承認者リスト読み込み
+      EstimateManagement.loadApproversForSelect();
+    } else {
+      section.style.display = 'none';
+    }
+  },
+
+  loadApproversForSelect: async () => {
+    try {
+      const res = await fetch('/api/approvers/active');
+      const data = await res.json();
+      const select = document.getElementById('approverSelect');
+      if (data.success && select) {
+        select.innerHTML = '<option value="">-- 承認者を選択 --</option>' + 
+          data.data.map(a => `<option value="${a.id}">${a.name}${a.department ? ' (' + a.department + ')' : ''} - ${a.email}</option>`).join('');
+      }
+    } catch (e) { console.error(e); }
   },
 
   submitStatusChange: async (estimateId) => {
     const newStatus = document.getElementById('newStatusSelect')?.value;
     if (!newStatus) return;
+
+    // 承認申請の場合は専用APIを使用
+    if (newStatus === 'approval_requested') {
+      const approverId = document.getElementById('approverSelect')?.value;
+      const requesterName = document.getElementById('requesterName')?.value?.trim();
+      const requestComment = document.getElementById('requestComment')?.value?.trim();
+
+      if (!approverId) {
+        alert('承認者を選択してください');
+        return;
+      }
+      if (!requesterName) {
+        alert('申請者名を入力してください');
+        return;
+      }
+
+      try {
+        Utils.showLoading('承認申請中...');
+        const response = await fetch('/api/approval-requests', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            estimate_id: estimateId,
+            approver_id: parseInt(approverId),
+            requester_name: requesterName,
+            request_comment: requestComment || ''
+          })
+        });
+        const data = await response.json();
+        Utils.hideLoading();
+        
+        if (data.success) {
+          Utils.showSuccess('承認申請を送信しました');
+          document.getElementById('statusChangeModal')?.remove();
+          await EstimateManagement.refreshEstimates();
+        } else {
+          Utils.showError(data.message || '承認申請に失敗しました');
+        }
+      } catch (error) {
+        Utils.hideLoading();
+        Utils.showError('承認申請エラー: ' + error.message);
+      }
+      return;
+    }
 
     try {
       Utils.showLoading('ステータス更新中...');

@@ -21895,6 +21895,847 @@ app.get('/admin/quote-requests', (c) => {
   return c.html(html)
 })
 
+// ============================================
+// 承認ワークフロー 管理画面
+// ============================================
+
+// 承認者マスタ管理画面
+app.get('/admin/approvers', async (c) => {
+  const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>承認者マスタ管理 - 運送見積システム</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <nav class="bg-white shadow-sm border-b">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-4">
+        <a href="/admin" class="text-gray-600 hover:text-gray-800"><i class="fas fa-arrow-left"></i></a>
+        <h1 class="text-lg font-bold text-gray-800"><i class="fas fa-user-check mr-2"></i>承認者マスタ管理</h1>
+      </div>
+      <div class="flex gap-2">
+        <a href="/admin/approvals" class="px-3 py-1.5 text-sm bg-blue-50 text-blue-700 rounded hover:bg-blue-100">
+          <i class="fas fa-clipboard-check mr-1"></i>承認管理
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="max-w-5xl mx-auto p-6">
+    <div class="flex justify-between items-center mb-4">
+      <p class="text-sm text-gray-600">見積承認を行う承認者を管理します。メールアドレスに承認依頼通知が送信されます。</p>
+      <button onclick="openAddModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
+        <i class="fas fa-plus mr-1"></i>新規承認者追加
+      </button>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border overflow-hidden">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b bg-gray-50">
+            <th class="text-left py-3 px-4">氏名</th>
+            <th class="text-left py-3 px-4">メールアドレス</th>
+            <th class="text-left py-3 px-4">部署</th>
+            <th class="text-left py-3 px-4">権限</th>
+            <th class="text-center py-3 px-4">状態</th>
+            <th class="text-center py-3 px-4">操作</th>
+          </tr>
+        </thead>
+        <tbody id="approversTable">
+          <tr><td colspan="6" class="text-center py-8 text-gray-400">読み込み中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 追加/編集モーダル -->
+  <div id="approverModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center" style="display:none;">
+    <div class="bg-white rounded-lg w-full max-w-md p-6 m-4">
+      <div class="flex justify-between items-center mb-4">
+        <h2 id="modalTitle" class="text-lg font-bold">新規承認者追加</h2>
+        <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-xl"></i></button>
+      </div>
+      <form id="approverForm" onsubmit="saveApprover(event)">
+        <input type="hidden" id="approverId">
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">氏名 <span class="text-red-500">*</span></label>
+            <input type="text" id="approverName" required class="w-full border rounded-md px-3 py-2 text-sm" placeholder="山田太郎">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">メールアドレス <span class="text-red-500">*</span></label>
+            <input type="email" id="approverEmail" required class="w-full border rounded-md px-3 py-2 text-sm" placeholder="yamada@example.com">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">部署</label>
+            <input type="text" id="approverDept" class="w-full border rounded-md px-3 py-2 text-sm" placeholder="営業部">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">権限</label>
+            <select id="approverRole" class="w-full border rounded-md px-3 py-2 text-sm">
+              <option value="approver">承認者</option>
+              <option value="admin">管理者</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 mt-6">
+          <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm bg-gray-200 rounded hover:bg-gray-300">キャンセル</button>
+          <button type="submit" class="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let approversData = [];
+
+    async function loadApprovers() {
+      try {
+        const res = await fetch('/api/approvers');
+        const data = await res.json();
+        if (data.success) {
+          approversData = data.data;
+          renderTable();
+        }
+      } catch (e) { console.error(e); }
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('approversTable');
+      if (approversData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-400">承認者が登録されていません</td></tr>';
+        return;
+      }
+      tbody.innerHTML = approversData.map(a => \`
+        <tr class="border-b hover:bg-gray-50">
+          <td class="py-3 px-4 font-medium">\${a.name}</td>
+          <td class="py-3 px-4 text-gray-600">\${a.email}</td>
+          <td class="py-3 px-4 text-gray-600">\${a.department || '-'}</td>
+          <td class="py-3 px-4">
+            <span class="px-2 py-0.5 rounded text-xs \${a.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}">
+              \${a.role === 'admin' ? '管理者' : '承認者'}
+            </span>
+          </td>
+          <td class="py-3 px-4 text-center">
+            <span class="px-2 py-0.5 rounded text-xs \${a.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">
+              \${a.is_active ? '有効' : '無効'}
+            </span>
+          </td>
+          <td class="py-3 px-4 text-center">
+            <button onclick="editApprover(\${a.id})" class="text-blue-600 hover:text-blue-800 mr-2" title="編集"><i class="fas fa-edit"></i></button>
+            <button onclick="toggleActive(\${a.id}, \${a.is_active})" class="text-yellow-600 hover:text-yellow-800 mr-2" title="\${a.is_active ? '無効化' : '有効化'}">
+              <i class="fas fa-\${a.is_active ? 'ban' : 'check-circle'}"></i>
+            </button>
+            <button onclick="deleteApprover(\${a.id}, '\${a.name}')" class="text-red-600 hover:text-red-800" title="削除"><i class="fas fa-trash"></i></button>
+          </td>
+        </tr>
+      \`).join('');
+    }
+
+    function openAddModal() {
+      document.getElementById('modalTitle').textContent = '新規承認者追加';
+      document.getElementById('approverId').value = '';
+      document.getElementById('approverForm').reset();
+      document.getElementById('approverModal').style.display = 'flex';
+    }
+
+    function editApprover(id) {
+      const a = approversData.find(x => x.id === id);
+      if (!a) return;
+      document.getElementById('modalTitle').textContent = '承認者編集';
+      document.getElementById('approverId').value = a.id;
+      document.getElementById('approverName').value = a.name;
+      document.getElementById('approverEmail').value = a.email;
+      document.getElementById('approverDept').value = a.department || '';
+      document.getElementById('approverRole').value = a.role || 'approver';
+      document.getElementById('approverModal').style.display = 'flex';
+    }
+
+    function closeModal() {
+      document.getElementById('approverModal').style.display = 'none';
+    }
+
+    async function saveApprover(e) {
+      e.preventDefault();
+      const id = document.getElementById('approverId').value;
+      const payload = {
+        name: document.getElementById('approverName').value,
+        email: document.getElementById('approverEmail').value,
+        department: document.getElementById('approverDept').value,
+        role: document.getElementById('approverRole').value,
+        is_active: 1
+      };
+
+      try {
+        const url = id ? \`/api/approvers/\${id}\` : '/api/approvers';
+        const method = id ? 'PUT' : 'POST';
+        const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        const data = await res.json();
+        if (data.success) {
+          alert(data.message);
+          closeModal();
+          loadApprovers();
+        } else {
+          alert(data.message || 'エラーが発生しました');
+        }
+      } catch (e) { alert('保存に失敗しました'); }
+    }
+
+    async function toggleActive(id, currentActive) {
+      const a = approversData.find(x => x.id === id);
+      if (!a) return;
+      const newActive = currentActive ? 0 : 1;
+      try {
+        const res = await fetch(\`/api/approvers/\${id}\`, {
+          method: 'PUT',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ ...a, is_active: newActive })
+        });
+        const data = await res.json();
+        if (data.success) loadApprovers();
+      } catch (e) { alert('更新に失敗しました'); }
+    }
+
+    async function deleteApprover(id, name) {
+      if (!confirm(\`「\${name}」を削除しますか？\`)) return;
+      try {
+        const res = await fetch(\`/api/approvers/\${id}\`, { method: 'DELETE' });
+        const data = await res.json();
+        alert(data.message);
+        loadApprovers();
+      } catch (e) { alert('削除に失敗しました'); }
+    }
+
+    loadApprovers();
+  </script>
+</body>
+</html>`;
+  return c.html(html)
+})
+
+// 承認管理ダッシュボード画面
+app.get('/admin/approvals', async (c) => {
+  const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>承認管理 - 運送見積システム</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <nav class="bg-white shadow-sm border-b">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-4">
+        <a href="/admin" class="text-gray-600 hover:text-gray-800"><i class="fas fa-arrow-left"></i></a>
+        <h1 class="text-lg font-bold text-gray-800"><i class="fas fa-clipboard-check mr-2"></i>承認管理ダッシュボード</h1>
+      </div>
+      <div class="flex gap-2">
+        <a href="/admin/approvers" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
+          <i class="fas fa-user-check mr-1"></i>承認者マスタ
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="max-w-7xl mx-auto p-6">
+    <!-- 統計カード -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div class="bg-white rounded-lg shadow-sm border p-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
+            <i class="fas fa-clock text-yellow-600"></i>
+          </div>
+          <div>
+            <p class="text-2xl font-bold text-gray-800" id="pendingCount">0</p>
+            <p class="text-xs text-gray-500">承認待ち</p>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white rounded-lg shadow-sm border p-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+            <i class="fas fa-check-circle text-green-600"></i>
+          </div>
+          <div>
+            <p class="text-2xl font-bold text-gray-800" id="approvedCount">0</p>
+            <p class="text-xs text-gray-500">承認済み</p>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white rounded-lg shadow-sm border p-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+            <i class="fas fa-undo text-red-600"></i>
+          </div>
+          <div>
+            <p class="text-2xl font-bold text-gray-800" id="rejectedCount">0</p>
+            <p class="text-xs text-gray-500">差戻し</p>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white rounded-lg shadow-sm border p-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+            <i class="fas fa-list text-blue-600"></i>
+          </div>
+          <div>
+            <p class="text-2xl font-bold text-gray-800" id="totalCount">0</p>
+            <p class="text-xs text-gray-500">全リクエスト</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- タブ -->
+    <div class="flex gap-1 mb-4 border-b">
+      <button onclick="filterByStatus('')" id="tabAll" class="px-4 py-2 text-sm font-medium border-b-2 border-blue-600 text-blue-600">すべて</button>
+      <button onclick="filterByStatus('pending')" id="tabPending" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">承認待ち</button>
+      <button onclick="filterByStatus('approved')" id="tabApproved" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">承認済み</button>
+      <button onclick="filterByStatus('rejected')" id="tabRejected" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">差戻し</button>
+    </div>
+
+    <!-- リクエスト一覧テーブル -->
+    <div class="bg-white rounded-lg shadow-sm border overflow-hidden">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b bg-gray-50">
+            <th class="text-left py-3 px-4">#</th>
+            <th class="text-left py-3 px-4">見積番号</th>
+            <th class="text-left py-3 px-4">顧客名</th>
+            <th class="text-right py-3 px-4">金額</th>
+            <th class="text-left py-3 px-4">申請者</th>
+            <th class="text-left py-3 px-4">承認者</th>
+            <th class="text-center py-3 px-4">ステータス</th>
+            <th class="text-left py-3 px-4">申請日</th>
+            <th class="text-center py-3 px-4">操作</th>
+          </tr>
+        </thead>
+        <tbody id="approvalsTable">
+          <tr><td colspan="9" class="text-center py-8 text-gray-400">読み込み中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 承認詳細モーダル -->
+  <div id="approvalDetailModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center" style="display:none;">
+    <div class="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 m-4">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-bold"><i class="fas fa-file-invoice mr-2"></i>承認詳細</h2>
+        <button onclick="closeDetailModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-xl"></i></button>
+      </div>
+      <div id="approvalDetailContent">読み込み中...</div>
+    </div>
+  </div>
+
+  <!-- 差戻しモーダル -->
+  <div id="rejectModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center" style="display:none;">
+    <div class="bg-white rounded-lg w-full max-w-md p-6 m-4">
+      <h2 class="text-lg font-bold mb-4 text-red-600"><i class="fas fa-undo mr-2"></i>差戻し</h2>
+      <input type="hidden" id="rejectRequestId">
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-1">差戻し理由 <span class="text-red-500">*（必須）</span></label>
+        <textarea id="rejectComment" rows="4" required class="w-full border rounded-md px-3 py-2 text-sm" placeholder="修正が必要な箇所や理由を入力してください..."></textarea>
+      </div>
+      <div class="flex justify-end gap-2">
+        <button onclick="closeRejectModal()" class="px-4 py-2 text-sm bg-gray-200 rounded hover:bg-gray-300">キャンセル</button>
+        <button onclick="submitReject()" class="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700">差し戻す</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let allRequests = [];
+    let currentFilter = '';
+
+    async function loadRequests() {
+      try {
+        const res = await fetch('/api/approval-requests');
+        const data = await res.json();
+        if (data.success) {
+          allRequests = data.data;
+          updateStats();
+          renderRequests();
+        }
+      } catch (e) { console.error(e); }
+    }
+
+    function updateStats() {
+      document.getElementById('totalCount').textContent = allRequests.length;
+      document.getElementById('pendingCount').textContent = allRequests.filter(r => r.status === 'pending').length;
+      document.getElementById('approvedCount').textContent = allRequests.filter(r => r.status === 'approved').length;
+      document.getElementById('rejectedCount').textContent = allRequests.filter(r => r.status === 'rejected').length;
+    }
+
+    function filterByStatus(status) {
+      currentFilter = status;
+      // タブUI更新
+      ['All','Pending','Approved','Rejected'].forEach(t => {
+        const el = document.getElementById('tab' + t);
+        if (el) {
+          el.className = el.className.replace('border-blue-600 text-blue-600', 'border-transparent text-gray-500 hover:text-gray-700');
+        }
+      });
+      const activeTab = status ? document.getElementById('tab' + status.charAt(0).toUpperCase() + status.slice(1)) : document.getElementById('tabAll');
+      if (activeTab) {
+        activeTab.className = activeTab.className.replace('border-transparent text-gray-500 hover:text-gray-700', 'border-blue-600 text-blue-600');
+      }
+      renderRequests();
+    }
+
+    function getStatusBadge(status) {
+      const configs = {
+        pending: { label: '承認待ち', class: 'bg-yellow-100 text-yellow-800' },
+        approved: { label: '承認済み', class: 'bg-green-100 text-green-800' },
+        rejected: { label: '差戻し', class: 'bg-red-100 text-red-800' },
+        cancelled: { label: 'キャンセル', class: 'bg-gray-100 text-gray-600' }
+      };
+      const c = configs[status] || { label: status, class: 'bg-gray-100 text-gray-600' };
+      return \`<span class="px-2 py-0.5 rounded-full text-xs font-medium \${c.class}">\${c.label}</span>\`;
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '-';
+      const d = new Date(dateStr);
+      return \`\${d.getMonth()+1}/\${d.getDate()} \${d.getHours().toString().padStart(2,'0')}:\${d.getMinutes().toString().padStart(2,'0')}\`;
+    }
+
+    function formatAmount(amount) {
+      if (!amount) return '-';
+      return '¥' + Number(amount).toLocaleString();
+    }
+
+    function renderRequests() {
+      const filtered = currentFilter ? allRequests.filter(r => r.status === currentFilter) : allRequests;
+      const tbody = document.getElementById('approvalsTable');
+      
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center py-8 text-gray-400">該当するリクエストがありません</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map((r, i) => \`
+        <tr class="border-b hover:bg-gray-50">
+          <td class="py-3 px-4 text-gray-500">\${r.id}</td>
+          <td class="py-3 px-4 font-medium">\${r.estimate_number || '-'}</td>
+          <td class="py-3 px-4">\${r.customer_name || '-'}</td>
+          <td class="py-3 px-4 text-right font-medium">\${formatAmount(r.total_amount)}</td>
+          <td class="py-3 px-4">\${r.requester_name}</td>
+          <td class="py-3 px-4">\${r.approver_name || '-'}</td>
+          <td class="py-3 px-4 text-center">\${getStatusBadge(r.status)}</td>
+          <td class="py-3 px-4 text-gray-500">\${formatDate(r.requested_at)}</td>
+          <td class="py-3 px-4 text-center">
+            <div class="flex items-center justify-center gap-1">
+              <button onclick="viewDetail(\${r.id})" class="w-7 h-7 inline-flex items-center justify-center rounded text-blue-600 hover:bg-blue-50" title="詳細">
+                <i class="fas fa-eye text-xs"></i>
+              </button>
+              \${r.status === 'pending' ? \`
+                <button onclick="approveRequest(\${r.id})" class="w-7 h-7 inline-flex items-center justify-center rounded text-green-600 hover:bg-green-50" title="承認">
+                  <i class="fas fa-check text-xs"></i>
+                </button>
+                <button onclick="openRejectModal(\${r.id})" class="w-7 h-7 inline-flex items-center justify-center rounded text-red-600 hover:bg-red-50" title="差戻し">
+                  <i class="fas fa-undo text-xs"></i>
+                </button>
+              \` : ''}
+            </div>
+          </td>
+        </tr>
+      \`).join('');
+    }
+
+    async function viewDetail(id) {
+      document.getElementById('approvalDetailModal').style.display = 'flex';
+      document.getElementById('approvalDetailContent').innerHTML = '<div class="text-center py-8 text-gray-400">読み込み中...</div>';
+      
+      try {
+        const res = await fetch(\`/api/approval-requests/\${id}\`);
+        const data = await res.json();
+        if (data.success) {
+          const r = data.data;
+          document.getElementById('approvalDetailContent').innerHTML = \`
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <!-- 左: 承認情報 -->
+              <div>
+                <h3 class="font-bold text-gray-700 mb-3 border-b pb-2"><i class="fas fa-clipboard-check mr-1"></i>承認情報</h3>
+                <div class="space-y-2 text-sm">
+                  <div class="flex justify-between"><span class="text-gray-500">ステータス:</span>\${getStatusBadge(r.status)}</div>
+                  <div class="flex justify-between"><span class="text-gray-500">申請者:</span><span>\${r.requester_name}</span></div>
+                  <div class="flex justify-between"><span class="text-gray-500">承認者:</span><span>\${r.approver_name || '-'}</span></div>
+                  <div class="flex justify-between"><span class="text-gray-500">申請日:</span><span>\${formatDate(r.requested_at)}</span></div>
+                  \${r.responded_at ? \`<div class="flex justify-between"><span class="text-gray-500">回答日:</span><span>\${formatDate(r.responded_at)}</span></div>\` : ''}
+                  \${r.request_comment ? \`<div class="mt-2"><span class="text-gray-500">申請コメント:</span><p class="mt-1 p-2 bg-gray-50 rounded text-gray-700">\${r.request_comment}</p></div>\` : ''}
+                  \${r.response_comment ? \`<div class="mt-2"><span class="text-gray-500">\${r.status === 'rejected' ? '差戻し理由' : '承認コメント'}:</span><p class="mt-1 p-2 \${r.status === 'rejected' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'} rounded">\${r.response_comment}</p></div>\` : ''}
+                </div>
+                
+                \${r.status === 'pending' ? \`
+                  <div class="mt-6 flex gap-2">
+                    <button onclick="approveRequest(\${r.id})" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
+                      <i class="fas fa-check mr-1"></i>承認
+                    </button>
+                    <button onclick="closeDetailModal(); openRejectModal(\${r.id})" class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700">
+                      <i class="fas fa-undo mr-1"></i>差戻し
+                    </button>
+                  </div>
+                \` : ''}
+              </div>
+              
+              <!-- 右: 見積情報 -->
+              <div>
+                <h3 class="font-bold text-gray-700 mb-3 border-b pb-2"><i class="fas fa-file-invoice mr-1"></i>見積情報</h3>
+                <div class="space-y-2 text-sm">
+                  <div class="flex justify-between"><span class="text-gray-500">見積番号:</span><span class="font-medium">\${r.estimate_number || '-'}</span></div>
+                  <div class="flex justify-between"><span class="text-gray-500">顧客名:</span><span>\${r.customer_name || '-'}</span></div>
+                  <div class="flex justify-between"><span class="text-gray-500">案件名:</span><span>\${r.project_name || '-'}</span></div>
+                  <div class="flex justify-between"><span class="text-gray-500">配送先:</span><span>\${r.delivery_address || '-'}</span></div>
+                  <div class="flex justify-between"><span class="text-gray-500">車両:</span><span>\${r.vehicle_type || '-'}</span></div>
+                  <div class="flex justify-between border-t pt-2 mt-2">
+                    <span class="text-gray-500 font-medium">合計金額:</span>
+                    <span class="text-lg font-bold text-blue-700">\${formatAmount(r.total_amount)}</span>
+                  </div>
+                </div>
+                \${r.estimate_id ? \`
+                  <div class="mt-4">
+                    <a href="/api/estimates/\${r.estimate_id}/pdf" target="_blank" class="inline-flex items-center px-3 py-1.5 text-sm bg-purple-50 text-purple-700 rounded hover:bg-purple-100">
+                      <i class="fas fa-file-pdf mr-1"></i>PDF表示
+                    </a>
+                  </div>
+                \` : ''}
+              </div>
+            </div>
+          \`;
+        }
+      } catch (e) { console.error(e); }
+    }
+
+    function closeDetailModal() {
+      document.getElementById('approvalDetailModal').style.display = 'none';
+    }
+
+    async function approveRequest(id) {
+      if (!confirm('この見積を承認しますか？')) return;
+      try {
+        const res = await fetch(\`/api/approval-requests/\${id}/approve\`, {
+          method: 'PUT',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ comment: '' })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('承認しました');
+          closeDetailModal();
+          loadRequests();
+        } else {
+          alert(data.message || 'エラーが発生しました');
+        }
+      } catch (e) { alert('承認処理に失敗しました'); }
+    }
+
+    function openRejectModal(id) {
+      document.getElementById('rejectRequestId').value = id;
+      document.getElementById('rejectComment').value = '';
+      document.getElementById('rejectModal').style.display = 'flex';
+    }
+
+    function closeRejectModal() {
+      document.getElementById('rejectModal').style.display = 'none';
+    }
+
+    async function submitReject() {
+      const id = document.getElementById('rejectRequestId').value;
+      const comment = document.getElementById('rejectComment').value.trim();
+      if (!comment) {
+        alert('差戻し理由を入力してください');
+        return;
+      }
+      try {
+        const res = await fetch(\`/api/approval-requests/\${id}/reject\`, {
+          method: 'PUT',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ comment })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('差し戻しました');
+          closeRejectModal();
+          closeDetailModal();
+          loadRequests();
+        } else {
+          alert(data.message || 'エラーが発生しました');
+        }
+      } catch (e) { alert('差戻し処理に失敗しました'); }
+    }
+
+    loadRequests();
+  </script>
+</body>
+</html>`;
+  return c.html(html)
+})
+
+// ============================================
+// 承認ワークフロー API
+// ============================================
+
+// 承認者一覧取得
+app.get('/api/approvers', async (c) => {
+  try {
+    const { env } = c
+    const result = await env.DB.prepare(`
+      SELECT * FROM approvers ORDER BY is_active DESC, name ASC
+    `).all()
+    return c.json({ success: true, data: result.results })
+  } catch (error) {
+    return c.json({ success: false, message: '承認者一覧の取得に失敗しました' }, 500)
+  }
+})
+
+// 有効な承認者のみ取得
+app.get('/api/approvers/active', async (c) => {
+  try {
+    const { env } = c
+    const result = await env.DB.prepare(`
+      SELECT id, name, email, department FROM approvers WHERE is_active = 1 ORDER BY name ASC
+    `).all()
+    return c.json({ success: true, data: result.results })
+  } catch (error) {
+    return c.json({ success: false, message: '承認者一覧の取得に失敗しました' }, 500)
+  }
+})
+
+// 承認者追加
+app.post('/api/approvers', async (c) => {
+  try {
+    const { env } = c
+    const { name, email, role, department } = await c.req.json()
+    if (!name || !email) {
+      return c.json({ success: false, message: '氏名とメールアドレスは必須です' }, 400)
+    }
+    const result = await env.DB.prepare(`
+      INSERT INTO approvers (name, email, role, department) VALUES (?, ?, ?, ?)
+    `).bind(name, email, role || 'approver', department || '').run()
+    return c.json({ success: true, message: '承認者を追加しました', id: result.meta.last_row_id })
+  } catch (error: any) {
+    if (error.message?.includes('UNIQUE')) {
+      return c.json({ success: false, message: 'このメールアドレスは既に登録されています' }, 400)
+    }
+    return c.json({ success: false, message: '承認者の追加に失敗しました' }, 500)
+  }
+})
+
+// 承認者更新
+app.put('/api/approvers/:id', async (c) => {
+  try {
+    const { env } = c
+    const id = c.req.param('id')
+    const { name, email, role, department, is_active } = await c.req.json()
+    await env.DB.prepare(`
+      UPDATE approvers SET name = ?, email = ?, role = ?, department = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+    `).bind(name, email, role || 'approver', department || '', is_active ?? 1, id).run()
+    return c.json({ success: true, message: '承認者を更新しました' })
+  } catch (error: any) {
+    if (error.message?.includes('UNIQUE')) {
+      return c.json({ success: false, message: 'このメールアドレスは既に使用されています' }, 400)
+    }
+    return c.json({ success: false, message: '承認者の更新に失敗しました' }, 500)
+  }
+})
+
+// 承認者削除
+app.delete('/api/approvers/:id', async (c) => {
+  try {
+    const { env } = c
+    const id = c.req.param('id')
+    // 関連する承認リクエストがある場合は論理削除（無効化）
+    const hasRequests = await env.DB.prepare(`
+      SELECT COUNT(*) as cnt FROM approval_requests WHERE approver_id = ?
+    `).bind(id).first()
+    if (hasRequests && (hasRequests as any).cnt > 0) {
+      await env.DB.prepare(`UPDATE approvers SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(id).run()
+      return c.json({ success: true, message: '関連する承認履歴があるため無効化しました' })
+    }
+    await env.DB.prepare(`DELETE FROM approvers WHERE id = ?`).bind(id).run()
+    return c.json({ success: true, message: '承認者を削除しました' })
+  } catch (error) {
+    return c.json({ success: false, message: '承認者の削除に失敗しました' }, 500)
+  }
+})
+
+// ============================================
+// 承認リクエスト API
+// ============================================
+
+// 承認申請
+app.post('/api/approval-requests', async (c) => {
+  try {
+    const { env } = c
+    const { estimate_id, approver_id, requester_name, request_comment } = await c.req.json()
+    if (!estimate_id || !approver_id || !requester_name) {
+      return c.json({ success: false, message: '見積ID、承認者、申請者名は必須です' }, 400)
+    }
+
+    // 既にpendingの承認リクエストがないか確認
+    const existing = await env.DB.prepare(`
+      SELECT id FROM approval_requests WHERE estimate_id = ? AND status = 'pending'
+    `).bind(estimate_id).first()
+    if (existing) {
+      return c.json({ success: false, message: 'この見積には既に承認待ちのリクエストがあります' }, 400)
+    }
+
+    // 承認リクエスト作成
+    const result = await env.DB.prepare(`
+      INSERT INTO approval_requests (estimate_id, approver_id, requester_name, request_comment)
+      VALUES (?, ?, ?, ?)
+    `).bind(estimate_id, approver_id, requester_name, request_comment || '').run()
+
+    // 見積ステータスを「承認申請済み」に更新
+    await env.DB.prepare(`
+      UPDATE estimates SET status = 'approval_requested', updated_at = CURRENT_TIMESTAMP WHERE id = ?
+    `).bind(estimate_id).run()
+
+    // TODO: メール通知（Phase 4で実装）
+
+    return c.json({ success: true, message: '承認申請を送信しました', id: result.meta.last_row_id })
+  } catch (error) {
+    return c.json({ success: false, message: '承認申請に失敗しました' }, 500)
+  }
+})
+
+// 承認リクエスト一覧取得
+app.get('/api/approval-requests', async (c) => {
+  try {
+    const { env } = c
+    const status = c.req.query('status') || ''
+    
+    let query = `
+      SELECT ar.*, 
+             a.name as approver_name, a.email as approver_email, a.department as approver_department,
+             e.estimate_number, e.total_amount, e.customer_id, e.project_id,
+             c.name as customer_name,
+             p.name as project_name
+      FROM approval_requests ar
+      LEFT JOIN approvers a ON ar.approver_id = a.id
+      LEFT JOIN estimates e ON ar.estimate_id = e.id
+      LEFT JOIN customers c ON e.customer_id = c.id
+      LEFT JOIN projects p ON e.project_id = p.id
+    `
+    
+    if (status) {
+      query += ` WHERE ar.status = '${status}'`
+    }
+    query += ` ORDER BY ar.requested_at DESC`
+
+    const result = await env.DB.prepare(query).all()
+    return c.json({ success: true, data: result.results })
+  } catch (error) {
+    return c.json({ success: false, message: '承認リクエスト一覧の取得に失敗しました' }, 500)
+  }
+})
+
+// 承認リクエスト詳細（見積情報含む）
+app.get('/api/approval-requests/:id', async (c) => {
+  try {
+    const { env } = c
+    const id = c.req.param('id')
+    
+    const request = await env.DB.prepare(`
+      SELECT ar.*, 
+             a.name as approver_name, a.email as approver_email,
+             e.*, e.id as estimate_id,
+             c.name as customer_name, c.phone as customer_phone, c.email as customer_email,
+             p.name as project_name
+      FROM approval_requests ar
+      LEFT JOIN approvers a ON ar.approver_id = a.id
+      LEFT JOIN estimates e ON ar.estimate_id = e.id
+      LEFT JOIN customers c ON e.customer_id = c.id
+      LEFT JOIN projects p ON e.project_id = p.id
+      WHERE ar.id = ?
+    `).bind(id).first()
+
+    if (!request) {
+      return c.json({ success: false, message: '承認リクエストが見つかりません' }, 404)
+    }
+
+    return c.json({ success: true, data: request })
+  } catch (error) {
+    return c.json({ success: false, message: '承認リクエスト詳細の取得に失敗しました' }, 500)
+  }
+})
+
+// 承認実行
+app.put('/api/approval-requests/:id/approve', async (c) => {
+  try {
+    const { env } = c
+    const id = c.req.param('id')
+    const { comment } = await c.req.json()
+
+    // リクエスト取得
+    const request = await env.DB.prepare(`
+      SELECT * FROM approval_requests WHERE id = ? AND status = 'pending'
+    `).bind(id).first() as any
+    if (!request) {
+      return c.json({ success: false, message: '承認待ちのリクエストが見つかりません' }, 404)
+    }
+
+    // 承認リクエスト更新
+    await env.DB.prepare(`
+      UPDATE approval_requests SET status = 'approved', response_comment = ?, responded_at = CURRENT_TIMESTAMP WHERE id = ?
+    `).bind(comment || '', id).run()
+
+    // 見積ステータスを「承認済み」に更新
+    await env.DB.prepare(`
+      UPDATE estimates SET status = 'pending_approval', updated_at = CURRENT_TIMESTAMP WHERE id = ?
+    `).bind(request.estimate_id).run()
+
+    // TODO: 申請者にメール通知（Phase 4）
+
+    return c.json({ success: true, message: '見積を承認しました' })
+  } catch (error) {
+    return c.json({ success: false, message: '承認処理に失敗しました' }, 500)
+  }
+})
+
+// 差戻し実行
+app.put('/api/approval-requests/:id/reject', async (c) => {
+  try {
+    const { env } = c
+    const id = c.req.param('id')
+    const { comment } = await c.req.json()
+    if (!comment) {
+      return c.json({ success: false, message: '差戻し理由は必須です' }, 400)
+    }
+
+    // リクエスト取得
+    const request = await env.DB.prepare(`
+      SELECT * FROM approval_requests WHERE id = ? AND status = 'pending'
+    `).bind(id).first() as any
+    if (!request) {
+      return c.json({ success: false, message: '承認待ちのリクエストが見つかりません' }, 404)
+    }
+
+    // 承認リクエスト更新
+    await env.DB.prepare(`
+      UPDATE approval_requests SET status = 'rejected', response_comment = ?, responded_at = CURRENT_TIMESTAMP WHERE id = ?
+    `).bind(comment, id).run()
+
+    // 見積ステータスを「差戻し」に更新
+    await env.DB.prepare(`
+      UPDATE estimates SET status = 'revision_requested', updated_at = CURRENT_TIMESTAMP WHERE id = ?
+    `).bind(request.estimate_id).run()
+
+    // TODO: 申請者にメール通知（Phase 4）
+
+    return c.json({ success: true, message: '見積を差し戻しました' })
+  } catch (error) {
+    return c.json({ success: false, message: '差戻し処理に失敗しました' }, 500)
+  }
+})
+
 // Cloudflare Cron Trigger対応
 export default {
   fetch: app.fetch,
