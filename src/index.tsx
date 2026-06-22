@@ -155,6 +155,77 @@ app.get('/favicon.ico', (c) => {
   return c.text('', 204) // 204 No Content
 })
 
+// 管理者トップページ
+app.get('/admin', (c) => {
+  return c.html(`<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理メニュー - 運送見積システム</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <nav class="bg-white shadow-sm border-b">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <h1 class="text-lg font-bold text-gray-800"><i class="fas fa-cogs mr-2"></i>管理メニュー</h1>
+      <a href="/" class="text-sm text-gray-600 hover:text-gray-800"><i class="fas fa-home mr-1"></i>トップへ</a>
+    </div>
+  </nav>
+  <div class="max-w-4xl mx-auto p-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <a href="/admin/approvers" class="block bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow">
+        <div class="flex items-center gap-3 mb-2">
+          <div class="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center">
+            <i class="fas fa-user-check text-teal-600"></i>
+          </div>
+          <h2 class="font-bold text-gray-800">承認者マスタ</h2>
+        </div>
+        <p class="text-sm text-gray-500">承認者の追加・編集・無効化を管理</p>
+      </a>
+      <a href="/admin/approvals" class="block bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow">
+        <div class="flex items-center gap-3 mb-2">
+          <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+            <i class="fas fa-clipboard-check text-blue-600"></i>
+          </div>
+          <h2 class="font-bold text-gray-800">承認管理</h2>
+        </div>
+        <p class="text-sm text-gray-500">承認待ち・承認済み・差戻しの一覧管理</p>
+      </a>
+      <a href="/admin/customer-login" class="block bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow">
+        <div class="flex items-center gap-3 mb-2">
+          <div class="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+            <i class="fas fa-key text-orange-600"></i>
+          </div>
+          <h2 class="font-bold text-gray-800">顧客ログイン管理</h2>
+        </div>
+        <p class="text-sm text-gray-500">顧客ID・パスワードの発行・管理</p>
+      </a>
+      <a href="/admin/quote-requests" class="block bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow">
+        <div class="flex items-center gap-3 mb-2">
+          <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+            <i class="fas fa-inbox text-purple-600"></i>
+          </div>
+          <h2 class="font-bold text-gray-800">見積依頼一覧</h2>
+        </div>
+        <p class="text-sm text-gray-500">顧客からの見積依頼を確認・管理</p>
+      </a>
+      <a href="/admin/backup" class="block bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow">
+        <div class="flex items-center gap-3 mb-2">
+          <div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+            <i class="fas fa-database text-gray-600"></i>
+          </div>
+          <h2 class="font-bold text-gray-800">バックアップ</h2>
+        </div>
+        <p class="text-sm text-gray-500">データベースのバックアップ管理</p>
+      </a>
+    </div>
+  </div>
+</body>
+</html>`)
+})
+
 // バックアップ管理画面
 app.get('/admin/backup', (c) => {
   return c.html(`
