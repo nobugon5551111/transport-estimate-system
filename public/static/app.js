@@ -10227,7 +10227,7 @@ const EstimateManagement = {
             </span>
           </td>
           <td class="px-2 py-3 whitespace-nowrap text-sm">
-            <div class="flex flex-wrap gap-1">
+            <div class="grid grid-cols-3 gap-1">
               <button 
                 onClick="EstimateManagement.viewEstimateDetail(${estimate.id})" 
                 class="w-7 h-7 inline-flex items-center justify-center rounded text-blue-600 hover:bg-blue-50"
@@ -10248,6 +10248,13 @@ const EstimateManagement = {
                 title="PDF生成"
               >
                 <i class="fas fa-file-pdf text-xs"></i>
+              </button>
+              <button 
+                onClick="EstimateManagement.printEstimate(${estimate.id})" 
+                class="w-7 h-7 inline-flex items-center justify-center rounded text-indigo-600 hover:bg-indigo-50"
+                title="印刷"
+              >
+                <i class="fas fa-print text-xs"></i>
               </button>
               <button 
                 onClick="EstimateManagement.copyEstimate(${estimate.id})" 
@@ -11138,6 +11145,19 @@ const EstimateManagement = {
     } catch (error) {
       Utils.hideLoading();
       Utils.showError('保存中にエラーが発生しました: ' + error.message);
+    }
+  },
+
+  printEstimate: (estimateId) => {
+    // PDFを新しいウィンドウで開いてブラウザの印刷ダイアログを表示
+    const pdfUrl = `/api/estimates/${estimateId}/pdf`;
+    const printWindow = window.open(pdfUrl, '_blank');
+    if (printWindow) {
+      printWindow.addEventListener('load', () => {
+        setTimeout(() => {
+          printWindow.print();
+        }, 1000);
+      });
     }
   },
 
