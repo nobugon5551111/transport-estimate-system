@@ -2987,6 +2987,13 @@ app.put('/api/estimates/:id/status', async (c) => {
       WHERE id = ?
     `).bind(finalStatus, estimate.project_id).run()
     
+    // 見積自体のステータスも更新
+    await env.DB.prepare(`
+      UPDATE estimates 
+      SET status = ?, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `).bind(finalStatus, estimateId).run()
+    
     // ステータス履歴を記録（元のステータス変更を記録）
     await env.DB.prepare(`
       INSERT INTO status_history (project_id, old_status, new_status, notes, user_id)
@@ -17448,6 +17455,13 @@ app.put('/api/estimates/:id/status', async (c) => {
     if (!updateResult.success) {
       throw new Error('ステータスの更新に失敗しました')
     }
+    
+    // 見積自体のステータスも更新
+    await env.DB.prepare(`
+      UPDATE estimates 
+      SET status = ?, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `).bind(finalStatus, estimateId).run()
     
     // ステータス履歴に記録
     await env.DB.prepare(`

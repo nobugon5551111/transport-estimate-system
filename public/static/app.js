@@ -10184,7 +10184,7 @@ const EstimateManagement = {
       
       const customerName = customer ? customer.name : '不明';
       const projectName = project ? project.name : '不明';
-      const statusConfig = EstimateManagement.getProjectStatusConfig(project ? project.status : 'unknown');
+      const statusConfig = EstimateManagement.getProjectStatusConfig(estimate.status || (project ? project.status : 'unknown'));
       
       const isSelected = EstimateManagement.selectedEstimates.has(estimate.id);
       
@@ -10243,7 +10243,7 @@ const EstimateManagement = {
                 <i class="fas fa-edit text-xs"></i>
               </button>
               <button 
-                onClick="EstimateManagement.changeEstimateStatus(${estimate.id}, '${project ? project.status || 'initial' : 'initial'}')" 
+                onClick="EstimateManagement.changeEstimateStatus(${estimate.id}, '${estimate.status || (project ? project.status || 'initial' : 'initial')}')" 
                 class="w-7 h-7 inline-flex items-center justify-center rounded text-teal-600 hover:bg-teal-50"
                 title="ステータス変更"
               >
@@ -11219,16 +11219,9 @@ const EstimateManagement = {
 
     try {
       Utils.showLoading('ステータス更新中...');
-      
-      // 見積に紐づく案件のステータスを更新
-      const estimate = EstimateManagement.estimatesData.find(e => e.id === estimateId);
-      if (!estimate || !estimate.project_id) {
-        Utils.hideLoading();
-        Utils.showError('案件情報が見つかりません');
-        return;
-      }
 
-      const response = await fetch(`/api/projects/${estimate.project_id}/status`, {
+      // 見積のステータスを直接更新
+      const response = await fetch(`/api/estimates/${estimateId}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
