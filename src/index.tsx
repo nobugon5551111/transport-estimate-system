@@ -12148,6 +12148,10 @@ app.get('/settings', (c) => {
               <div className="p-6">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">設定メニュー</h3>
                 <nav className="space-y-2">
+                  <a href="/admin" className="flex items-center p-3 text-gray-700 hover:bg-gray-50 rounded-lg">
+                    <i className="fas fa-cogs mr-3 text-teal-600"></i>
+                    管理者メニュー
+                  </a>
                   <a href="/masters" className="flex items-center p-3 text-gray-700 hover:bg-gray-50 rounded-lg">
                     <i className="fas fa-database mr-3 text-orange-600"></i>
                     マスタ管理
