@@ -16827,8 +16827,8 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
               <table style="border-collapse: collapse; border: 1.5px solid #333; display: inline-table; margin-left: auto;">
                 <thead>
                   <tr>
-                    <th style="border: 1px solid #333; padding: 2px 8px; font-size: 9px; width: 60px; background: #f9f9f9;">検印</th>
-                    <th style="border: 1px solid #333; padding: 2px 8px; font-size: 9px; width: 60px; background: #f9f9f9;">担当者</th>
+                    <th style="border: 1px solid #333; padding: 2px 8px; font-size: 9px; width: 60px; background: #f9f9f9; text-align: center;">検印</th>
+                    <th style="border: 1px solid #333; padding: 2px 8px; font-size: 9px; width: 60px; background: #f9f9f9; text-align: center;">担当者</th>
                   </tr>
                 </thead>
                 <tbody>
