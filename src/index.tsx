@@ -15834,8 +15834,41 @@ app.get('/api/estimates/:id/pdf', async (c) => {
       }
     } catch (e) { console.error('承認情報取得エラー:', e) }
 
+    // 担当者印影情報を取得（staff_membersのseal_nameを優先）
+    let creatorSealName = ''
+    try {
+      if (estimateResult.created_by_name) {
+        // まず created_by_name で担当者マスタを検索
+        const staffMember = await env.DB.prepare(`
+          SELECT seal_name, name FROM staff_members 
+          WHERE name = ? AND is_active = 1
+          LIMIT 1
+        `).bind(estimateResult.created_by_name).first() as any
+        if (staffMember) {
+          creatorSealName = staffMember.seal_name || extractSealName(staffMember.name)
+        } else {
+          // 一致しない場合（例: 「管理者」のまま）、有効な担当者が1人のみならそれを使う
+          const fallbackStaff = await env.DB.prepare(`
+            SELECT seal_name, name FROM staff_members WHERE is_active = 1 ORDER BY sort_order ASC, id ASC LIMIT 2
+          `).all() as any
+          if (fallbackStaff.results && fallbackStaff.results.length === 1) {
+            const fb = fallbackStaff.results[0]
+            creatorSealName = fb.seal_name || extractSealName(fb.name)
+          } else if (fallbackStaff.results && fallbackStaff.results.length > 1) {
+            // 複数登録されている場合は最初の担当者を使う（暫定）
+            const fb = fallbackStaff.results[0]
+            creatorSealName = fb.seal_name || extractSealName(fb.name)
+          } else {
+            creatorSealName = extractSealName(estimateResult.created_by_name || '')
+          }
+        }
+      }
+    } catch (e) {
+      creatorSealName = extractSealName(estimateResult.created_by_name || '')
+    }
+
     const creatorSeal = {
-      name: extractSealName(estimateResult.created_by_name || ''),
+      name: creatorSealName,
       date: estimateResult.created_at
     }
 
