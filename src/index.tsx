@@ -175,6 +175,15 @@ app.get('/admin', (c) => {
   </nav>
   <div class="max-w-4xl mx-auto p-6">
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <a href="/admin/staff" class="block bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow">
+        <div class="flex items-center gap-3 mb-2">
+          <div class="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+            <i class="fas fa-user-tie text-indigo-600"></i>
+          </div>
+          <h2 class="font-bold text-gray-800">担当者マスタ</h2>
+        </div>
+        <p class="text-sm text-gray-500">見積担当者の追加・編集・印影名管理</p>
+      </a>
       <a href="/admin/approvers" class="block bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow">
         <div class="flex items-center gap-3 mb-2">
           <div class="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center">
@@ -7301,7 +7310,17 @@ app.get('/estimate/step6', (c) => {
                   </h3>
                   <div className="text-sm text-blue-700">
                     <div>作成日: <span id="createDate">2025-08-18</span></div>
-                    <div>担当者: <span id="createdByName">-</span></div>
+                    <div className="mt-1">
+                      <label className="font-medium">見積担当者:</label>
+                      <select id="createdByNameSelect" className="ml-1 px-2 py-1 border border-blue-300 rounded text-sm bg-white focus:ring-2 focus:ring-blue-400" onchange="onStaffMemberSelect(this)">
+                        <option value="">-- 選択してください --</option>
+                      </select>
+                      <input type="text" id="createdByNameInput" className="ml-1 px-2 py-1 border border-blue-300 rounded text-sm w-32 hidden" placeholder="担当者名を入力" oninput="onStaffNameInput(this)" />
+                      <button type="button" id="toggleManualInput" className="ml-1 text-xs text-blue-600 hover:text-blue-800 underline" onclick="toggleStaffNameInput()">手入力</button>
+                    </div>
+                    <div className="mt-0.5 text-xs text-blue-500">
+                      <span id="createdByNameDisplay">担当者: <span id="createdByName">-</span></span>
+                    </div>
                   </div>
                 </div>
                 
@@ -22886,6 +22905,305 @@ app.put('/api/approval-requests/:id/reject', async (c) => {
   } catch (error) {
     return c.json({ success: false, message: '差戻し処理に失敗しました' }, 500)
   }
+})
+
+// ========================================
+// 担当者マスタ API
+// ========================================
+
+// 担当者一覧取得
+app.get('/api/staff-members', async (c) => {
+  try {
+    const { env } = c
+    const results = await env.DB.prepare(`
+      SELECT * FROM staff_members ORDER BY sort_order ASC, name ASC
+    `).all()
+    return c.json({ success: true, data: results.results })
+  } catch (error) {
+    return c.json({ success: true, data: [] })
+  }
+})
+
+// 有効な担当者のみ取得
+app.get('/api/staff-members/active', async (c) => {
+  try {
+    const { env } = c
+    const results = await env.DB.prepare(`
+      SELECT * FROM staff_members WHERE is_active = 1 ORDER BY sort_order ASC, name ASC
+    `).all()
+    return c.json({ success: true, data: results.results })
+  } catch (error) {
+    return c.json({ success: true, data: [] })
+  }
+})
+
+// 担当者追加
+app.post('/api/staff-members', async (c) => {
+  try {
+    const { env } = c
+    const { name, seal_name, email, department, sort_order } = await c.req.json()
+    if (!name) {
+      return c.json({ success: false, message: '担当者名は必須です' }, 400)
+    }
+    const result = await env.DB.prepare(`
+      INSERT INTO staff_members (name, seal_name, email, department, sort_order) VALUES (?, ?, ?, ?, ?)
+    `).bind(name, seal_name || null, email || null, department || '', sort_order || 0).run()
+    return c.json({ success: true, id: result.meta.last_row_id, message: '担当者を追加しました' })
+  } catch (error) {
+    return c.json({ success: false, message: '担当者の追加に失敗しました' }, 500)
+  }
+})
+
+// 担当者更新
+app.put('/api/staff-members/:id', async (c) => {
+  try {
+    const { env } = c
+    const id = c.req.param('id')
+    const { name, seal_name, email, department, is_active, sort_order } = await c.req.json()
+    if (!name) {
+      return c.json({ success: false, message: '担当者名は必須です' }, 400)
+    }
+    await env.DB.prepare(`
+      UPDATE staff_members SET name = ?, seal_name = ?, email = ?, department = ?, is_active = ?, sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+    `).bind(name, seal_name || null, email || null, department || '', is_active ?? 1, sort_order || 0, id).run()
+    return c.json({ success: true, message: '担当者を更新しました' })
+  } catch (error) {
+    return c.json({ success: false, message: '担当者の更新に失敗しました' }, 500)
+  }
+})
+
+// 担当者削除
+app.delete('/api/staff-members/:id', async (c) => {
+  try {
+    const { env } = c
+    const id = c.req.param('id')
+    // 関連見積があるかチェック
+    const related = await env.DB.prepare(`
+      SELECT COUNT(*) as cnt FROM estimates WHERE created_by_name IN (SELECT name FROM staff_members WHERE id = ?)
+    `).bind(id).first() as any
+    if (related && related.cnt > 0) {
+      // 論理削除（無効化）
+      await env.DB.prepare(`UPDATE staff_members SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(id).run()
+      return c.json({ success: true, message: '関連見積があるため無効化しました' })
+    }
+    await env.DB.prepare(`DELETE FROM staff_members WHERE id = ?`).bind(id).run()
+    return c.json({ success: true, message: '担当者を削除しました' })
+  } catch (error) {
+    return c.json({ success: false, message: '担当者の削除に失敗しました' }, 500)
+  }
+})
+
+// 担当者マスタ管理画面
+app.get('/admin/staff', async (c) => {
+  return c.html(`<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>担当者マスタ管理 - 運送見積システム</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <nav class="bg-white shadow-sm border-b">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <h1 class="text-lg font-bold text-gray-800"><i class="fas fa-user-tie mr-2"></i>担当者マスタ管理</h1>
+      <div class="flex gap-3">
+        <a href="/admin" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
+          <i class="fas fa-arrow-left mr-1"></i>管理メニュー
+        </a>
+        <a href="/" class="text-sm text-gray-600 hover:text-gray-800"><i class="fas fa-home mr-1"></i>トップへ</a>
+      </div>
+    </div>
+  </nav>
+  <div class="max-w-5xl mx-auto p-6">
+    <!-- 追加フォーム -->
+    <div class="bg-white rounded-lg shadow-sm border p-6 mb-6">
+      <h2 class="text-base font-bold text-gray-800 mb-4" id="formTitle">
+        <i class="fas fa-plus-circle mr-2 text-green-600"></i>担当者追加
+      </h2>
+      <form id="staffForm" onsubmit="saveStaffMember(event)">
+        <input type="hidden" id="editId" value="">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">担当者名 <span class="text-red-500">*</span></label>
+            <input type="text" id="staffName" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="例: 山田 太郎" required>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">印影名（省略時は姓を自動使用）</label>
+            <input type="text" id="staffSealName" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="例: 山田">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">メールアドレス</label>
+            <input type="email" id="staffEmail" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="例: yamada@example.com">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">部署</label>
+            <input type="text" id="staffDepartment" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="例: 営業部">
+          </div>
+        </div>
+        <div class="mt-4 flex gap-2">
+          <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
+            <i class="fas fa-save mr-1"></i><span id="submitBtnText">追加</span>
+          </button>
+          <button type="button" id="cancelEditBtn" class="hidden px-4 py-2 bg-gray-400 text-white rounded-lg text-sm hover:bg-gray-500" onclick="cancelEdit()">
+            <i class="fas fa-times mr-1"></i>キャンセル
+          </button>
+        </div>
+      </form>
+    </div>
+    <!-- 一覧テーブル -->
+    <div class="bg-white rounded-lg shadow-sm border">
+      <div class="px-6 py-4 border-b">
+        <h2 class="text-base font-bold text-gray-800"><i class="fas fa-list mr-2 text-blue-600"></i>担当者一覧</h2>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">担当者名</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">印影名</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">メール</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">部署</th>
+              <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">状態</th>
+              <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">操作</th>
+            </tr>
+          </thead>
+          <tbody id="staffTableBody" class="divide-y divide-gray-200">
+            <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">読み込み中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <script>
+    let staffList = [];
+    async function loadStaffMembers() {
+      try {
+        const res = await fetch('/api/staff-members');
+        const data = await res.json();
+        staffList = data.data || [];
+        renderTable();
+      } catch(e) { console.error(e); }
+    }
+
+    function extractSealNamePreview(fullName) {
+      if (!fullName) return '';
+      const parts = fullName.split(/[\\s\\u3000]+/);
+      if (parts.length >= 2) return parts[0];
+      if (fullName.length <= 3) return fullName;
+      return fullName.substring(0, 2);
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('staffTableBody');
+      if (staffList.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">担当者が登録されていません</td></tr>';
+        return;
+      }
+      tbody.innerHTML = staffList.map(s => {
+        const sealDisplay = s.seal_name || extractSealNamePreview(s.name);
+        const statusBadge = s.is_active 
+          ? '<span class="px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">有効</span>'
+          : '<span class="px-2 py-1 text-xs bg-gray-100 text-gray-500 rounded-full">無効</span>';
+        return \`<tr class="\${s.is_active ? '' : 'bg-gray-50 opacity-60'}">
+          <td class="px-4 py-3 text-sm font-medium text-gray-900">\${s.name}</td>
+          <td class="px-4 py-3 text-sm text-gray-700">
+            <span class="inline-flex items-center gap-1">
+              <svg width="24" height="24" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="none" stroke="#CC0000" stroke-width="2"/><circle cx="20" cy="20" r="14" fill="none" stroke="#CC0000" stroke-width="1"/><text x="20" y="24" text-anchor="middle" font-size="10" fill="#CC0000" font-family="serif">\${sealDisplay}</text></svg>
+              \${sealDisplay}
+            </span>
+          </td>
+          <td class="px-4 py-3 text-sm text-gray-600">\${s.email || '-'}</td>
+          <td class="px-4 py-3 text-sm text-gray-600">\${s.department || '-'}</td>
+          <td class="px-4 py-3 text-center">\${statusBadge}</td>
+          <td class="px-4 py-3 text-center">
+            <button onclick="editStaffMember(\${s.id})" class="text-blue-600 hover:text-blue-800 text-sm mr-2" title="編集">
+              <i class="fas fa-edit"></i>
+            </button>
+            <button onclick="toggleActive(\${s.id}, \${s.is_active})" class="text-yellow-600 hover:text-yellow-800 text-sm mr-2" title="\${s.is_active ? '無効化' : '有効化'}">
+              <i class="fas fa-\${s.is_active ? 'ban' : 'check-circle'}"></i>
+            </button>
+            <button onclick="deleteStaffMember(\${s.id})" class="text-red-600 hover:text-red-800 text-sm" title="削除">
+              <i class="fas fa-trash"></i>
+            </button>
+          </td>
+        </tr>\`;
+      }).join('');
+    }
+
+    async function saveStaffMember(e) {
+      e.preventDefault();
+      const id = document.getElementById('editId').value;
+      const payload = {
+        name: document.getElementById('staffName').value.trim(),
+        seal_name: document.getElementById('staffSealName').value.trim() || null,
+        email: document.getElementById('staffEmail').value.trim() || null,
+        department: document.getElementById('staffDepartment').value.trim(),
+        is_active: 1,
+        sort_order: 0
+      };
+      if (!payload.name) { alert('担当者名を入力してください'); return; }
+      const url = id ? \`/api/staff-members/\${id}\` : '/api/staff-members';
+      const method = id ? 'PUT' : 'POST';
+      try {
+        const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        const data = await res.json();
+        if (data.success) {
+          cancelEdit();
+          loadStaffMembers();
+        } else {
+          alert(data.message || 'エラーが発生しました');
+        }
+      } catch(e) { alert('通信エラー'); }
+    }
+
+    function editStaffMember(id) {
+      const s = staffList.find(x => x.id === id);
+      if (!s) return;
+      document.getElementById('editId').value = s.id;
+      document.getElementById('staffName').value = s.name;
+      document.getElementById('staffSealName').value = s.seal_name || '';
+      document.getElementById('staffEmail').value = s.email || '';
+      document.getElementById('staffDepartment').value = s.department || '';
+      document.getElementById('formTitle').innerHTML = '<i class="fas fa-edit mr-2 text-blue-600"></i>担当者編集';
+      document.getElementById('submitBtnText').textContent = '更新';
+      document.getElementById('cancelEditBtn').classList.remove('hidden');
+    }
+
+    function cancelEdit() {
+      document.getElementById('editId').value = '';
+      document.getElementById('staffForm').reset();
+      document.getElementById('formTitle').innerHTML = '<i class="fas fa-plus-circle mr-2 text-green-600"></i>担当者追加';
+      document.getElementById('submitBtnText').textContent = '追加';
+      document.getElementById('cancelEditBtn').classList.add('hidden');
+    }
+
+    async function toggleActive(id, currentActive) {
+      const s = staffList.find(x => x.id === id);
+      if (!s) return;
+      const payload = { ...s, is_active: currentActive ? 0 : 1 };
+      try {
+        const res = await fetch(\`/api/staff-members/\${id}\`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        const data = await res.json();
+        if (data.success) loadStaffMembers();
+      } catch(e) { alert('通信エラー'); }
+    }
+
+    async function deleteStaffMember(id) {
+      if (!confirm('この担当者を削除しますか？')) return;
+      try {
+        const res = await fetch(\`/api/staff-members/\${id}\`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) { loadStaffMembers(); alert(data.message); }
+        else alert(data.message || 'エラー');
+      } catch(e) { alert('通信エラー'); }
+    }
+
+    loadStaffMembers();
+  </script>
+</body>
+</html>`)
 })
 
 // Cloudflare Cron Trigger対応

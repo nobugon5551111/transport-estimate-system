@@ -3636,8 +3636,39 @@ const Step6Implementation = {
     // 見積データを統合
     Step6Implementation.estimateData = flowData;
     
-    // 見積作成担当者名を追加
+    // 見積作成担当者名を追加（デフォルト値）
     Step6Implementation.estimateData.created_by_name = window._currentUser?.userName || '担当者未設定';
+
+    // 担当者マスタから選択肢を読み込み
+    try {
+      const staffRes = await API.get('/staff-members/active');
+      if (staffRes.success && staffRes.data && staffRes.data.length > 0) {
+        const select = document.getElementById('createdByNameSelect');
+        if (select) {
+          select.innerHTML = '<option value="">-- 選択してください --</option>';
+          staffRes.data.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.name;
+            opt.textContent = s.name + (s.department ? ` (${s.department})` : '');
+            opt.dataset.sealName = s.seal_name || '';
+            select.appendChild(opt);
+          });
+          // デフォルト: window._currentUser?.userName に一致する担当者を自動選択
+          const defaultName = window._currentUser?.userName || '';
+          const matchOption = Array.from(select.options).find(o => o.value === defaultName);
+          if (matchOption) {
+            select.value = defaultName;
+            Step6Implementation.estimateData.created_by_name = defaultName;
+          }
+        }
+      }
+    } catch (e) { console.warn('担当者マスタ取得失敗:', e); }
+    
+    // 担当者名をUIに反映
+    const createdByEl = document.getElementById('createdByName');
+    if (createdByEl) {
+      createdByEl.textContent = Step6Implementation.estimateData.created_by_name;
+    }
 
     // サービスレートを取得（buildLineItems用・プラン別）
     const planType = getCurrentPlanType();
@@ -5105,7 +5136,7 @@ const Step6Implementation = {
         notes: Step6Implementation.estimateData.services?.notes || '',
         valid_until: Step6Implementation.estimateData.valid_until || '',
         user_id: currentUser,
-        created_by_name: window._currentUser?.userName || '担当者未設定',
+        created_by_name: Step6Implementation.estimateData.created_by_name || window._currentUser?.userName || '担当者未設定',
         estimate_type: Step6Implementation.estimateData.estimate_type || sessionStorage.getItem('estimate_type') || 'standard_a'
       };
 
@@ -14143,6 +14174,62 @@ const ProjectManagement = {
 
 // 案件管理をグローバルに公開
 window.ProjectManagement = ProjectManagement;
+
+// ========================================
+// 見積担当者選択・手入力機能
+// ========================================
+
+// 担当者セレクト変更時
+function onStaffMemberSelect(selectEl) {
+  const name = selectEl.value;
+  if (name && Step6Implementation && Step6Implementation.estimateData) {
+    Step6Implementation.estimateData.created_by_name = name;
+    const display = document.getElementById('createdByName');
+    if (display) display.textContent = name;
+  }
+}
+window.onStaffMemberSelect = onStaffMemberSelect;
+
+// 手入力フィールドの入力時
+function onStaffNameInput(inputEl) {
+  const name = inputEl.value.trim();
+  if (name && Step6Implementation && Step6Implementation.estimateData) {
+    Step6Implementation.estimateData.created_by_name = name;
+    const display = document.getElementById('createdByName');
+    if (display) display.textContent = name;
+  }
+}
+window.onStaffNameInput = onStaffNameInput;
+
+// 手入力モード切り替え
+function toggleStaffNameInput() {
+  const select = document.getElementById('createdByNameSelect');
+  const input = document.getElementById('createdByNameInput');
+  const toggleBtn = document.getElementById('toggleManualInput');
+  if (!select || !input || !toggleBtn) return;
+  
+  if (select.classList.contains('hidden')) {
+    // セレクトモードに戻す
+    select.classList.remove('hidden');
+    input.classList.add('hidden');
+    toggleBtn.textContent = '手入力';
+    // セレクトの値を反映
+    if (select.value && Step6Implementation && Step6Implementation.estimateData) {
+      Step6Implementation.estimateData.created_by_name = select.value;
+      const display = document.getElementById('createdByName');
+      if (display) display.textContent = select.value;
+    }
+  } else {
+    // 手入力モードに切り替え
+    select.classList.add('hidden');
+    input.classList.remove('hidden');
+    toggleBtn.textContent = '一覧から選択';
+    // 現在のセレクト値を手入力フィールドに設定
+    input.value = Step6Implementation?.estimateData?.created_by_name || '';
+    input.focus();
+  }
+}
+window.toggleStaffNameInput = toggleStaffNameInput;
 
 // DOM読み込み完了時の案件管理初期化（/customersまたは/mastersページのみ）
 document.addEventListener('DOMContentLoaded', function() {
