@@ -15793,8 +15793,31 @@ app.get('/api/estimates/:id/pdf', async (c) => {
       })
     }
 
+    // 承認情報を取得（印影表示用）
+    let approvalSeal: any = null
+    try {
+      const approvalResult = await env.DB.prepare(`
+        SELECT ar.responded_at, a.name as approver_name, a.seal_name
+        FROM approval_requests ar
+        LEFT JOIN approvers a ON ar.approver_id = a.id
+        WHERE ar.estimate_id = ? AND ar.status = 'approved'
+        ORDER BY ar.responded_at DESC LIMIT 1
+      `).bind(estimateResult.id).first()
+      if (approvalResult) {
+        approvalSeal = {
+          name: (approvalResult as any).seal_name || extractSealName((approvalResult as any).approver_name),
+          date: (approvalResult as any).responded_at
+        }
+      }
+    } catch (e) { console.error('承認情報取得エラー:', e) }
+
+    const creatorSeal = {
+      name: extractSealName(estimateResult.created_by_name || ''),
+      date: estimateResult.created_at
+    }
+
     // PDF用HTMLを生成
-    const pdfHtml = generatePdfHTML(estimateResult, staffRates, vehiclePricing, basicSettings, calculatedStaffCost)
+    const pdfHtml = generatePdfHTML(estimateResult, staffRates, vehiclePricing, basicSettings, calculatedStaffCost, { creatorSeal, approvalSeal })
     
     return new Response(pdfHtml, {
       headers: {
@@ -16360,7 +16383,19 @@ function generateSurveyPdfHTML(estimate: any, items: any[], surveyMeta: any = {}
 </html>`
 }
 
-function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {}, basicSettings: any = {}, calculatedStaffCost: number = 0): string {
+// 印影用の姓を抽出するヘルパー関数
+function extractSealName(fullName: string): string {
+  if (!fullName) return ''
+  // スペース区切りの場合は姓部分
+  const parts = fullName.split(/[\s　]+/)
+  if (parts.length >= 2) return parts[0]
+  // 2〜3文字ならそのまま
+  if (fullName.length <= 3) return fullName
+  // 4文字以上は最初の2文字
+  return fullName.substring(0, 2)
+}
+
+function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {}, basicSettings: any = {}, calculatedStaffCost: number = 0, seals: any = {}): string {
   // エリアランク説明マッピング（A-I）
   const areaRankDescriptions: Record<string, string> = {
     'A': '大阪市内（15km圏）',
@@ -16787,6 +16822,48 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
     </div>
         </div>
         <div class="top-row-right">
+            <!-- 検印・担当者印 -->
+            <div style="text-align: right; margin-bottom: 8px;">
+              <table style="border-collapse: collapse; border: 1.5px solid #333; display: inline-table; margin-left: auto;">
+                <thead>
+                  <tr>
+                    <th style="border: 1px solid #333; padding: 2px 8px; font-size: 9px; width: 60px; background: #f9f9f9;">検印</th>
+                    <th style="border: 1px solid #333; padding: 2px 8px; font-size: 9px; width: 60px; background: #f9f9f9;">担当者</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="height: 58px;">
+                    <td style="border: 1px solid #333; text-align: center; vertical-align: middle; padding: 4px;">
+                      ${seals.approvalSeal ? `
+                        <svg width="44" height="44" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg">
+                          <circle cx="22" cy="22" r="20" fill="none" stroke="#CC0000" stroke-width="1.5"/>
+                          <circle cx="22" cy="22" r="17.5" fill="none" stroke="#CC0000" stroke-width="0.5"/>
+                          <text x="22" y="${seals.approvalSeal.name.length <= 2 ? '27' : '26'}" text-anchor="middle" font-size="${seals.approvalSeal.name.length <= 2 ? '13' : '10'}" font-family="serif" fill="#CC0000" font-weight="bold">${seals.approvalSeal.name}</text>
+                        </svg>
+                      ` : ''}
+                    </td>
+                    <td style="border: 1px solid #333; text-align: center; vertical-align: middle; padding: 4px;">
+                      ${seals.creatorSeal && seals.creatorSeal.name ? `
+                        <svg width="44" height="44" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg">
+                          <circle cx="22" cy="22" r="20" fill="none" stroke="#CC0000" stroke-width="1.5"/>
+                          <circle cx="22" cy="22" r="17.5" fill="none" stroke="#CC0000" stroke-width="0.5"/>
+                          <text x="22" y="${seals.creatorSeal.name.length <= 2 ? '27' : '26'}" text-anchor="middle" font-size="${seals.creatorSeal.name.length <= 2 ? '13' : '10'}" font-family="serif" fill="#CC0000" font-weight="bold">${seals.creatorSeal.name}</text>
+                        </svg>
+                      ` : ''}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="border: 1px solid #333; text-align: center; font-size: 8px; padding: 1px; color: #555;">
+                      ${seals.approvalSeal && seals.approvalSeal.date ? new Date(seals.approvalSeal.date).toLocaleDateString('ja-JP', {month:'numeric',day:'numeric'}) : ''}
+                    </td>
+                    <td style="border: 1px solid #333; text-align: center; font-size: 8px; padding: 1px; color: #555;">
+                      ${seals.creatorSeal && seals.creatorSeal.date ? new Date(seals.creatorSeal.date).toLocaleDateString('ja-JP', {month:'numeric',day:'numeric'}) : ''}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <div style="text-align: right; font-size: 8px; color: #666; margin-top: 2px;">※検印のなきものは無効です</div>
+            </div>
             <div class="company-info">
                 ${basicSettings.company_name ? `<span class="company-name-text">${basicSettings.company_name}</span><br>` : ''}
                 ${basicSettings.company_address ? `${basicSettings.company_address}<br>` : ''}
