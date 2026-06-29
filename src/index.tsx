@@ -16563,6 +16563,9 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
             flex: 0 0 auto;
             text-align: right;
             min-width: 260px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
         }
         
         .company-info {
@@ -16878,29 +16881,36 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
     </div>
         </div>
         <div class="top-row-right">
-            <!-- 検印・担当者印 -->
-            <div style="text-align: right; margin-bottom: 8px;">
+            <!-- 社名・インボイス番号（上） -->
+            <div class="company-info">
+                ${basicSettings.company_name ? `<span class="company-name-text">${basicSettings.company_name}</span><br>` : ''}
+                ${basicSettings.company_address ? `${basicSettings.company_address}<br>` : ''}
+                ${basicSettings.company_phone ? `TEL: ${basicSettings.company_phone}` : ''}${basicSettings.company_fax ? ` / FAX: ${basicSettings.company_fax}` : ''}
+                ${basicSettings.invoice_number ? `<br><span class="invoice-number-text">インボイス番号 ${basicSettings.invoice_number}</span>` : ''}
+            </div>
+            <!-- 検印・担当者印（下） -->
+            <div style="text-align: right; margin-top: 6px;">
               <table style="border-collapse: collapse; border: 1.5px solid #333; display: inline-table; margin-left: auto;">
                 <thead>
                   <tr>
-                    <th style="border: 1px solid #333; padding: 2px 8px; font-size: 9px; width: 60px; background: #f9f9f9; text-align: center;">検印</th>
-                    <th style="border: 1px solid #333; padding: 2px 8px; font-size: 9px; width: 60px; background: #f9f9f9; text-align: center;">担当者</th>
+                    <th style="border: 1px solid #333; padding: 1px 6px; font-size: 8px; width: 50px; background: #f9f9f9; text-align: center;">検印</th>
+                    <th style="border: 1px solid #333; padding: 1px 6px; font-size: 8px; width: 50px; background: #f9f9f9; text-align: center;">担当者</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr style="height: 58px;">
-                    <td style="border: 1px solid #333; text-align: center; vertical-align: middle; padding: 4px;">
+                  <tr style="height: 48px;">
+                    <td style="border: 1px solid #333; text-align: center; vertical-align: middle; padding: 3px;">
                       ${seals.approvalSeal ? `
-                        <svg width="44" height="44" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg">
+                        <svg width="38" height="38" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg">
                           <circle cx="22" cy="22" r="20" fill="none" stroke="#CC0000" stroke-width="1.5"/>
                           <circle cx="22" cy="22" r="17.5" fill="none" stroke="#CC0000" stroke-width="0.5"/>
                           <text x="22" y="${seals.approvalSeal.name.length <= 2 ? '27' : '26'}" text-anchor="middle" font-size="${seals.approvalSeal.name.length <= 2 ? '13' : '10'}" font-family="serif" fill="#CC0000" font-weight="bold">${seals.approvalSeal.name}</text>
                         </svg>
                       ` : ''}
                     </td>
-                    <td style="border: 1px solid #333; text-align: center; vertical-align: middle; padding: 4px;">
+                    <td style="border: 1px solid #333; text-align: center; vertical-align: middle; padding: 3px;">
                       ${seals.creatorSeal && seals.creatorSeal.name ? `
-                        <svg width="44" height="44" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg">
+                        <svg width="38" height="38" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg">
                           <circle cx="22" cy="22" r="20" fill="none" stroke="#CC0000" stroke-width="1.5"/>
                           <circle cx="22" cy="22" r="17.5" fill="none" stroke="#CC0000" stroke-width="0.5"/>
                           <text x="22" y="${seals.creatorSeal.name.length <= 2 ? '27' : '26'}" text-anchor="middle" font-size="${seals.creatorSeal.name.length <= 2 ? '13' : '10'}" font-family="serif" fill="#CC0000" font-weight="bold">${seals.creatorSeal.name}</text>
@@ -16908,23 +16918,9 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
                       ` : ''}
                     </td>
                   </tr>
-                  <tr>
-                    <td style="border: 1px solid #333; text-align: center; font-size: 8px; padding: 1px; color: #555;">
-                      ${seals.approvalSeal && seals.approvalSeal.date ? new Date(seals.approvalSeal.date).toLocaleDateString('ja-JP', {month:'numeric',day:'numeric'}) : ''}
-                    </td>
-                    <td style="border: 1px solid #333; text-align: center; font-size: 8px; padding: 1px; color: #555;">
-                      ${seals.creatorSeal && seals.creatorSeal.date ? new Date(seals.creatorSeal.date).toLocaleDateString('ja-JP', {month:'numeric',day:'numeric'}) : ''}
-                    </td>
-                  </tr>
                 </tbody>
               </table>
-              <div style="text-align: right; font-size: 8px; color: #666; margin-top: 2px;">※検印のなきものは無効です</div>
-            </div>
-            <div class="company-info">
-                ${basicSettings.company_name ? `<span class="company-name-text">${basicSettings.company_name}</span><br>` : ''}
-                ${basicSettings.company_address ? `${basicSettings.company_address}<br>` : ''}
-                ${basicSettings.company_phone ? `TEL: ${basicSettings.company_phone}` : ''}${basicSettings.company_fax ? ` / FAX: ${basicSettings.company_fax}` : ''}
-                ${basicSettings.invoice_number ? `<br><span class="invoice-number-text">インボイス番号 ${basicSettings.invoice_number}</span>` : ''}
+              <div style="text-align: right; font-size: 7px; color: #666; margin-top: 1px;">※検印のなきものは無効です</div>
             </div>
         </div>
     </div>
