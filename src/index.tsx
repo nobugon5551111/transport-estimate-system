@@ -16551,7 +16551,7 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
         .top-row {
             display: flex;
             justify-content: space-between;
-            align-items: flex-end;
+            align-items: flex-start;
             gap: 16px;
             margin-bottom: 8px;
         }
@@ -16565,7 +16565,8 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
             min-width: 260px;
             display: flex;
             flex-direction: column;
-            justify-content: flex-end;
+            justify-content: flex-start;
+            padding-top: 38px;
         }
         
         .company-info {
