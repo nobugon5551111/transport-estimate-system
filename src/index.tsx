@@ -21224,8 +21224,8 @@ app.get('/quote-request', (c) => {
             </label>
             <select id="deliveryTime" class="form-select">
               <option value="">選択してください</option>
-              <option value="午前（9:00-12:00）">午前（9:00-12:00）</option>
-              <option value="午後（13:00-17:00）">午後（13:00-17:00）</option>
+              <option value="定時間帯（9:00-18:00）">定時間帯（9:00-18:00）</option>
+              <option value="時間外（18:00-翌9:00）">時間外（18:00-翌9:00）</option>
               <option value="指定なし">指定なし</option>
             </select>
           </div>
@@ -21255,6 +21255,34 @@ app.get('/quote-request', (c) => {
         <button onclick="addItem()" class="btn-secondary mt-2">
           <i class="fas fa-plus mr-1"></i>品目を追加
         </button>
+
+        <!-- 引取家具（廃棄） -->
+        <div class="mt-6 pt-4 border-t border-gray-200">
+          <h4 class="text-sm font-bold text-gray-700 mb-3">
+            <i class="fas fa-trash-alt text-amber-600 mr-2"></i>引取家具（廃棄）
+          </h4>
+          <div class="mb-3">
+            <label class="block text-sm font-medium text-gray-700 mb-2">引取家具の有無</label>
+            <div class="flex items-center space-x-4">
+              <label class="flex items-center cursor-pointer">
+                <input type="radio" name="furnitureDisposal" value="無" checked onchange="toggleFurnitureDisposal()">
+                <span class="ml-2 text-sm">無</span>
+              </label>
+              <label class="flex items-center cursor-pointer">
+                <input type="radio" name="furnitureDisposal" value="有" onchange="toggleFurnitureDisposal()">
+                <span class="ml-2 text-sm">有</span>
+              </label>
+            </div>
+          </div>
+          <div id="furnitureDisposalSection" style="display:none;">
+            <div id="disposalItemsContainer">
+              <!-- 廃棄家具アイテムが動的に追加される -->
+            </div>
+            <button onclick="addDisposalItem()" class="btn-secondary mt-2">
+              <i class="fas fa-plus mr-1"></i>廃棄家具を追加
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- セクション3: 設置環境 -->
@@ -21536,6 +21564,79 @@ app.get('/quote-request', (c) => {
     document.getElementById('protectionScopeGroup').style.display = has === '有' ? 'block' : 'none';
   }
 
+  // 引取家具（廃棄）表示切替
+  let disposalItemCount = 0;
+  function toggleFurnitureDisposal() {
+    const val = document.querySelector('input[name="furnitureDisposal"]:checked')?.value || '無';
+    const section = document.getElementById('furnitureDisposalSection');
+    if (val === '有') {
+      section.style.display = 'block';
+      if (document.getElementById('disposalItemsContainer').children.length === 0) {
+        addDisposalItem();
+      }
+    } else {
+      section.style.display = 'none';
+    }
+  }
+
+  function addDisposalItem() {
+    disposalItemCount++;
+    const container = document.getElementById('disposalItemsContainer');
+    const card = document.createElement('div');
+    card.className = 'item-card';
+    card.id = 'disposal-item-' + disposalItemCount;
+    card.innerHTML = \`
+      <div class="flex justify-between items-center mb-3">
+        <span class="font-bold text-sm text-amber-700"><i class="fas fa-trash-alt mr-1"></i>廃棄家具 #\${disposalItemCount}</span>
+        <button onclick="removeDisposalItem(\${disposalItemCount})" class="btn-danger"><i class="fas fa-times mr-1"></i>削除</button>
+      </div>
+      <div class="grid grid-cols-4 gap-3">
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">家具名</label>
+          <input type="text" class="form-input disposal-name" placeholder="例: ソファ" data-disposal="\${disposalItemCount}">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">縦 (cm)</label>
+          <input type="number" class="form-input disposal-height" min="0" placeholder="0" data-disposal="\${disposalItemCount}">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">横 (cm)</label>
+          <input type="number" class="form-input disposal-width" min="0" placeholder="0" data-disposal="\${disposalItemCount}">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">奥行 (cm)</label>
+          <input type="number" class="form-input disposal-depth" min="0" placeholder="0" data-disposal="\${disposalItemCount}">
+        </div>
+      </div>
+    \`;
+    container.appendChild(card);
+  }
+
+  function removeDisposalItem(id) {
+    const card = document.getElementById('disposal-item-' + id);
+    if (card) card.remove();
+    // 全削除時は「無」に戻す
+    if (document.getElementById('disposalItemsContainer').children.length === 0) {
+      document.querySelector('input[name="furnitureDisposal"][value="無"]').checked = true;
+      toggleFurnitureDisposal();
+    }
+  }
+
+  function collectDisposalItems() {
+    const items = [];
+    const cards = document.querySelectorAll('[id^="disposal-item-"]');
+    cards.forEach(card => {
+      const name = card.querySelector('.disposal-name')?.value || '';
+      const height = parseInt(card.querySelector('.disposal-height')?.value) || 0;
+      const width = parseInt(card.querySelector('.disposal-width')?.value) || 0;
+      const depth = parseInt(card.querySelector('.disposal-depth')?.value) || 0;
+      if (name || height || width || depth) {
+        items.push({ name, height, width, depth });
+      }
+    });
+    return items;
+  }
+
   // 品目データ収集
   function collectItems() {
     const items = [];
@@ -21614,6 +21715,8 @@ app.get('/quote-request', (c) => {
       has_hoisting: document.getElementById('hasHoisting').value,
       has_crane: document.getElementById('hasCrane').value,
       delivery_route_info: document.getElementById('deliveryRouteInfo').value.trim(),
+      furniture_disposal: document.querySelector('input[name="furnitureDisposal"]:checked')?.value || '無',
+      furniture_disposal_items: collectDisposalItems(),
       notes: document.getElementById('notes').value.trim()
     };
     
