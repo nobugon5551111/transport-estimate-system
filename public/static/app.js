@@ -3095,28 +3095,36 @@ const Step5Implementation = {
         if (wasteRadio) wasteRadio.checked = true;
       }
       if (flowData.services.protection_work) {
-        document.getElementById('protection_work').checked = true;
-        Step5Implementation.handleProtectionWorkChange();
+        const protWorkEl = document.getElementById('protection_work');
+        if (protWorkEl) {
+          protWorkEl.checked = true;
+          Step5Implementation.handleProtectionWorkChange();
+        }
       }
       if (flowData.services.material_collection_size !== 'none') {
         const materialRadio = document.querySelector(`input[name="material_collection"][value="${flowData.services.material_collection_size}"]`);
         if (materialRadio) materialRadio.checked = true;
       }
       if (flowData.services.construction_m2_staff) {
-        document.getElementById('construction_m2_staff').value = flowData.services.construction_m2_staff;
+        const constrEl = document.getElementById('construction_m2_staff');
+        if (constrEl) constrEl.value = flowData.services.construction_m2_staff;
       }
       if (flowData.services.parking_fee) {
-        document.getElementById('parking_fee').value = flowData.services.parking_fee;
+        const parkFeeEl = document.getElementById('parking_fee');
+        if (parkFeeEl) parkFeeEl.value = flowData.services.parking_fee;
       }
       if (flowData.services.highway_fee) {
-        document.getElementById('highway_fee').value = flowData.services.highway_fee;
+        const hwFeeEl = document.getElementById('highway_fee');
+        if (hwFeeEl) hwFeeEl.value = flowData.services.highway_fee;
       }
       // 4トン車追加プリフィル
       if (flowData.services.additional_truck_count) {
-        document.getElementById('additional_truck_count').value = flowData.services.additional_truck_count;
+        const truckCountEl = document.getElementById('additional_truck_count');
+        if (truckCountEl) truckCountEl.value = flowData.services.additional_truck_count;
       }
       if (flowData.services.additional_truck_unit_price) {
-        document.getElementById('additional_truck_unit_price').value = flowData.services.additional_truck_unit_price;
+        const truckPriceEl = document.getElementById('additional_truck_unit_price');
+        if (truckPriceEl) truckPriceEl.value = flowData.services.additional_truck_unit_price;
       }
     }
 
@@ -3131,14 +3139,23 @@ const Step5Implementation = {
       debugButton.className = 'btn-secondary text-xs mt-2';
       debugButton.onclick = () => {
         // サンプル値を設定
-        document.getElementById('parking_officer_hours').value = '2';
-        document.getElementById('transport_vehicles').value = '1';
-        document.querySelector('input[name="waste_disposal"][value="small"]').checked = true;
-        document.getElementById('protection_work').checked = true;
-        Step5Implementation.handleProtectionWorkChange();
-        document.getElementById('construction_m2_staff').value = '1';
-        document.getElementById('parking_fee').value = '1000';
-        document.getElementById('highway_fee').value = '2000';
+        const poEl = document.getElementById('parking_officer_hours');
+        if (poEl) poEl.value = '2';
+        const tvEl = document.getElementById('transport_vehicles');
+        if (tvEl) tvEl.value = '1';
+        const wasteSmall = document.querySelector('input[name="waste_disposal"][value="small"]');
+        if (wasteSmall) wasteSmall.checked = true;
+        const protEl = document.getElementById('protection_work');
+        if (protEl) {
+          protEl.checked = true;
+          Step5Implementation.handleProtectionWorkChange();
+        }
+        const cm2El = document.getElementById('construction_m2_staff');
+        if (cm2El) cm2El.value = '1';
+        const pfEl = document.getElementById('parking_fee');
+        if (pfEl) pfEl.value = '1000';
+        const hwEl = document.getElementById('highway_fee');
+        if (hwEl) hwEl.value = '2000';
         Step5Implementation.updateServicesCost();
         console.log('✅ サンプルサービスデータを設定しました');
       };
@@ -3170,12 +3187,14 @@ const Step5Implementation = {
   handleProtectionWorkChange: () => {
     const protectionWork = document.getElementById('protection_work');
     const protectionFloors = document.getElementById('protectionFloors');
+    if (!protectionWork || !protectionFloors) return;
     
     if (protectionWork.checked) {
       protectionFloors.classList.remove('hidden');
     } else {
       protectionFloors.classList.add('hidden');
-      document.getElementById('protection_floors').value = '1';
+      const floorsEl = document.getElementById('protection_floors');
+      if (floorsEl) floorsEl.value = '1';
     }
     
     Step5Implementation.updateServicesCost();
@@ -3225,20 +3244,20 @@ const Step5Implementation = {
       materialCollection,
       workTimeType: document.querySelector('input[name="work_time_type"]:checked')?.value || 'normal'
     });
-    // 施工方法による費用計算
+    // 施工方法による費用計算（削除済みだが互換性のためフォールバック）
     const constructionType = document.querySelector('input[name="construction_type"]:checked');
     let constructionM2Staff = 0;
     let constructionCost = 0;
     
     if (constructionType && constructionType.value === 'm2_staff') {
-      constructionM2Staff = parseInt(document.getElementById('construction_m2_staff').value) || 0;
+      constructionM2Staff = parseInt(document.getElementById('construction_m2_staff')?.value) || 0;
       constructionCost = constructionM2Staff * (Step5Implementation.serviceRates.construction_m2_staff || Step5Implementation.serviceRates['construction.m2_staff_rate'] || 12500);
     } else if (constructionType && constructionType.value === 'partner_company') {
-      constructionCost = parseFloat(document.getElementById('construction_cost').value) || 0;
+      constructionCost = parseFloat(document.getElementById('construction_cost')?.value) || 0;
     }
     const workTimeType = document.querySelector('input[name="work_time_type"]:checked')?.value || 'normal';
-    const parkingFee = parseInt(document.getElementById('parking_fee').value) || 0;
-    const highwayFee = parseInt(document.getElementById('highway_fee').value) || 0;
+    const parkingFee = parseInt(document.getElementById('parking_fee')?.value) || 0;
+    const highwayFee = parseInt(document.getElementById('highway_fee')?.value) || 0;
 
     // 4トン車追加（フリー入力）
     const additionalTruckCount = parseInt(document.getElementById('additional_truck_count')?.value) || 0;
@@ -3289,9 +3308,9 @@ const Step5Implementation = {
       const perFloorRate = rates.protection_work_per_floor || 3000;
       // 基本料金 + （フロア単価 × フロア数）
       costs.protection_work = baseRate + (perFloorRate * protectionFloors);
-      document.getElementById('protectionFloors').classList.remove('hidden');
+      document.getElementById('protectionFloors')?.classList.remove('hidden');
     } else {
-      document.getElementById('protectionFloors').classList.add('hidden');
+      document.getElementById('protectionFloors')?.classList.add('hidden');
     }
 
     // 作業時間帯割増計算（車両・スタッフ費用に適用）
@@ -3368,7 +3387,7 @@ const Step5Implementation = {
       material_collection_size: materialCollection,
       material_collection_cost: costs.material_collection || 0,
       construction_m2_staff: constructionM2Staff,
-      construction_partner: document.getElementById('construction_partner').value,
+      construction_partner: document.getElementById('construction_partner')?.value || '',
       construction_cost: costs.construction || 0,
       work_time_type: workTimeType,
       work_time_multiplier: workTimeMultiplier,
@@ -3378,7 +3397,7 @@ const Step5Implementation = {
       parking_fee: parkingFee || 0,
       highway_fee: highwayFee || 0,
       total_cost: totalServicesCost || 0,  // 確実に数値にする
-      notes: document.getElementById('notes').value
+      notes: document.getElementById('notes')?.value || ''
     };
   },
 
@@ -3392,19 +3411,22 @@ const Step5Implementation = {
     
     if (constructionType.value === 'm2_staff') {
       // M2スタッフが選択された場合
-      m2StaffDetails.classList.remove('hidden');
-      partnerCompanyDetails.classList.add('hidden');
+      if (m2StaffDetails) m2StaffDetails.classList.remove('hidden');
+      if (partnerCompanyDetails) partnerCompanyDetails.classList.add('hidden');
       
       // 協力会社のフィールドをクリア
-      document.getElementById('construction_partner').value = '';
-      document.getElementById('construction_cost').value = '';
+      const partnerEl = document.getElementById('construction_partner');
+      const costEl = document.getElementById('construction_cost');
+      if (partnerEl) partnerEl.value = '';
+      if (costEl) costEl.value = '';
     } else if (constructionType.value === 'partner_company') {
       // 協力会社が選択された場合
-      m2StaffDetails.classList.add('hidden');
-      partnerCompanyDetails.classList.remove('hidden');
+      if (m2StaffDetails) m2StaffDetails.classList.add('hidden');
+      if (partnerCompanyDetails) partnerCompanyDetails.classList.remove('hidden');
       
       // M2スタッフ数をクリア
-      document.getElementById('construction_m2_staff').value = '0';
+      const staffEl = document.getElementById('construction_m2_staff');
+      if (staffEl) staffEl.value = '0';
     }
     
     // サービス費用を再計算
