@@ -6957,19 +6957,47 @@ app.get('/estimate/step5', (c) => {
                 </div>
               </div>
 
-              {/* 実費請求 */}
+              {/* 4トン車追加（フリー入力） */}
               <div className="border rounded-lg p-4">
                 <div className="flex items-center mb-4">
-                  <i className="fas fa-receipt text-gray-500 text-xl mr-3"></i>
-                  <h4 className="text-lg font-medium text-gray-900">実費請求</h4>
+                  <i className="fas fa-truck-moving text-green-500 text-xl mr-3"></i>
+                  <h4 className="text-lg font-medium text-gray-900">4トン車追加</h4>
+                  <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">フリー入力</span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">駐車料金</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">台数</label>
                     <div className="flex items-center space-x-3">
-                      <input type="number" id="parking_fee" className="form-input w-24" min="0" max="50000" value="0" onChange="updateServicesCost()" />
+                      <input 
+                        type="number" 
+                        id="additional_truck_count" 
+                        className="form-input w-20" 
+                        min="0" 
+                        max="20" 
+                        value="0"
+                        onChange="updateServicesCost()"
+                      />
+                      <span className="text-sm text-gray-600">台</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">単価（1台あたり）</label>
+                    <div className="flex items-center space-x-3">
+                      <input 
+                        type="number" 
+                        id="additional_truck_unit_price" 
+                        className="form-input w-32" 
+                        min="0" 
+                        step="1000"
+                        value="0"
+                        onChange="updateServicesCost()"
+                      />
                       <span className="text-sm text-gray-600">円</span>
                     </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">小計</label>
+                    <p className="text-lg font-bold text-green-600 mt-1" id="additional_truck_subtotal">¥0</p>
                   </div>
                 </div>
               </div>
