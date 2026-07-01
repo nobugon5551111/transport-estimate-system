@@ -3,6 +3,8 @@
 export interface Bindings {
   DB: D1Database;
   AI: Ai;
+  RESEND_API_KEY: string;
+  RESEND_FROM_EMAIL: string;
 }
 
 export interface Customer {

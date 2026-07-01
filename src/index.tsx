@@ -16293,6 +16293,190 @@ function extractSealName(fullName: string): string {
   return fullName.substring(0, 2)
 }
 
+// ============================================
+// メール通知ヘルパー（Resend API）
+// ============================================
+interface SendEmailOptions {
+  to: string
+  subject: string
+  html: string
+}
+
+async function sendNotificationEmail(env: any, options: SendEmailOptions): Promise<{ success: boolean; error?: string }> {
+  const apiKey = env.RESEND_API_KEY
+  const fromEmail = env.RESEND_FROM_EMAIL
+  
+  if (!apiKey || !fromEmail) {
+    console.error('メール通知: RESEND_API_KEY または RESEND_FROM_EMAIL が設定されていません')
+    return { success: false, error: 'メール設定が不完全です' }
+  }
+
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: `M2ロジ見積システム <${fromEmail}>`,
+        to: [options.to],
+        subject: options.subject,
+        html: options.html
+      })
+    })
+
+    if (!response.ok) {
+      const errorData = await response.text()
+      console.error('Resend APIエラー:', response.status, errorData)
+      return { success: false, error: `送信失敗(${response.status})` }
+    }
+
+    return { success: true }
+  } catch (error: any) {
+    console.error('メール送信エラー:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+function buildApprovalRequestEmail(params: {
+  approverName: string
+  requesterName: string
+  estimateNumber: string
+  customerName: string
+  projectName: string
+  totalAmount: number
+  comment: string
+  adminUrl: string
+}): { subject: string; html: string } {
+  const subject = `【承認依頼】見積 ${params.estimateNumber} の承認をお願いします`
+  const html = `
+    <div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background: #1e40af; color: white; padding: 16px 24px; border-radius: 8px 8px 0 0;">
+        <h1 style="margin: 0; font-size: 18px;">📋 見積承認依頼</h1>
+      </div>
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-top: none; padding: 24px; border-radius: 0 0 8px 8px;">
+        <p style="margin: 0 0 16px 0; font-size: 14px; color: #334155;">
+          <strong>${params.approverName}</strong> 様
+        </p>
+        <p style="margin: 0 0 16px 0; font-size: 14px; color: #334155;">
+          以下の見積について承認をお願いいたします。
+        </p>
+        <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 8px 12px; font-size: 13px; color: #64748b; width: 120px;">見積番号</td>
+            <td style="padding: 8px 12px; font-size: 14px; font-weight: bold; color: #1e293b;">${params.estimateNumber}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 8px 12px; font-size: 13px; color: #64748b;">顧客名</td>
+            <td style="padding: 8px 12px; font-size: 14px; color: #1e293b;">${params.customerName}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 8px 12px; font-size: 13px; color: #64748b;">案件名</td>
+            <td style="padding: 8px 12px; font-size: 14px; color: #1e293b;">${params.projectName}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 8px 12px; font-size: 13px; color: #64748b;">見積金額</td>
+            <td style="padding: 8px 12px; font-size: 14px; font-weight: bold; color: #1e293b;">¥${params.totalAmount.toLocaleString()}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 8px 12px; font-size: 13px; color: #64748b;">申請者</td>
+            <td style="padding: 8px 12px; font-size: 14px; color: #1e293b;">${params.requesterName}</td>
+          </tr>
+          ${params.comment ? `<tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 8px 12px; font-size: 13px; color: #64748b;">コメント</td>
+            <td style="padding: 8px 12px; font-size: 14px; color: #1e293b;">${params.comment}</td>
+          </tr>` : ''}
+        </table>
+        <div style="margin: 24px 0; text-align: center;">
+          <a href="${params.adminUrl}" style="display: inline-block; background: #1e40af; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: bold;">
+            承認管理画面を開く
+          </a>
+        </div>
+        <p style="margin: 16px 0 0 0; font-size: 12px; color: #94a3b8; text-align: center;">
+          ※ このメールはM2ロジ見積管理システムから自動送信されています。
+        </p>
+      </div>
+    </div>
+  `
+  return { subject, html }
+}
+
+function buildApprovalResultEmail(params: {
+  requesterName: string
+  estimateNumber: string
+  customerName: string
+  projectName: string
+  totalAmount: number
+  status: 'approved' | 'rejected'
+  approverName: string
+  comment: string
+  adminUrl: string
+}): { subject: string; html: string } {
+  const isApproved = params.status === 'approved'
+  const statusText = isApproved ? '承認' : '差戻し'
+  const statusColor = isApproved ? '#059669' : '#dc2626'
+  const statusIcon = isApproved ? '✅' : '🔄'
+  const subject = `【${statusText}】見積 ${params.estimateNumber} が${statusText}されました`
+  const html = `
+    <div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background: ${statusColor}; color: white; padding: 16px 24px; border-radius: 8px 8px 0 0;">
+        <h1 style="margin: 0; font-size: 18px;">${statusIcon} 見積${statusText}通知</h1>
+      </div>
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-top: none; padding: 24px; border-radius: 0 0 8px 8px;">
+        <p style="margin: 0 0 16px 0; font-size: 14px; color: #334155;">
+          <strong>${params.requesterName}</strong> 様
+        </p>
+        <p style="margin: 0 0 16px 0; font-size: 14px; color: #334155;">
+          以下の見積が <strong style="color: ${statusColor};">${statusText}</strong> されました。
+        </p>
+        <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 8px 12px; font-size: 13px; color: #64748b; width: 120px;">見積番号</td>
+            <td style="padding: 8px 12px; font-size: 14px; font-weight: bold; color: #1e293b;">${params.estimateNumber}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 8px 12px; font-size: 13px; color: #64748b;">顧客名</td>
+            <td style="padding: 8px 12px; font-size: 14px; color: #1e293b;">${params.customerName}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 8px 12px; font-size: 13px; color: #64748b;">案件名</td>
+            <td style="padding: 8px 12px; font-size: 14px; color: #1e293b;">${params.projectName}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 8px 12px; font-size: 13px; color: #64748b;">見積金額</td>
+            <td style="padding: 8px 12px; font-size: 14px; font-weight: bold; color: #1e293b;">¥${params.totalAmount.toLocaleString()}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 8px 12px; font-size: 13px; color: #64748b;">結果</td>
+            <td style="padding: 8px 12px; font-size: 14px; font-weight: bold; color: ${statusColor};">${statusText}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 8px 12px; font-size: 13px; color: #64748b;">承認者</td>
+            <td style="padding: 8px 12px; font-size: 14px; color: #1e293b;">${params.approverName}</td>
+          </tr>
+          ${params.comment ? `<tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 8px 12px; font-size: 13px; color: #64748b;">コメント</td>
+            <td style="padding: 8px 12px; font-size: 14px; color: #1e293b;">${params.comment}</td>
+          </tr>` : ''}
+        </table>
+        ${!isApproved ? `<p style="margin: 16px 0; padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; font-size: 13px; color: #991b1b;">
+          差戻し理由を確認し、見積内容を修正のうえ再申請してください。
+        </p>` : ''}
+        <div style="margin: 24px 0; text-align: center;">
+          <a href="${params.adminUrl}" style="display: inline-block; background: ${statusColor}; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: bold;">
+            管理画面を開く
+          </a>
+        </div>
+        <p style="margin: 16px 0 0 0; font-size: 12px; color: #94a3b8; text-align: center;">
+          ※ このメールはM2ロジ見積管理システムから自動送信されています。
+        </p>
+      </div>
+    </div>
+  `
+  return { subject, html }
+}
+
 function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {}, basicSettings: any = {}, calculatedStaffCost: number = 0, seals: any = {}): string {
   // エリアランク説明マッピング（A-I）
   const areaRankDescriptions: Record<string, string> = {
@@ -22641,7 +22825,41 @@ app.post('/api/approval-requests', async (c) => {
       UPDATE estimates SET status = 'approval_requested', updated_at = CURRENT_TIMESTAMP WHERE id = ?
     `).bind(estimate_id).run()
 
-    // TODO: メール通知（Phase 4で実装）
+    // メール通知: 承認者へ承認依頼メールを送信
+    try {
+      // 承認者情報取得
+      const approver = await env.DB.prepare(`SELECT name, email FROM approvers WHERE id = ?`).bind(approver_id).first() as any
+      // 見積情報取得
+      const estimate = await env.DB.prepare(`
+        SELECT e.estimate_number, e.total_amount, c.name as customer_name, p.name as project_name
+        FROM estimates e
+        LEFT JOIN customers c ON e.customer_id = c.id
+        LEFT JOIN projects p ON e.project_id = p.id
+        WHERE e.id = ?
+      `).bind(estimate_id).first() as any
+
+      if (approver?.email && estimate) {
+        const adminUrl = 'https://transport-estimate-system.pages.dev/admin/approvals'
+        const emailContent = buildApprovalRequestEmail({
+          approverName: approver.name,
+          requesterName: requester_name,
+          estimateNumber: estimate.estimate_number || '',
+          customerName: estimate.customer_name || '',
+          projectName: estimate.project_name || '',
+          totalAmount: estimate.total_amount || 0,
+          comment: request_comment || '',
+          adminUrl
+        })
+        await sendNotificationEmail(env, {
+          to: approver.email,
+          subject: emailContent.subject,
+          html: emailContent.html
+        })
+      }
+    } catch (emailError) {
+      console.error('承認依頼メール送信エラー:', emailError)
+      // メール送信失敗は承認申請自体の失敗にはしない
+    }
 
     return c.json({ success: true, message: '承認申請を送信しました', id: result.meta.last_row_id })
   } catch (error) {
@@ -22735,7 +22953,45 @@ app.put('/api/approval-requests/:id/approve', async (c) => {
       UPDATE estimates SET status = 'pending_approval', updated_at = CURRENT_TIMESTAMP WHERE id = ?
     `).bind(request.estimate_id).run()
 
-    // TODO: 申請者にメール通知（Phase 4）
+    // メール通知: 申請者へ承認完了メールを送信
+    try {
+      // 申請者のメールアドレスを取得（staff_membersから）
+      const requesterStaff = await env.DB.prepare(`
+        SELECT email FROM staff_members WHERE name = ? AND is_active = 1 LIMIT 1
+      `).bind(request.requester_name).first() as any
+      // 承認者情報取得
+      const approver = await env.DB.prepare(`SELECT name FROM approvers WHERE id = ?`).bind(request.approver_id).first() as any
+      // 見積情報取得
+      const estimate = await env.DB.prepare(`
+        SELECT e.estimate_number, e.total_amount, c.name as customer_name, p.name as project_name
+        FROM estimates e
+        LEFT JOIN customers c ON e.customer_id = c.id
+        LEFT JOIN projects p ON e.project_id = p.id
+        WHERE e.id = ?
+      `).bind(request.estimate_id).first() as any
+
+      if (requesterStaff?.email && estimate) {
+        const adminUrl = 'https://transport-estimate-system.pages.dev/admin'
+        const emailContent = buildApprovalResultEmail({
+          requesterName: request.requester_name,
+          estimateNumber: estimate.estimate_number || '',
+          customerName: estimate.customer_name || '',
+          projectName: estimate.project_name || '',
+          totalAmount: estimate.total_amount || 0,
+          status: 'approved',
+          approverName: approver?.name || '承認者',
+          comment: comment || '',
+          adminUrl
+        })
+        await sendNotificationEmail(env, {
+          to: requesterStaff.email,
+          subject: emailContent.subject,
+          html: emailContent.html
+        })
+      }
+    } catch (emailError) {
+      console.error('承認完了メール送信エラー:', emailError)
+    }
 
     return c.json({ success: true, message: '見積を承認しました' })
   } catch (error) {
@@ -22771,7 +23027,45 @@ app.put('/api/approval-requests/:id/reject', async (c) => {
       UPDATE estimates SET status = 'revision_requested', updated_at = CURRENT_TIMESTAMP WHERE id = ?
     `).bind(request.estimate_id).run()
 
-    // TODO: 申請者にメール通知（Phase 4）
+    // メール通知: 申請者へ差戻しメールを送信
+    try {
+      // 申請者のメールアドレスを取得（staff_membersから）
+      const requesterStaff = await env.DB.prepare(`
+        SELECT email FROM staff_members WHERE name = ? AND is_active = 1 LIMIT 1
+      `).bind(request.requester_name).first() as any
+      // 承認者情報取得
+      const approver = await env.DB.prepare(`SELECT name FROM approvers WHERE id = ?`).bind(request.approver_id).first() as any
+      // 見積情報取得
+      const estimate = await env.DB.prepare(`
+        SELECT e.estimate_number, e.total_amount, c.name as customer_name, p.name as project_name
+        FROM estimates e
+        LEFT JOIN customers c ON e.customer_id = c.id
+        LEFT JOIN projects p ON e.project_id = p.id
+        WHERE e.id = ?
+      `).bind(request.estimate_id).first() as any
+
+      if (requesterStaff?.email && estimate) {
+        const adminUrl = 'https://transport-estimate-system.pages.dev/admin'
+        const emailContent = buildApprovalResultEmail({
+          requesterName: request.requester_name,
+          estimateNumber: estimate.estimate_number || '',
+          customerName: estimate.customer_name || '',
+          projectName: estimate.project_name || '',
+          totalAmount: estimate.total_amount || 0,
+          status: 'rejected',
+          approverName: approver?.name || '承認者',
+          comment: comment || '',
+          adminUrl
+        })
+        await sendNotificationEmail(env, {
+          to: requesterStaff.email,
+          subject: emailContent.subject,
+          html: emailContent.html
+        })
+      }
+    } catch (emailError) {
+      console.error('差戻しメール送信エラー:', emailError)
+    }
 
     return c.json({ success: true, message: '見積を差し戻しました' })
   } catch (error) {
