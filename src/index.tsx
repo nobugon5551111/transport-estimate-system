@@ -6425,24 +6425,6 @@ app.get('/estimate/step4', (c) => {
                         <span className="text-sm text-gray-600">人</span>
                       </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        終日勤務
-                        <span className="text-xs text-gray-500 ml-2">（¥<span id="rate-display-m2-full">...</span>/日）</span>
-                      </label>
-                      <div className="flex items-center space-x-3">
-                        <input 
-                          type="number" 
-                          id="m2_staff_full_day" 
-                          className="form-input w-20" 
-                          min="0" 
-                          max="50" 
-                          value="0"
-                          onChange="updateStaffCost()"
-                        />
-                        <span className="text-sm text-gray-600">人</span>
-                      </div>
-                    </div>
                   </div>
 
                   {/* 派遣スタッフ */}
@@ -6975,122 +6957,6 @@ app.get('/estimate/step5', (c) => {
                 </div>
               </div>
 
-              {/* 施工 */}
-              <div className="border rounded-lg p-4">
-                <div className="flex items-center mb-4">
-                  <i className="fas fa-tools text-purple-500 text-xl mr-3"></i>
-                  <h4 className="text-lg font-medium text-gray-900">施工</h4>
-                </div>
-                
-                {/* 施工方法選択 */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-3">施工方法を選択してください</label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <label className="flex items-center p-4 border rounded-lg cursor-pointer hover:bg-gray-50">
-                      <input 
-                        type="radio" 
-                        name="construction_type" 
-                        value="m2_staff" 
-                        className="mr-3" 
-                        checked 
-                        onChange="handleConstructionTypeChange()" 
-                      />
-                      <div>
-                        <div className="font-medium text-gray-900">M2スタッフ</div>
-                        <div className="text-xs text-gray-500">自社スタッフによる施工</div>
-                      </div>
-                    </label>
-                    <label className="flex items-center p-4 border rounded-lg cursor-pointer hover:bg-gray-50">
-                      <input 
-                        type="radio" 
-                        name="construction_type" 
-                        value="partner_company" 
-                        className="mr-3" 
-                        onChange="handleConstructionTypeChange()" 
-                      />
-                      <div>
-                        <div className="font-medium text-gray-900">協力会社</div>
-                        <div className="text-xs text-gray-500">外部協力会社による施工</div>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-                
-                {/* M2スタッフ選択時の詳細 */}
-                <div id="m2StaffDetails" className="">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">M2スタッフ数</label>
-                  <div className="flex items-center space-x-3">
-                    <input 
-                      type="number" 
-                      id="construction_m2_staff" 
-                      className="form-input w-20" 
-                      min="0" 
-                      max="20" 
-                      value="0" 
-                      onChange="updateServicesCost()" 
-                    />
-                    <span className="text-sm text-gray-600">人</span>
-                    <span className="text-xs text-gray-500">（¥<span id="rate-display-construction-m2">0</span>/人）</span>
-                  </div>
-                </div>
-                
-                {/* 協力会社選択時の詳細 */}
-                <div id="partnerCompanyDetails" className="hidden">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">協力会社名</label>
-                      <input 
-                        type="text" 
-                        id="construction_partner" 
-                        className="form-input" 
-                        placeholder="協力会社名を入力" 
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">施工費用</label>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sm text-gray-600">¥</span>
-                        <input 
-                          type="number" 
-                          id="construction_cost" 
-                          className="form-input" 
-                          min="0" 
-                          step="1000" 
-                          placeholder="0" 
-                          onChange="updateServicesCost()" 
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* 作業時間帯 */}
-              <div className="border rounded-lg p-4">
-                <div className="flex items-center mb-4">
-                  <i className="fas fa-clock text-indigo-500 text-xl mr-3"></i>
-                  <h4 className="text-lg font-medium text-gray-900">作業時間帯</h4>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <label className="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-colors">
-                    <input type="radio" name="work_time_type" value="normal" className="mr-3 w-5 h-5" checked onChange="updateServicesCost()" />
-                    <div>
-                      <div className="font-bold text-base">通常作業時間</div>
-                      <div className="text-sm text-blue-600 font-medium mt-1">AM 8:00 〜 PM 6:00</div>
-                      <div className="text-xs text-gray-500 mt-1">×1.0（割増なし）</div>
-                    </div>
-                  </label>
-                  <label className="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-orange-50 hover:border-orange-300 transition-colors">
-                    <input type="radio" name="work_time_type" value="overtime" className="mr-3 w-5 h-5" onChange="updateServicesCost()" />
-                    <div>
-                      <div className="font-bold text-base">割増作業時間</div>
-                      <div className="text-sm text-orange-600 font-medium mt-1">PM 6:00 〜 翌 AM 8:00</div>
-                      <div className="text-xs text-gray-500 mt-1">×1.25（25%割増）</div>
-                    </div>
-                  </label>
-                </div>
-              </div>
-
               {/* 実費請求 */}
               <div className="border rounded-lg p-4">
                 <div className="flex items-center mb-4">
@@ -7104,58 +6970,6 @@ app.get('/estimate/step5', (c) => {
                       <input type="number" id="parking_fee" className="form-input w-24" min="0" max="50000" value="0" onChange="updateServicesCost()" />
                       <span className="text-sm text-gray-600">円</span>
                     </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">高速料金</label>
-                    <div className="flex items-center space-x-3">
-                      <input type="number" id="highway_fee" className="form-input w-24" min="0" max="50000" value="0" onChange="updateServicesCost()" />
-                      <span className="text-sm text-gray-600">円</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* 4トン車追加（フリー入力） */}
-              <div className="border rounded-lg p-4">
-                <div className="flex items-center mb-4">
-                  <i className="fas fa-truck-moving text-green-500 text-xl mr-3"></i>
-                  <h4 className="text-lg font-medium text-gray-900">4トン車追加</h4>
-                  <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">フリー入力</span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">台数</label>
-                    <div className="flex items-center space-x-3">
-                      <input 
-                        type="number" 
-                        id="additional_truck_count" 
-                        className="form-input w-20" 
-                        min="0" 
-                        max="20" 
-                        value="0"
-                        onChange="updateServicesCost()"
-                      />
-                      <span className="text-sm text-gray-600">台</span>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">単価（1台あたり）</label>
-                    <div className="flex items-center space-x-3">
-                      <input 
-                        type="number" 
-                        id="additional_truck_unit_price" 
-                        className="form-input w-32" 
-                        min="0" 
-                        step="1000"
-                        value="0"
-                        onChange="updateServicesCost()"
-                      />
-                      <span className="text-sm text-gray-600">円</span>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">小計</label>
-                    <p className="text-lg font-bold text-green-600 mt-1" id="additional_truck_subtotal">¥0</p>
                   </div>
                 </div>
               </div>
