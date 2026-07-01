@@ -3394,6 +3394,9 @@ const Step5Implementation = {
       additional_truck_count: additionalTruckCount || 0,
       additional_truck_unit_price: additionalTruckUnitPrice || 0,
       additional_truck_cost: additionalTruckCost || 0,
+      delivery_time_preference: document.querySelector('input[name="delivery_time_preference"]:checked')?.value || 'normal',
+      furniture_disposal: document.querySelector('input[name="furniture_disposal"]:checked')?.value || 'none',
+      furniture_disposal_items: getFurnitureDisposalData(),
       parking_fee: parkingFee || 0,
       highway_fee: highwayFee || 0,
       total_cost: totalServicesCost || 0,  // 確実に数値にする
@@ -3477,6 +3480,12 @@ const Step5Implementation = {
         construction_cost: 0,
         work_time_type: 'normal',
         work_time_multiplier: 1.0,
+        additional_truck_count: 0,
+        additional_truck_unit_price: 0,
+        additional_truck_cost: 0,
+        delivery_time_preference: 'normal',
+        furniture_disposal: 'none',
+        furniture_disposal_items: [],
         parking_fee: 0,
         highway_fee: 0,
         total_cost: 0,
@@ -3630,6 +3639,98 @@ window.handleProtectionWorkChange = Step5Implementation.handleProtectionWorkChan
 window.handleConstructionTypeChange = Step5Implementation.handleConstructionTypeChange;
 window.goBackToStep4 = Step5Implementation.goBackToStep4;
 window.proceedToStep6 = Step5Implementation.proceedToStep6;
+
+// 引取家具（廃棄）関連
+let furnitureDisposalCounter = 0;
+
+function handleFurnitureDisposalChange() {
+  const value = document.querySelector('input[name="furniture_disposal"]:checked')?.value || 'none';
+  const detailsDiv = document.getElementById('furnitureDisposalDetails');
+  if (!detailsDiv) return;
+  
+  if (value === 'yes') {
+    detailsDiv.classList.remove('hidden');
+    // 初回：アイテムがなければ1つ追加
+    const list = document.getElementById('furnitureDisposalList');
+    if (list && list.children.length === 0) {
+      addFurnitureDisposalItem();
+    }
+  } else {
+    detailsDiv.classList.add('hidden');
+  }
+  Step5Implementation.updateServicesCost();
+}
+
+function addFurnitureDisposalItem() {
+  furnitureDisposalCounter++;
+  const list = document.getElementById('furnitureDisposalList');
+  if (!list) return;
+  
+  const itemDiv = document.createElement('div');
+  itemDiv.className = 'flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg';
+  itemDiv.id = `furniture-item-${furnitureDisposalCounter}`;
+  itemDiv.innerHTML = `
+    <div class="flex-1 grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">家具名</label>
+        <input type="text" class="form-input w-full text-sm furniture-name" placeholder="例: ソファ" />
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">縦 (cm)</label>
+        <input type="number" class="form-input w-full text-sm furniture-height" min="0" placeholder="0" />
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">横 (cm)</label>
+        <input type="number" class="form-input w-full text-sm furniture-width" min="0" placeholder="0" />
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">奥行 (cm)</label>
+        <input type="number" class="form-input w-full text-sm furniture-depth" min="0" placeholder="0" />
+      </div>
+    </div>
+    <button type="button" onclick="removeFurnitureDisposalItem('furniture-item-${furnitureDisposalCounter}')" class="mt-5 text-red-500 hover:text-red-700 text-sm" title="削除">
+      <i class="fas fa-times-circle text-lg"></i>
+    </button>
+  `;
+  list.appendChild(itemDiv);
+}
+
+function removeFurnitureDisposalItem(itemId) {
+  const item = document.getElementById(itemId);
+  if (item) item.remove();
+  
+  // 全部削除されたら「無」に戻す
+  const list = document.getElementById('furnitureDisposalList');
+  if (list && list.children.length === 0) {
+    const noneRadio = document.querySelector('input[name="furniture_disposal"][value="none"]');
+    if (noneRadio) noneRadio.checked = true;
+    handleFurnitureDisposalChange();
+  }
+}
+
+function getFurnitureDisposalData() {
+  const items = [];
+  const list = document.getElementById('furnitureDisposalList');
+  if (!list) return items;
+  
+  const disposalValue = document.querySelector('input[name="furniture_disposal"]:checked')?.value || 'none';
+  if (disposalValue === 'none') return items;
+  
+  list.querySelectorAll('[id^="furniture-item-"]').forEach(itemEl => {
+    const name = itemEl.querySelector('.furniture-name')?.value || '';
+    const height = parseInt(itemEl.querySelector('.furniture-height')?.value) || 0;
+    const width = parseInt(itemEl.querySelector('.furniture-width')?.value) || 0;
+    const depth = parseInt(itemEl.querySelector('.furniture-depth')?.value) || 0;
+    if (name || height || width || depth) {
+      items.push({ name, height, width, depth });
+    }
+  });
+  return items;
+}
+
+window.handleFurnitureDisposalChange = handleFurnitureDisposalChange;
+window.addFurnitureDisposalItem = addFurnitureDisposalItem;
+window.removeFurnitureDisposalItem = removeFurnitureDisposalItem;
 
 // STEP6: 内容確認・見積書作成の実装
 const Step6Implementation = {

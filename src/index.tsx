@@ -7002,6 +7002,68 @@ app.get('/estimate/step5', (c) => {
                 </div>
               </div>
 
+              {/* 希望納品時間 */}
+              <div className="border rounded-lg p-4">
+                <div className="flex items-center mb-4">
+                  <i className="fas fa-clock text-purple-500 text-xl mr-3"></i>
+                  <h4 className="text-lg font-medium text-gray-900">希望納品時間</h4>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <label className="flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50">
+                    <input type="radio" name="delivery_time_preference" value="normal" className="mr-3" checked onChange="updateServicesCost()" />
+                    <div>
+                      <div className="font-medium">定時間帯</div>
+                      <div className="text-xs text-gray-500">9:00〜18:00</div>
+                    </div>
+                  </label>
+                  <label className="flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50">
+                    <input type="radio" name="delivery_time_preference" value="overtime" className="mr-3" onChange="updateServicesCost()" />
+                    <div>
+                      <div className="font-medium">時間外</div>
+                      <div className="text-xs text-gray-500">18:00〜翌9:00</div>
+                    </div>
+                  </label>
+                  <label className="flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50">
+                    <input type="radio" name="delivery_time_preference" value="unspecified" className="mr-3" onChange="updateServicesCost()" />
+                    <div>
+                      <div className="font-medium">指定なし</div>
+                      <div className="text-xs text-gray-500">時間帯の指定なし</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* 引取家具（廃棄） */}
+              <div className="border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center">
+                    <i className="fas fa-couch text-amber-600 text-xl mr-3"></i>
+                    <h4 className="text-lg font-medium text-gray-900">引取家具（廃棄）</h4>
+                  </div>
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">引取家具の有無</label>
+                  <div className="flex items-center space-x-4">
+                    <label className="flex items-center">
+                      <input type="radio" name="furniture_disposal" value="none" className="mr-2" checked onChange="handleFurnitureDisposalChange()" />
+                      <span className="text-sm">無</span>
+                    </label>
+                    <label className="flex items-center">
+                      <input type="radio" name="furniture_disposal" value="yes" className="mr-2" onChange="handleFurnitureDisposalChange()" />
+                      <span className="text-sm">有</span>
+                    </label>
+                  </div>
+                </div>
+                <div id="furnitureDisposalDetails" className="hidden">
+                  <div id="furnitureDisposalList" className="space-y-3">
+                    {/* 動的に追加される家具エントリ */}
+                  </div>
+                  <button type="button" onclick="addFurnitureDisposalItem()" className="mt-3 flex items-center text-sm text-amber-700 hover:text-amber-900 font-medium">
+                    <i className="fas fa-plus-circle mr-2"></i>家具を追加
+                  </button>
+                </div>
+              </div>
+
               {/* サービス費用表示 */}
               <div id="servicesCostDisplay" className="p-4 bg-orange-50 border border-orange-200 rounded-lg hidden">
                 <h4 className="text-lg font-medium text-orange-900 mb-2">
