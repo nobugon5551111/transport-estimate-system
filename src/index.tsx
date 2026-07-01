@@ -7064,6 +7064,31 @@ app.get('/estimate/step5', (c) => {
                 </div>
               </div>
 
+              {/* 作業時間帯割増 */}
+              <div className="border rounded-lg p-4">
+                <div className="flex items-center mb-4">
+                  <i className="fas fa-moon text-indigo-500 text-xl mr-3"></i>
+                  <h4 className="text-lg font-medium text-gray-900">作業時間帯割増</h4>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <label className="flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50">
+                    <input type="radio" name="work_time_type" value="normal" className="mr-3" checked onChange="updateServicesCost()" />
+                    <div>
+                      <div className="font-medium">通常時間帯</div>
+                      <div className="text-xs text-gray-500">割増なし（×1.0）</div>
+                    </div>
+                  </label>
+                  <label className="flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50">
+                    <input type="radio" name="work_time_type" value="overtime" className="mr-3" onChange="updateServicesCost()" />
+                    <div>
+                      <div className="font-medium">時間外割増</div>
+                      <div className="text-xs text-gray-500">PM6:00〜翌AM8:00（×1.25）</div>
+                    </div>
+                  </label>
+                </div>
+                <p className="mt-2 text-xs text-gray-500">※ 車両費用+スタッフ費用に対して割増が適用されます</p>
+              </div>
+
               {/* サービス費用表示 */}
               <div id="servicesCostDisplay" className="p-4 bg-orange-50 border border-orange-200 rounded-lg hidden">
                 <h4 className="text-lg font-medium text-orange-900 mb-2">
