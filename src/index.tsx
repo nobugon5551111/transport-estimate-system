@@ -193,12 +193,13 @@ app.get('/admin', (c) => {
         </div>
         <p class="text-sm text-gray-500">承認者の追加・編集・無効化を管理</p>
       </a>
-      <a href="/admin/approvals" class="block bg-pink-50 rounded-lg shadow-sm border border-pink-200 p-6 hover:shadow-md hover:bg-pink-100 transition-shadow">
+      <a href="/admin/approvals" class="block bg-pink-50 rounded-lg shadow-sm border border-pink-200 p-6 hover:shadow-md hover:bg-pink-100 transition-shadow relative">
         <div class="flex items-center gap-3 mb-2">
           <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
             <i class="fas fa-clipboard-check text-blue-600"></i>
           </div>
           <h2 class="font-bold text-gray-800">承認管理</h2>
+          <span id="pendingBadge" class="hidden ml-auto bg-red-500 text-white text-lg font-bold rounded-full w-9 h-9 flex items-center justify-center shadow-md"></span>
         </div>
         <p class="text-sm text-gray-500">承認待ち・承認済み・差戻しの一覧管理</p>
       </a>
@@ -231,6 +232,22 @@ app.get('/admin', (c) => {
       </a>
     </div>
   </div>
+  <script>
+    (async () => {
+      try {
+        const res = await fetch('/api/approval-requests?status=pending');
+        const data = await res.json();
+        if (data.success && data.data) {
+          const count = data.data.length;
+          const badge = document.getElementById('pendingBadge');
+          if (count > 0 && badge) {
+            badge.textContent = count;
+            badge.classList.remove('hidden');
+          }
+        }
+      } catch(e) {}
+    })();
+  </script>
 </body>
 </html>`)
 })
