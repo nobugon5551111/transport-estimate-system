@@ -3248,7 +3248,7 @@ app.get('/api/status-options', async (c) => {
       { value: 'drafting', label: '担当者作成中', phase: 'production', color: 'gray', icon: 'edit' },
       { value: 'pdf_generated', label: 'PDF生成済み', phase: 'production', color: 'gray', icon: 'file-pdf' },
       { value: 'approval_requested', label: '決裁申請済み', phase: 'production', color: 'gray', icon: 'upload' },
-      // フェーズ2: 決裁待ち
+      // フェーズ2: 承認プロセス
       { value: 'pending_approval', label: '管理者確認中', phase: 'approval', color: 'orange', icon: 'user-check' },
       { value: 'approved', label: '承認完了', phase: 'approval', color: 'green', icon: 'check-circle' },
       { value: 'revision_requested', label: '差戻し（修正依頼）', phase: 'approval', color: 'purple', icon: 'undo' },
@@ -3266,7 +3266,7 @@ app.get('/api/status-options', async (c) => {
     // フェーズ情報も返す
     const phases = [
       { key: 'production', label: '製作中', color: 'gray', icon: 'edit' },
-      { key: 'approval', label: '決裁待ち', color: 'orange', icon: 'clock' },
+      { key: 'approval', label: '承認プロセス', color: 'orange', icon: 'clock' },
       { key: 'sent', label: '送信済み/検討中', color: 'blue', icon: 'envelope-open-text' },
       { key: 'final', label: '最終結果', color: 'green', icon: 'flag-checkered' }
     ]
@@ -4150,7 +4150,7 @@ app.get('/', (c) => {
                   <i className="fas fa-clock text-orange-600"></i>
                 </div>
                 <div className="text-2xl font-bold text-orange-700" id="phase_approval">-</div>
-                <div className="text-xs text-orange-500 mt-1">決裁待ち</div>
+                <div className="text-xs text-orange-500 mt-1">承認プロセス</div>
               </div>
               <div className="text-center p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
                 <div className="flex items-center justify-center w-10 h-10 bg-blue-200 rounded-full mx-auto mb-2">
@@ -9788,7 +9788,7 @@ app.get('/customers', (c) => {
                     <option value="pdf_generated">PDF生成済み</option>
                     <option value="approval_requested">決裁申請済み</option>
                   </optgroup>
-                  <optgroup label="── 決裁待ち ──">
+                  <optgroup label="── 承認プロセス ──">
                     <option value="pending_approval">管理者確認中</option>
                     <option value="approved">承認完了</option>
                     <option value="revision_requested">差戻し（修正依頼）</option>
@@ -10338,7 +10338,7 @@ app.get('/estimates', (c) => {
                     <option value="pdf_generated">PDF生成済み</option>
                     <option value="approval_requested">決裁申請済み</option>
                   </optgroup>
-                  <optgroup label="── 決裁待ち ──">
+                  <optgroup label="── 承認プロセス ──">
                     <option value="pending_approval">管理者確認中</option>
                     <option value="approved">承認完了</option>
                     <option value="revision_requested">差戻し（修正依頼）</option>
@@ -10569,7 +10569,7 @@ app.get('/estimates', (c) => {
                     <option value="pdf_generated">PDF生成済み</option>
                     <option value="approval_requested">決裁申請済み</option>
                   </optgroup>
-                  <optgroup label="── 決裁待ち ──">
+                  <optgroup label="── 承認プロセス ──">
                     <option value="pending_approval">管理者確認中</option>
                     <option value="approved">承認完了</option>
                     <option value="revision_requested">差戻し（修正依頼）</option>

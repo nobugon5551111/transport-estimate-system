@@ -10452,7 +10452,7 @@ const EstimateManagement = {
       'drafting': { label: '担当者作成中', class: 'bg-gray-100 text-gray-800', icon: 'edit' },
       'pdf_generated': { label: 'PDF生成済み', class: 'bg-gray-200 text-gray-800', icon: 'file-pdf' },
       'approval_requested': { label: '決裁申請済み', class: 'bg-gray-300 text-gray-900', icon: 'upload' },
-      // フェーズ2: 決裁待ち
+      // フェーズ2: 承認プロセス
       'pending_approval': { label: '管理者確認中', class: 'bg-orange-100 text-orange-800', icon: 'user-check' },
       'approved': { label: '承認完了', class: 'bg-green-100 text-green-800', icon: 'check-circle' },
       'revision_requested': { label: '差戻し（修正依頼）', class: 'bg-purple-100 text-purple-800', icon: 'undo' },
