@@ -193,7 +193,7 @@ app.get('/admin', (c) => {
         </div>
         <p class="text-sm text-gray-500">承認者の追加・編集・無効化を管理</p>
       </a>
-      <a href="/admin/approvals" class="block bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow">
+      <a href="/admin/approvals" class="block bg-pink-50 rounded-lg shadow-sm border border-pink-200 p-6 hover:shadow-md hover:bg-pink-100 transition-shadow">
         <div class="flex items-center gap-3 mb-2">
           <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
             <i class="fas fa-clipboard-check text-blue-600"></i>
