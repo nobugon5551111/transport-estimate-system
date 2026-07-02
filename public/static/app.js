@@ -9423,6 +9423,7 @@ const CustomerManagement = {
       'pdf_generated': { label: 'PDF生成済み', class: 'bg-gray-200 text-gray-800' },
       'approval_requested': { label: '決裁申請済み', class: 'bg-gray-300 text-gray-900' },
       'pending_approval': { label: '管理者確認中', class: 'bg-orange-100 text-orange-800' },
+      'approved': { label: '承認完了', class: 'bg-green-100 text-green-800' },
       'revision_requested': { label: '差戻し（修正依頼）', class: 'bg-purple-100 text-purple-800' },
       'sent_to_customer': { label: '顧客送信済み', class: 'bg-blue-100 text-blue-800' },
       'under_review': { label: '顧客検討中', class: 'bg-blue-200 text-blue-900' },
@@ -9984,6 +9985,7 @@ const StatusManagement = {
     { value: 'pdf_generated', label: 'PDF生成済み', phase: 'production', color: 'gray' },
     { value: 'approval_requested', label: '決裁申請済み', phase: 'production', color: 'gray' },
     { value: 'pending_approval', label: '管理者確認中', phase: 'approval', color: 'orange' },
+    { value: 'approved', label: '承認完了', phase: 'approval', color: 'green' },
     { value: 'revision_requested', label: '差戻し（修正依頼）', phase: 'approval', color: 'purple' },
     { value: 'sent_to_customer', label: '顧客送信済み', phase: 'sent', color: 'blue' },
     { value: 'under_review', label: '顧客検討中', phase: 'sent', color: 'blue' },
@@ -10452,6 +10454,7 @@ const EstimateManagement = {
       'approval_requested': { label: '決裁申請済み', class: 'bg-gray-300 text-gray-900', icon: 'upload' },
       // フェーズ2: 決裁待ち
       'pending_approval': { label: '管理者確認中', class: 'bg-orange-100 text-orange-800', icon: 'user-check' },
+      'approved': { label: '承認完了', class: 'bg-green-100 text-green-800', icon: 'check-circle' },
       'revision_requested': { label: '差戻し（修正依頼）', class: 'bg-purple-100 text-purple-800', icon: 'undo' },
       // フェーズ3: 送信済み/検討中
       'sent_to_customer': { label: '顧客送信済み', class: 'bg-blue-100 text-blue-800', icon: 'envelope' },
@@ -11328,6 +11331,7 @@ const EstimateManagement = {
       { value: 'pdf_generated', label: 'PDF生成済み' },
       { value: 'approval_requested', label: '決裁申請済み（承認申請）', isApproval: true },
       { value: 'pending_approval', label: '管理者確認中' },
+      { value: 'approved', label: '承認完了' },
       { value: 'revision_requested', label: '差戻し（修正依頼）' },
       { value: 'sent_to_customer', label: '顧客送信済み' },
       { value: 'under_review', label: '顧客検討中' },
