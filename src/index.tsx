@@ -2758,7 +2758,7 @@ app.get('/api/estimates/stats', async (c) => {
     // フェーズ別に集計
     const phaseMapping = {
       drafting: 'production', pdf_generated: 'production', approval_requested: 'production',
-      pending_approval: 'approval', revision_requested: 'approval',
+      pending_approval: 'approval', approved: 'approval', revision_requested: 'approval',
       sent_to_customer: 'sent', under_review: 'sent', re_estimate_requested: 'sent',
       formal_order: 'final', won: 'final', lost: 'final', cancelled: 'final',
       // 旧ステータスのマッピング
@@ -3250,6 +3250,7 @@ app.get('/api/status-options', async (c) => {
       { value: 'approval_requested', label: '決裁申請済み', phase: 'production', color: 'gray', icon: 'upload' },
       // フェーズ2: 決裁待ち
       { value: 'pending_approval', label: '管理者確認中', phase: 'approval', color: 'orange', icon: 'user-check' },
+      { value: 'approved', label: '承認完了', phase: 'approval', color: 'green', icon: 'check-circle' },
       { value: 'revision_requested', label: '差戻し（修正依頼）', phase: 'approval', color: 'purple', icon: 'undo' },
       // フェーズ3: 送信済み/検討中
       { value: 'sent_to_customer', label: '顧客送信済み', phase: 'sent', color: 'blue', icon: 'envelope' },
@@ -9789,6 +9790,7 @@ app.get('/customers', (c) => {
                   </optgroup>
                   <optgroup label="── 決裁待ち ──">
                     <option value="pending_approval">管理者確認中</option>
+                    <option value="approved">承認完了</option>
                     <option value="revision_requested">差戻し（修正依頼）</option>
                   </optgroup>
                   <optgroup label="── 送信済み/検討中 ──">
@@ -10338,6 +10340,7 @@ app.get('/estimates', (c) => {
                   </optgroup>
                   <optgroup label="── 決裁待ち ──">
                     <option value="pending_approval">管理者確認中</option>
+                    <option value="approved">承認完了</option>
                     <option value="revision_requested">差戻し（修正依頼）</option>
                   </optgroup>
                   <optgroup label="── 送信済み/検討中 ──">
@@ -10568,6 +10571,7 @@ app.get('/estimates', (c) => {
                   </optgroup>
                   <optgroup label="── 決裁待ち ──">
                     <option value="pending_approval">管理者確認中</option>
+                    <option value="approved">承認完了</option>
                     <option value="revision_requested">差戻し（修正依頼）</option>
                   </optgroup>
                   <optgroup label="── 送信済み/検討中 ──">
@@ -17639,7 +17643,7 @@ app.put('/api/projects/:id/status', async (c) => {
     const validStatuses = [
       // 新ライフサイクル12ステータス
       'drafting', 'pdf_generated', 'approval_requested',
-      'pending_approval', 'revision_requested',
+      'pending_approval', 'approved', 'revision_requested',
       'sent_to_customer', 'under_review', 're_estimate_requested',
       'formal_order', 'won', 'lost', 'cancelled',
       // 旧ステータス（後方互換）
@@ -23157,7 +23161,7 @@ app.put('/api/approval-requests/:id/approve', async (c) => {
 
     // 見積ステータスを「承認済み」に更新
     await env.DB.prepare(`
-      UPDATE estimates SET status = 'pending_approval', updated_at = CURRENT_TIMESTAMP WHERE id = ?
+      UPDATE estimates SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE id = ?
     `).bind(request.estimate_id).run()
 
     // メール通知: 申請者へ承認完了メールを送信
