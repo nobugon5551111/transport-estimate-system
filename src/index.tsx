@@ -20938,6 +20938,249 @@ app.post('/api/settings/api', async (c) => {
 })
 
 // ==========================================
+// ==========================================
+// AI自動見積ロジック（Gemini API）
+// ==========================================
+
+interface AIEstimateInput {
+  contact_person: string;
+  project_name: string;
+  delivery_date: string;
+  delivery_time: string;
+  delivery_postal_code: string;
+  pickup_location: string;
+  items_json: any[];
+  building_type: string;
+  installation_floor: string;
+  has_elevator: string;
+  elevator_size: string;
+  has_parking: string;
+  has_protection_work: string;
+  protection_scope: string;
+  has_hoisting: string;
+  has_crane: string;
+  delivery_route_info: string;
+  furniture_disposal: string;
+  furniture_disposal_items: any[];
+  notes: string;
+}
+
+interface AIEstimateResult {
+  // 便種
+  service_type: 'charter' | 'mixed'; // チャーター便 or 混載便
+  service_type_reason: string;
+  
+  // 車両
+  vehicle_count: number; // 台数
+  vehicle_type: string; // 2t車 / 4t車
+  oneman_discount: boolean; // ワンマン割引（2台目以降）
+  vehicle_reason: string;
+  
+  // スタッフ
+  supervisor_count: number; // SV
+  leader_count: number; // リーダー
+  m2_staff_count: number; // M2スタッフ
+  temp_staff_count: number; // 派遣スタッフ
+  staff_reason: string;
+  
+  // 追加サービス
+  parking_officer_needed: boolean; // 駐禁対策員
+  parking_officer_reason: string;
+  transport_vehicles: number; // 人員輸送車両台数
+  transport_reason: string;
+  protection_work_needed: boolean; // 養生作業
+  protection_reason: string;
+  waste_disposal_size: 'none' | 'small' | 'medium' | 'large'; // 引き取り廃棄
+  waste_disposal_reason: string;
+  work_time_type: 'normal' | 'overtime'; // 作業時間帯
+  work_time_reason: string;
+  
+  // 全体の判断理由
+  overall_summary: string;
+}
+
+async function generateAIEstimate(env: any, input: AIEstimateInput): Promise<{ success: boolean; result?: AIEstimateResult; error?: string }> {
+  const GEMINI_API_KEY = env.GEMINI_API_KEY;
+  if (!GEMINI_API_KEY) {
+    return { success: false, error: 'GEMINI_API_KEY が設定されていません' };
+  }
+
+  // エリア判定（郵便番号から）
+  let areaInfo = '不明';
+  try {
+    const prefix = input.delivery_postal_code.replace('-', '').substring(0, 3);
+    const areaResult = await env.DB.prepare(
+      'SELECT area_rank, area_name FROM area_settings WHERE postal_code_prefix = ? LIMIT 1'
+    ).bind(prefix).first();
+    if (areaResult) {
+      areaInfo = `エリア${areaResult.area_rank}（${areaResult.area_name}）`;
+    }
+  } catch (e) {
+    // エリア判定できない場合は「不明」のまま
+  }
+
+  // 品目情報の整形
+  const itemsSummary = input.items_json.map((item: any, idx: number) => {
+    return `品目${idx + 1}: ${item.product}（材質: ${item.material}）× ${item.quantity}台${item.size ? `、3辺計${item.size}cm` : ''}${item.weight ? `、重量${item.weight}kg` : ''}${item.notes ? `、備考: ${item.notes}` : ''}`;
+  }).join('\n');
+
+  // 廃棄家具情報
+  let disposalSummary = '引取家具（廃棄）: なし';
+  if (input.furniture_disposal === '有' && input.furniture_disposal_items && input.furniture_disposal_items.length > 0) {
+    disposalSummary = '引取家具（廃棄）: あり\n' + input.furniture_disposal_items.map((item: any, idx: number) => {
+      return `  廃棄${idx + 1}: ${item.name || '不明'}（縦${item.height || 0}cm × 横${item.width || 0}cm × 奥行${item.depth || 0}cm）`;
+    }).join('\n');
+  }
+
+  const prompt = `あなたは大阪の家具搬入・配送会社「Office M2」のベテラン見積担当者です。
+以下の見積依頼フォーム入力に基づいて、最適な見積内容を判定してください。
+
+## 暗黙知・決まり事ルール（必ず従ってください）
+
+### 便種（チャーター便 vs 混載便）の判定
+- 品目の3辺合計が500cm以下、かつ品目数が2点以下 → 混載便
+- 品目の3辺合計が500cm超、または品目数3点以上、または総重量100kg超 → チャーター便
+- ガラス材質のテーブルは必ず立て積み・専用チャーター（混載不可）
+- 大理石材質は重量大、チャーター便推奨
+
+### 車両台数の判定
+- 2t車の積載量は8.7㎥が目安
+- 品目の体積合計から台数を算出
+- 2台目以降は基本的にワンマン（1人配送）で割引適用
+
+### スタッフ人数の判定
+- スーパーバイザー(SV): 通常見積もりでは0人。ただし建物種別が「ホテル・旅館」の場合は1名必須
+- リーダー: 組立が必要な商品数が10台毎に1名追加。基本は1名
+- M2スタッフ（一般社員）: 指定がない限り0人
+- 派遣スタッフ: 品目の数量・サイズ・重量から判断
+  - 1～2名が必要な基準: 品目合計5台以上、または重量50kg超の品目あり
+  - 3名以上: 大規模案件（品目10台以上等）
+  - 5階以上でエレベーター無しの場合は追加+1名
+
+### 駐禁対策員の判定
+- 戸建て以外（マンション/ビル/ホテル/店舗等）かつ駐車スペースが「無」→ 必要
+- 戸建ての場合は基本不要
+- エリアA（都市部）で駐車スペース無は必ず必要
+
+### 人員輸送車両の判定
+- 追加スタッフ合計が4名以上の場合、4名毎に1台必要
+
+### 養生作業の判定
+- フォームで「有」が選択されていれば必要
+- マンション3階以上は共有部養生が推奨
+- ホテル案件は養生推奨
+
+### 引き取り廃棄サイズの判定
+- 廃棄家具のサイズ（3辺合計）から判断:
+  - 小: 3辺合計200cm以下
+  - 中: 3辺合計200〜400cm
+  - 大: 3辺合計400cm超
+- 廃棄家具が複数ある場合は最も大きいサイズを基準にする
+
+### 作業時間帯の判定
+- 希望納品時間が「定時間帯（9:00-18:00）」→ 通常 (normal)
+- 希望納品時間が「時間外（18:00-翌9:00）」→ 時間外割増 (overtime)
+- 希望納品時間が「指定なし」→ 通常 (normal)
+
+---
+
+## 見積依頼内容
+
+案件名: ${input.project_name}
+希望納品日: ${input.delivery_date}
+希望納品時間: ${input.delivery_time}
+配送先郵便番号: ${input.delivery_postal_code}
+配送エリア: ${areaInfo}
+引取先: ${input.pickup_location || 'なし'}
+
+### 品目情報
+${itemsSummary}
+
+### 廃棄家具
+${disposalSummary}
+
+### 設置環境
+建物種別: ${input.building_type}
+設置階: ${input.installation_floor}
+エレベーター: ${input.has_elevator}${input.has_elevator === '有' ? `（${input.elevator_size}）` : ''}
+駐車スペース: ${input.has_parking}
+養生作業: ${input.has_protection_work}${input.protection_scope ? `（範囲: ${input.protection_scope}）` : ''}
+吊り上げ作業: ${input.has_hoisting}
+クレーン使用: ${input.has_crane}
+搬入経路情報: ${input.delivery_route_info || 'なし'}
+
+### 備考
+${input.notes || 'なし'}
+
+---
+
+## 出力形式（JSON）
+以下のJSONフォーマットで出力してください。JSONのみ出力し、それ以外のテキストは含めないでください。
+
+{
+  "service_type": "charter" or "mixed",
+  "service_type_reason": "判定理由",
+  "vehicle_count": 数値,
+  "vehicle_type": "2t車" or "4t車",
+  "oneman_discount": true/false,
+  "vehicle_reason": "判定理由",
+  "supervisor_count": 数値,
+  "leader_count": 数値,
+  "m2_staff_count": 数値,
+  "temp_staff_count": 数値,
+  "staff_reason": "判定理由",
+  "parking_officer_needed": true/false,
+  "parking_officer_reason": "判定理由",
+  "transport_vehicles": 数値,
+  "transport_reason": "判定理由",
+  "protection_work_needed": true/false,
+  "protection_reason": "判定理由",
+  "waste_disposal_size": "none" or "small" or "medium" or "large",
+  "waste_disposal_reason": "判定理由",
+  "work_time_type": "normal" or "overtime",
+  "work_time_reason": "判定理由",
+  "overall_summary": "この見積の全体的な判断サマリー"
+}`;
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.2,
+            responseMimeType: 'application/json'
+          }
+        })
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Gemini API error:', response.status, errorText);
+      return { success: false, error: `Gemini API エラー (${response.status}): ${errorText.substring(0, 200)}` };
+    }
+
+    const data: any = await response.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (!text) {
+      return { success: false, error: 'Gemini APIからの応答が空です' };
+    }
+
+    // JSONパース
+    const result: AIEstimateResult = JSON.parse(text);
+    return { success: true, result };
+  } catch (error: any) {
+    console.error('AI見積生成エラー:', error);
+    return { success: false, error: `AI見積生成エラー: ${error.message || '不明なエラー'}` };
+  }
+}
+
+// ==========================================
 // 見積依頼フォーム（顧客向け）API
 // ==========================================
 
@@ -21000,6 +21243,12 @@ app.post('/api/quote-requests', async (c) => {
       return c.json({ success: false, message: '品目データが不正です' }, 400)
     }
     
+    // 引取家具（廃棄）データ
+    const furnitureDisposal = body.furniture_disposal || '無'
+    const furnitureDisposalItems = Array.isArray(body.furniture_disposal_items) 
+      ? JSON.stringify(body.furniture_disposal_items) 
+      : '[]'
+
     const result = await env.DB.prepare(`
       INSERT INTO quote_requests (
         customer_id, contact_person, project_name,
@@ -21008,8 +21257,9 @@ app.post('/api/quote-requests', async (c) => {
         building_type, installation_floor, has_elevator, elevator_size,
         has_parking, has_protection_work, protection_scope,
         has_hoisting, has_crane, delivery_route_info,
+        furniture_disposal, furniture_disposal_items,
         notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       body.customer_id,
       body.contact_person,
@@ -21029,13 +21279,68 @@ app.post('/api/quote-requests', async (c) => {
       body.has_hoisting || '無',
       body.has_crane || '無',
       body.delivery_route_info || '',
+      furnitureDisposal,
+      furnitureDisposalItems,
       body.notes || ''
     ).run()
     
+    const quoteRequestId = result.meta.last_row_id
+
+    // AI自動見積を即座に実行（Gemini API）
+    let aiEstimateResult = null
+    try {
+      const aiInput: AIEstimateInput = {
+        contact_person: body.contact_person,
+        project_name: body.project_name,
+        delivery_date: body.delivery_date,
+        delivery_time: body.delivery_time,
+        delivery_postal_code: body.delivery_postal_code,
+        pickup_location: body.pickup_location || '',
+        items_json: items,
+        building_type: body.building_type,
+        installation_floor: body.installation_floor,
+        has_elevator: body.has_elevator || '無',
+        elevator_size: body.elevator_size || '',
+        has_parking: body.has_parking || '無',
+        has_protection_work: body.has_protection_work || '無',
+        protection_scope: body.protection_scope || '',
+        has_hoisting: body.has_hoisting || '無',
+        has_crane: body.has_crane || '無',
+        delivery_route_info: body.delivery_route_info || '',
+        furniture_disposal: furnitureDisposal,
+        furniture_disposal_items: Array.isArray(body.furniture_disposal_items) ? body.furniture_disposal_items : [],
+        notes: body.notes || ''
+      }
+
+      const aiResponse = await generateAIEstimate(env, aiInput)
+      
+      if (aiResponse.success && aiResponse.result) {
+        aiEstimateResult = aiResponse.result
+        // AI見積結果をDBに保存
+        await env.DB.prepare(`
+          UPDATE quote_requests 
+          SET ai_estimate_json = ?, ai_estimate_generated_at = datetime('now')
+          WHERE id = ?
+        `).bind(JSON.stringify(aiResponse.result), quoteRequestId).run()
+      } else {
+        // エラーを記録
+        await env.DB.prepare(`
+          UPDATE quote_requests SET ai_estimate_error = ? WHERE id = ?
+        `).bind(aiResponse.error || '不明なエラー', quoteRequestId).run()
+      }
+    } catch (aiError: any) {
+      console.error('AI見積処理エラー:', aiError)
+      // AI見積エラーはフォーム送信自体を失敗させない
+      await env.DB.prepare(`
+        UPDATE quote_requests SET ai_estimate_error = ? WHERE id = ?
+      `).bind(`処理エラー: ${aiError.message || '不明'}`, quoteRequestId).run()
+    }
+
     return c.json({
       success: true,
       message: '見積依頼を送信しました',
-      id: result.meta.last_row_id
+      id: quoteRequestId,
+      ai_estimate: aiEstimateResult
     })
   } catch (error) {
     console.error('見積依頼送信エラー:', error)
@@ -21112,6 +21417,71 @@ app.put('/api/quote-requests/:id/status', async (c) => {
   } catch (error) {
     console.error('見積依頼ステータス更新エラー:', error)
     return c.json({ success: false, message: 'ステータスの更新に失敗しました' }, 500)
+  }
+})
+
+// AI再見積実行API（管理者用）
+app.post('/api/quote-requests/:id/ai-estimate', async (c) => {
+  const { env } = c
+  try {
+    const id = c.req.param('id')
+    
+    // 見積依頼データを取得
+    const request: any = await env.DB.prepare(`
+      SELECT * FROM quote_requests WHERE id = ?
+    `).bind(id).first()
+    
+    if (!request) {
+      return c.json({ success: false, message: '見積依頼が見つかりません' }, 404)
+    }
+    
+    // AI見積を実行
+    const items = JSON.parse(request.items_json || '[]')
+    const disposalItems = JSON.parse(request.furniture_disposal_items || '[]')
+    
+    const aiInput: AIEstimateInput = {
+      contact_person: request.contact_person,
+      project_name: request.project_name,
+      delivery_date: request.delivery_date,
+      delivery_time: request.delivery_time,
+      delivery_postal_code: request.delivery_postal_code,
+      pickup_location: request.pickup_location || '',
+      items_json: items,
+      building_type: request.building_type,
+      installation_floor: request.installation_floor,
+      has_elevator: request.has_elevator || '無',
+      elevator_size: request.elevator_size || '',
+      has_parking: request.has_parking || '無',
+      has_protection_work: request.has_protection_work || '無',
+      protection_scope: request.protection_scope || '',
+      has_hoisting: request.has_hoisting || '無',
+      has_crane: request.has_crane || '無',
+      delivery_route_info: request.delivery_route_info || '',
+      furniture_disposal: request.furniture_disposal || '無',
+      furniture_disposal_items: disposalItems,
+      notes: request.notes || ''
+    }
+    
+    const aiResponse = await generateAIEstimate(env, aiInput)
+    
+    if (aiResponse.success && aiResponse.result) {
+      await env.DB.prepare(`
+        UPDATE quote_requests 
+        SET ai_estimate_json = ?, ai_estimate_generated_at = datetime('now'), ai_estimate_error = NULL
+        WHERE id = ?
+      `).bind(JSON.stringify(aiResponse.result), id).run()
+      
+      return c.json({ success: true, data: aiResponse.result, message: 'AI見積を再生成しました' })
+    } else {
+      await env.DB.prepare(`
+        UPDATE quote_requests SET ai_estimate_error = ? WHERE id = ?
+      `).bind(aiResponse.error || '不明なエラー', id).run()
+      
+      return c.json({ success: false, message: aiResponse.error || 'AI見積の生成に失敗しました' })
+    }
+  } catch (error: any) {
+    console.error('AI再見積エラー:', error)
+    return c.json({ success: false, message: `AI再見積エラー: ${error.message || '不明'}` }, 500)
   }
 })
 
@@ -22231,11 +22601,12 @@ app.get('/admin/quote-requests', (c) => {
     tbody.innerHTML = allRequests.map(r => {
       let itemCount = 0;
       try { itemCount = JSON.parse(r.items_json).length; } catch(e) {}
+      const aiIcon = r.ai_estimate_json ? '<span class="text-purple-600 ml-1" title="AI見積あり"><i class="fas fa-robot"></i></span>' : (r.ai_estimate_error ? '<span class="text-red-400 ml-1" title="AI見積エラー"><i class="fas fa-exclamation-circle"></i></span>' : '');
       return \`
         <tr class="border-b hover:bg-gray-50">
           <td class="py-2 px-3 text-gray-500">\${r.id}</td>
           <td class="py-2 px-3">\${r.customer_name || '-'}</td>
-          <td class="py-2 px-3 font-medium">\${r.project_name}</td>
+          <td class="py-2 px-3 font-medium">\${r.project_name}\${aiIcon}</td>
           <td class="py-2 px-3">\${r.delivery_date}</td>
           <td class="py-2 px-3 text-center">\${itemCount}点</td>
           <td class="py-2 px-3 text-center">\${getStatusBadge(r.status)}</td>
@@ -22258,6 +22629,75 @@ app.get('/admin/quote-requests', (c) => {
         const r = data.data;
         let items = [];
         try { items = JSON.parse(r.items_json); } catch(e) {}
+        let disposalItems = [];
+        try { disposalItems = JSON.parse(r.furniture_disposal_items || '[]'); } catch(e) {}
+        let aiEstimate = null;
+        try { aiEstimate = r.ai_estimate_json ? JSON.parse(r.ai_estimate_json) : null; } catch(e) {}
+        
+        let aiSection = '';
+        if (aiEstimate) {
+          aiSection = \`
+            <hr>
+            <h3 class="font-bold text-purple-800"><i class="fas fa-robot mr-1"></i>AI自動見積結果</h3>
+            <div class="bg-purple-50 border border-purple-200 rounded p-3 text-xs space-y-2">
+              <div class="grid grid-cols-2 gap-2">
+                <div><strong>便種:</strong> \${aiEstimate.service_type === 'charter' ? 'チャーター便' : '混載便'}</div>
+                <div><strong>理由:</strong> \${aiEstimate.service_type_reason}</div>
+                <div><strong>車両:</strong> \${aiEstimate.vehicle_type} × \${aiEstimate.vehicle_count}台\${aiEstimate.oneman_discount ? '（ワンマン割引あり）' : ''}</div>
+                <div><strong>理由:</strong> \${aiEstimate.vehicle_reason}</div>
+              </div>
+              <div class="border-t border-purple-200 pt-2">
+                <strong>スタッフ:</strong> SV \${aiEstimate.supervisor_count}名 / リーダー \${aiEstimate.leader_count}名 / M2 \${aiEstimate.m2_staff_count}名 / 派遣 \${aiEstimate.temp_staff_count}名
+                <div class="text-gray-600">\${aiEstimate.staff_reason}</div>
+              </div>
+              <div class="border-t border-purple-200 pt-2 grid grid-cols-2 gap-2">
+                <div><strong>駐禁対策:</strong> \${aiEstimate.parking_officer_needed ? '必要' : '不要'} - \${aiEstimate.parking_officer_reason}</div>
+                <div><strong>人員輸送:</strong> \${aiEstimate.transport_vehicles}台 - \${aiEstimate.transport_reason}</div>
+                <div><strong>養生:</strong> \${aiEstimate.protection_work_needed ? '必要' : '不要'} - \${aiEstimate.protection_reason}</div>
+                <div><strong>廃棄:</strong> \${aiEstimate.waste_disposal_size === 'none' ? 'なし' : aiEstimate.waste_disposal_size} - \${aiEstimate.waste_disposal_reason}</div>
+                <div><strong>時間帯:</strong> \${aiEstimate.work_time_type === 'overtime' ? '時間外割増' : '通常'} - \${aiEstimate.work_time_reason}</div>
+              </div>
+              <div class="border-t border-purple-200 pt-2">
+                <strong>サマリー:</strong> \${aiEstimate.overall_summary}
+              </div>
+              <div class="text-gray-400 text-right">生成日時: \${r.ai_estimate_generated_at || '-'}</div>
+            </div>
+            <button onclick="regenerateAI(\${r.id})" class="mt-2 px-3 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700">
+              <i class="fas fa-sync-alt mr-1"></i>AI再見積
+            </button>
+          \`;
+        } else if (r.ai_estimate_error) {
+          aiSection = \`
+            <hr>
+            <h3 class="font-bold text-red-700"><i class="fas fa-exclamation-triangle mr-1"></i>AI見積エラー</h3>
+            <div class="bg-red-50 border border-red-200 rounded p-3 text-xs text-red-700">\${r.ai_estimate_error}</div>
+            <button onclick="regenerateAI(\${r.id})" class="mt-2 px-3 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700">
+              <i class="fas fa-sync-alt mr-1"></i>AI再見積
+            </button>
+          \`;
+        } else {
+          aiSection = \`
+            <hr>
+            <div class="text-center py-3">
+              <button onclick="regenerateAI(\${r.id})" class="px-4 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700">
+                <i class="fas fa-robot mr-1"></i>AI自動見積を実行
+              </button>
+            </div>
+          \`;
+        }
+
+        // 廃棄家具セクション
+        let disposalSection = '';
+        if (r.furniture_disposal === '有' && disposalItems.length > 0) {
+          disposalSection = \`
+            <hr>
+            <h3 class="font-bold">引取家具（廃棄）</h3>
+            <table class="w-full border text-xs">
+              <thead><tr class="bg-amber-50"><th class="border p-1">家具名</th><th class="border p-1">縦</th><th class="border p-1">横</th><th class="border p-1">奥行</th></tr></thead>
+              <tbody>\${disposalItems.map(d => \`<tr><td class="border p-1">\${d.name || '-'}</td><td class="border p-1">\${d.height || 0}cm</td><td class="border p-1">\${d.width || 0}cm</td><td class="border p-1">\${d.depth || 0}cm</td></tr>\`).join('')}</tbody>
+            </table>
+          \`;
+        }
         
         document.getElementById('detailContent').innerHTML = \`
           <div class="space-y-3 text-sm">
@@ -22281,6 +22721,7 @@ app.get('/admin/quote-requests', (c) => {
               <thead><tr class="bg-gray-100"><th class="border p-1">品名</th><th class="border p-1">材質</th><th class="border p-1">数量</th><th class="border p-1">サイズ</th><th class="border p-1">重量</th><th class="border p-1">備考</th></tr></thead>
               <tbody>\${items.map(i => \`<tr><td class="border p-1">\${i.product}</td><td class="border p-1">\${i.material}</td><td class="border p-1">\${i.quantity}</td><td class="border p-1">\${i.size || '-'}</td><td class="border p-1">\${i.weight ? i.weight+'kg' : '-'}</td><td class="border p-1">\${i.notes || '-'}</td></tr>\`).join('')}</tbody>
             </table>
+            \${disposalSection}
             <hr>
             <h3 class="font-bold">設置環境</h3>
             <div class="grid grid-cols-2 gap-3">
@@ -22294,6 +22735,7 @@ app.get('/admin/quote-requests', (c) => {
             </div>
             \${r.delivery_route_info ? '<div><span class="text-gray-500">搬入経路:</span> '+r.delivery_route_info+'</div>' : ''}
             \${r.notes ? '<hr><h3 class="font-bold">備考</h3><p>'+r.notes+'</p>' : ''}
+            \${aiSection}
           </div>
         \`;
         document.getElementById('detailModal').style.display = 'flex';
@@ -22320,6 +22762,31 @@ app.get('/admin/quote-requests', (c) => {
         loadRequests('');
       } else {
         alert('エラー: ' + data.message);
+      }
+    } catch (e) {
+      alert('通信エラーが発生しました');
+    }
+  }
+
+  async function regenerateAI(id) {
+    if (!confirm('AI自動見積を再実行しますか？')) return;
+    try {
+      const btn = event.target.closest('button');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>生成中...';
+      
+      const res = await fetch('/api/quote-requests/' + id + '/ai-estimate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('AI見積を再生成しました');
+        showDetail(id); // モーダルを再読み込み
+      } else {
+        alert('エラー: ' + data.message);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i>AI再見積';
       }
     } catch (e) {
       alert('通信エラーが発生しました');
