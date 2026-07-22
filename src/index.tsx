@@ -21204,7 +21204,7 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
       projectId = existingProject.id;
     } else {
       const projectResult = await env.DB.prepare(
-        `INSERT INTO projects (customer_id, name, description, status, user_id) VALUES (?, ?, ?, 'initial', 'ai-system')`
+        `INSERT INTO projects (customer_id, name, description, status, user_id) VALUES (?, ?, ?, 'initial', 'test-user-001')`
       ).bind(quoteRequest.customer_id, quoteRequest.project_name, `見積依頼フォームから自動作成（依頼ID: ${quoteRequest.id}）`).run();
       projectId = projectResult.meta.last_row_id;
     }
@@ -21379,7 +21379,7 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
       taxRate,
       taxAmount,
       totalAmount,
-      'ai-system',
+      'test-user-001', // user_id - 管理者の見積一覧に表示するため
       `【AI自動見積】${aiResult.overall_summary || ''}\n依頼ID: ${quoteRequest.id}`,
       aiResult.vehicle_type === '2t車' ? vehicleCount : 0,
       aiResult.vehicle_type === '4t車' ? vehicleCount : 0,
