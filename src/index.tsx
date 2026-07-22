@@ -21014,9 +21014,23 @@ async function generateAIEstimate(env: any, input: AIEstimateInput): Promise<{ s
     ).bind(prefix).first();
     if (areaResult) {
       areaInfo = `エリア${areaResult.area_rank}（${areaResult.area_name}）`;
+    } else {
+      // area_settingsが空の場合、デフォルトマッピングを使用
+      const defaultRank = getDefaultAreaRank(input.delivery_postal_code);
+      const areaNames: Record<string, string> = {
+        'A': '大阪市内中心部', 'B': '近畿圏', 'C': '中距離圏',
+        'D': '遠距離圏', 'E': '長距離圏'
+      };
+      areaInfo = `エリア${defaultRank}（${areaNames[defaultRank] || '不明'}）`;
     }
   } catch (e) {
-    // エリア判定できない場合は「不明」のまま
+    // エリア判定できない場合もデフォルトマッピングを試行
+    const defaultRank = getDefaultAreaRank(input.delivery_postal_code);
+    const areaNames: Record<string, string> = {
+      'A': '大阪市内中心部', 'B': '近畿圏', 'C': '中距離圏',
+      'D': '遠距離圏', 'E': '長距離圏'
+    };
+    areaInfo = `エリア${defaultRank}（${areaNames[defaultRank] || '不明'}）`;
   }
 
   // 品目情報の整形
@@ -21191,6 +21205,49 @@ ${input.notes || 'なし'}
   }
 }
 
+// 郵便番号プレフィックスからエリアランクを判定するデフォルトマッピング
+// area_settingsテーブルが空の場合のフォールバック
+function getDefaultAreaRank(postalCode: string): string {
+  const prefix = (postalCode || '').replace('-', '').substring(0, 3);
+  if (!prefix) return 'B';
+  const num = parseInt(prefix);
+  
+  // エリアA: 大阪市内中心部（530-559）
+  if (num >= 530 && num <= 559) return 'A';
+  
+  // エリアB: 大阪府内その他（560-599）、京都（600-629）、兵庫・神戸（650-679）、奈良（630-639）
+  if (num >= 560 && num <= 599) return 'B';
+  if (num >= 600 && num <= 629) return 'B';
+  if (num >= 650 && num <= 679) return 'B';
+  if (num >= 630 && num <= 639) return 'B';
+  
+  // エリアC: 滋賀（520-529）、和歌山（640-649）、三重（510-519）
+  if (num >= 520 && num <= 529) return 'C';
+  if (num >= 640 && num <= 649) return 'C';
+  if (num >= 510 && num <= 519) return 'C';
+  
+  // エリアD: 中国地方（680-739）、四国（760-799）
+  if (num >= 680 && num <= 739) return 'D';
+  if (num >= 760 && num <= 799) return 'D';
+  
+  // エリアE: 東海・関東（400-509）、北陸（910-939）、東北・北海道（000-399）、九州（800-899）
+  if (num >= 400 && num <= 509) return 'E';
+  if (num >= 910 && num <= 939) return 'E';
+  if (num >= 0 && num <= 399) return 'E';
+  if (num >= 800 && num <= 899) return 'E';
+  
+  // その他: デフォルトC
+  return 'C';
+}
+
+// 設置階文字列から数値を抽出する関数
+function extractFloorNumber(floorStr: string): number {
+  if (!floorStr) return 1;
+  // "3階" → 3, "B1階" → 1, "10階" → 10, "地下1階" → 1
+  const match = floorStr.match(/(\d+)/);
+  return match ? parseInt(match[1]) : 1;
+}
+
 // AI見積結果から見積履歴を自動生成する関数
 async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any): Promise<{ success: boolean; estimateId?: number; error?: string }> {
   try {
@@ -21209,8 +21266,8 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
       projectId = projectResult.meta.last_row_id;
     }
 
-    // 2. エリア判定
-    let areaRank = 'A';
+    // 2. エリア判定（area_settingsテーブル → デフォルトマッピングのフォールバック）
+    let areaRank = 'B'; // デフォルトをBに変更（大阪拠点の配送会社なので近畿圏がメイン）
     try {
       const prefix = (quoteRequest.delivery_postal_code || '').replace('-', '').substring(0, 3);
       if (prefix) {
@@ -21219,9 +21276,15 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
         ).bind(prefix).first();
         if (areaResult) {
           areaRank = areaResult.area_rank;
+        } else {
+          // area_settingsにデータがない場合、デフォルトマッピングを使用
+          areaRank = getDefaultAreaRank(quoteRequest.delivery_postal_code);
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      // エラー時もデフォルトマッピングを使用
+      areaRank = getDefaultAreaRank(quoteRequest.delivery_postal_code);
+    }
 
     // 3. マスター設定から単価取得
     const getPrice = async (category: string, subcategory: string): Promise<number> => {
@@ -21274,9 +21337,11 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
     const transportVehicles = aiResult.transport_vehicles || 0;
     const transportCost = transportVehicles * 10000;
 
-    // 養生コスト
+    // 養生コスト（フォームの設置階を反映）
     const protectionWork = aiResult.protection_work_needed ? 1 : 0;
-    const protectionFloors = aiResult.protection_work_needed ? 1 : 0;
+    // 設置階の数値を取得（"3階" → 3）。養生が必要な場合、実際の階数をフロア数として使用
+    const actualFloorNumber = extractFloorNumber(quoteRequest.installation_floor || '');
+    const protectionFloors = aiResult.protection_work_needed ? actualFloorNumber : 0;
     const protectionCost = protectionFloors * 15000;
 
     // 廃棄サイズコスト
@@ -21541,14 +21606,22 @@ app.post('/api/quote-requests', async (c) => {
           WHERE id = ?
         `).bind(JSON.stringify(aiResponse.result), quoteRequestId).run()
 
-        // AI見積結果を見積履歴に自動追加
+        // AI見積結果を見積履歴に自動追加（全フィールドを渡す）
         try {
           const quoteReqData = {
             id: quoteRequestId,
             customer_id: body.customer_id,
             project_name: body.project_name,
             delivery_postal_code: body.delivery_postal_code,
-            contact_person: body.contact_person
+            contact_person: body.contact_person,
+            installation_floor: body.installation_floor,
+            building_type: body.building_type,
+            has_elevator: body.has_elevator || '無',
+            elevator_size: body.elevator_size || '',
+            has_parking: body.has_parking || '無',
+            has_protection_work: body.has_protection_work || '無',
+            has_hoisting: body.has_hoisting || '無',
+            has_crane: body.has_crane || '無'
           }
           await createEstimateFromAI(env, quoteReqData, aiResponse.result)
         } catch (autoEstErr: any) {
