@@ -185,10 +185,22 @@ if (typeof Utils === 'undefined') {
     return cleaned;
   },
 
-  // 日付フォーマット
+  // 日付フォーマット（UTC保存の日時を日本時間JSTで表示）
   formatDate: (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('ja-JP', {
+    if (!dateString) return '';
+    // D1はUTCでCURRENT_TIMESTAMPを保存する
+    // "2026-07-22 14:11:41" のような形式をUTCとして明示的に解釈
+    let dateStr = dateString;
+    // 空白区切り("YYYY-MM-DD HH:MM:SS")をISO形式に変換してUTC明示
+    if (dateStr.includes(' ') && !dateStr.includes('T') && !dateStr.includes('Z')) {
+      dateStr = dateStr.replace(' ', 'T') + 'Z';
+    } else if (dateStr.includes('T') && !dateStr.includes('Z') && !dateStr.includes('+')) {
+      dateStr = dateStr + 'Z';
+    }
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateString;
+    return date.toLocaleString('ja-JP', {
+      timeZone: 'Asia/Tokyo',
       year: 'numeric',
       month: 'long',
       day: 'numeric',

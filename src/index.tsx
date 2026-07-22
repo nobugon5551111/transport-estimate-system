@@ -746,8 +746,8 @@ app.get('/admin/backup', (c) => {
                                 \${backup.record_count.toLocaleString()}件
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                \${new Date(backup.created_at).toLocaleDateString('ja-JP', {
-                                    year: 'numeric', month: '2-digit', day: '2-digit',
+                                \${new Date((backup.created_at || '').replace(' ', 'T') + 'Z').toLocaleString('ja-JP', {
+                                    timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit',
                                     hour: '2-digit', minute: '2-digit'
                                 })}
                             </td>
@@ -779,7 +779,7 @@ app.get('/admin/backup', (c) => {
                     const totalBackups = backups.length;
                     const totalSize = backups.reduce((sum, backup) => sum + (backup.file_size || 0), 0);
                     const latestBackup = backups.length > 0 ? 
-                        new Date(backups[0].created_at).toLocaleDateString('ja-JP') : 'なし';
+                        new Date((backups[0].created_at || '').replace(' ', 'T') + 'Z').toLocaleDateString('ja-JP', {timeZone: 'Asia/Tokyo'}) : 'なし';
                     
                     document.getElementById('totalBackups').textContent = totalBackups + '個';
                     document.getElementById('totalSize').textContent = Utils.formatFileSize(totalSize);
@@ -1925,7 +1925,7 @@ app.get('/admin/users.html', (c) => {
                             <span class="text-sm text-gray-900">\${user.name}</span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="text-sm text-gray-500">\${new Date(user.created_at).toLocaleString('ja-JP')}</span>
+                            <span class="text-sm text-gray-500">\${new Date((user.created_at || '').replace(' ', 'T') + 'Z').toLocaleString('ja-JP', {timeZone: 'Asia/Tokyo'})}</span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-center space-x-2">
                             <button 
@@ -10753,7 +10753,7 @@ app.get('/estimates', (c) => {
                   \${Utils.formatCurrency(estimate.total_amount || 0)}
                 </td>
                 <td class="table-cell text-gray-500">
-                  \${estimate.created_at ? new Date(estimate.created_at).toLocaleDateString('ja-JP') : ''}
+                  \${estimate.created_at ? new Date((estimate.created_at || '').replace(' ', 'T') + 'Z').toLocaleString('ja-JP', {timeZone: 'Asia/Tokyo', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'}) : ''}
                 </td>
                 <td class="table-cell">
                   <span class="status-badge status-\${estimate.status || 'initial'}">
@@ -10840,7 +10840,7 @@ app.get('/estimates', (c) => {
                     </div>
                     <div>
                       <label class="block text-sm font-medium text-gray-600">作成日</label>
-                      <p class="mt-1 text-sm text-gray-900">\${estimate.created_at ? new Date(estimate.created_at).toLocaleDateString('ja-JP') : 'なし'}</p>
+                      <p class="mt-1 text-sm text-gray-900">\${estimate.created_at ? new Date((estimate.created_at || '').replace(' ', 'T') + 'Z').toLocaleString('ja-JP', {timeZone: 'Asia/Tokyo', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'}) : 'なし'}</p>
                     </div>
                     <div>
                       <label class="block text-sm font-medium text-gray-600">顧客名</label>
@@ -13812,7 +13812,7 @@ app.get('/estimate/:id', async (c) => {
                 <h3 class="text-lg font-bold text-gray-800 mb-3">見積もり情報</h3>
                 <p><strong>作業日：</strong> ${estimate.work_date || '未設定'}</p>
                 <p><strong>有効期限：</strong> ${estimate.valid_until || '未設定'}</p>
-                <p><strong>作成日：</strong> ${new Date(estimate.created_at).toLocaleDateString('ja-JP')}</p>
+                <p><strong>作成日：</strong> ${new Date((estimate.created_at || '').replace(' ', 'T') + 'Z').toLocaleString('ja-JP', {timeZone: 'Asia/Tokyo', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'})}</p>
               </div>
             </div>
           </div>
@@ -13918,7 +13918,7 @@ app.get('/estimate/:id', async (c) => {
             </div>
             <div class="bg-gray-50 p-4 rounded-lg border">
               <h3 class="text-lg font-bold text-gray-800 mb-3 border-b pb-2">見積もり情報</h3>
-              <p><strong>作成日：</strong> ${new Date(estimate.created_at).toLocaleDateString('ja-JP')}</p>
+              <p><strong>作成日：</strong> ${new Date((estimate.created_at || '').replace(' ', 'T') + 'Z').toLocaleString('ja-JP', {timeZone: 'Asia/Tokyo', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'})}</p>
               <p><strong>調査予定日：</strong> ${surveyMeta.survey_date ? new Date(surveyMeta.survey_date).toLocaleDateString('ja-JP') : '未定'}</p>
               <p><strong>有効期限：</strong> ${surveyMeta.valid_until ? new Date(surveyMeta.valid_until).toLocaleDateString('ja-JP') : '未設定'}</p>
               ${estimate.created_by_name ? `<p><strong>担当者：</strong> ${estimate.created_by_name}</p>` : ''}
@@ -14137,7 +14137,7 @@ app.get('/estimate/:id', async (c) => {
             <div class="bg-gray-50 p-4 rounded-lg border">
               <h3 class="text-lg font-bold text-gray-800 mb-3 border-b pb-2">見積もり情報</h3>
               <p><strong>案件名：</strong> ${estimate.project_name || '未設定'}</p>
-              <p><strong>作成日：</strong> ${new Date(estimate.created_at).toLocaleDateString('ja-JP')}</p>
+              <p><strong>作成日：</strong> ${new Date((estimate.created_at || '').replace(' ', 'T') + 'Z').toLocaleString('ja-JP', {timeZone: 'Asia/Tokyo', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'})}</p>
               ${estimate.created_by_name ? `<p><strong>作成者：</strong> ${estimate.created_by_name}</p>` : ''}
               ${estimate.work_time_type && estimate.work_time_type !== 'normal' ? `<p><strong>作業時間帯：</strong> ${workTimeLabels[estimate.work_time_type] || estimate.work_time_type}（${estimate.work_time_multiplier}倍）</p>` : ''}
             </div>
@@ -23070,7 +23070,7 @@ app.get('/admin/quote-requests', (c) => {
           <td class="py-2 px-3">\${r.delivery_date}</td>
           <td class="py-2 px-3 text-center">\${itemCount}点</td>
           <td class="py-2 px-3 text-center">\${getStatusBadge(r.status)}</td>
-          <td class="py-2 px-3 text-xs text-gray-500">\${new Date(r.created_at).toLocaleString('ja-JP')}</td>
+          <td class="py-2 px-3 text-xs text-gray-500">\${new Date((r.created_at || '').replace(' ', 'T') + 'Z').toLocaleString('ja-JP', {timeZone: 'Asia/Tokyo'})}</td>
           <td class="py-2 px-3 text-center">
             <button onclick="showDetail(\${r.id})" class="text-blue-600 hover:underline text-xs mr-2">詳細</button>
             <button onclick="updateStatus(\${r.id}, 'processing')" class="text-yellow-600 hover:underline text-xs mr-1">対応中</button>
