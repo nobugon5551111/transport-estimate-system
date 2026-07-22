@@ -21191,6 +21191,213 @@ ${input.notes || 'なし'}
   }
 }
 
+// AI見積結果から見積履歴を自動生成する関数
+async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any): Promise<{ success: boolean; estimateId?: number; error?: string }> {
+  try {
+    // 1. プロジェクトを自動作成（既存がなければ）
+    let projectId: number;
+    const existingProject = await env.DB.prepare(
+      `SELECT id FROM projects WHERE customer_id = ? AND name = ? LIMIT 1`
+    ).bind(quoteRequest.customer_id, quoteRequest.project_name).first();
+    
+    if (existingProject) {
+      projectId = existingProject.id;
+    } else {
+      const projectResult = await env.DB.prepare(
+        `INSERT INTO projects (customer_id, name, description, status, user_id) VALUES (?, ?, ?, 'initial', 'ai-system')`
+      ).bind(quoteRequest.customer_id, quoteRequest.project_name, `見積依頼フォームから自動作成（依頼ID: ${quoteRequest.id}）`).run();
+      projectId = projectResult.meta.last_row_id;
+    }
+
+    // 2. エリア判定
+    let areaRank = 'A';
+    try {
+      const prefix = (quoteRequest.delivery_postal_code || '').replace('-', '').substring(0, 3);
+      if (prefix) {
+        const areaResult = await env.DB.prepare(
+          'SELECT area_rank FROM area_settings WHERE postal_code_prefix = ? LIMIT 1'
+        ).bind(prefix).first();
+        if (areaResult) {
+          areaRank = areaResult.area_rank;
+        }
+      }
+    } catch (e) {}
+
+    // 3. マスター設定から単価取得
+    const getPrice = async (category: string, subcategory: string): Promise<number> => {
+      const result = await env.DB.prepare(
+        'SELECT value FROM master_settings WHERE category = ? AND subcategory = ? AND key = ? ORDER BY id DESC LIMIT 1'
+      ).bind(category, subcategory, 'price').first();
+      return result ? parseInt(result.value) : 0;
+    };
+
+    const getStaffRate = async (key: string): Promise<number> => {
+      const result = await env.DB.prepare(
+        'SELECT value FROM master_settings WHERE category = ? AND subcategory = ? AND key = ? ORDER BY id DESC LIMIT 1'
+      ).bind('staff', 'daily_rate', key).first();
+      return result ? parseInt(result.value) : 0;
+    };
+
+    // 便種に応じた車両タイプとオペレーション判定
+    const vehicleType = aiResult.vehicle_type === '4t車' ? '4t' : '2t';
+    let operationType = 'full_day';
+    if (aiResult.service_type === 'mixed') {
+      operationType = 'shared';
+    }
+    const vehicleSubcategory = `${vehicleType}_${operationType}_${areaRank}`;
+    
+    // 車両単価取得
+    const vehicleUnitPrice = await getPrice('vehicle', vehicleSubcategory);
+    const vehicleCount = aiResult.vehicle_count || 1;
+    const vehicleCost = vehicleUnitPrice * vehicleCount;
+
+    // スタッフ単価取得
+    const svRate = await getStaffRate('supervisor');
+    const leaderRate = await getStaffRate('leader');
+    const tempFullRate = await getStaffRate('temp_full_day');
+    const tempHalfRate = await getStaffRate('temp_half_day');
+
+    const supervisorCount = aiResult.supervisor_count || 0;
+    const leaderCount = aiResult.leader_count || 0;
+    const tempStaffCount = aiResult.temp_staff_count || 0;
+    
+    const isHalfDay = aiResult.service_type === 'mixed';
+    const staffCost = (supervisorCount * svRate) + 
+                      (leaderCount * leaderRate) + 
+                      (tempStaffCount * (isHalfDay ? tempHalfRate : tempFullRate));
+
+    // 駐禁対策員コスト
+    const parkingOfficerHours = aiResult.parking_officer_needed ? 2 : 0;
+    const parkingOfficerCost = parkingOfficerHours * 2000;
+
+    // 人員輸送車両コスト
+    const transportVehicles = aiResult.transport_vehicles || 0;
+    const transportCost = transportVehicles * 10000;
+
+    // 養生コスト
+    const protectionWork = aiResult.protection_work_needed ? 1 : 0;
+    const protectionFloors = aiResult.protection_work_needed ? 1 : 0;
+    const protectionCost = protectionFloors * 15000;
+
+    // 廃棄サイズコスト
+    let wasteDisposalCost = 0;
+    if (aiResult.waste_disposal_size === 'small') wasteDisposalCost = 5000;
+    else if (aiResult.waste_disposal_size === 'medium') wasteDisposalCost = 10000;
+    else if (aiResult.waste_disposal_size === 'large') wasteDisposalCost = 20000;
+
+    // 時間帯割増
+    const workTimeMultiplier = aiResult.work_time_type === 'overtime' ? 1.25 : 1;
+
+    // 小計計算
+    const subtotal = Math.round((vehicleCost + staffCost + parkingOfficerCost + transportCost + protectionCost + wasteDisposalCost) * workTimeMultiplier);
+    const taxRate = 0.1;
+    const taxAmount = Math.round(subtotal * taxRate);
+    const totalAmount = subtotal + taxAmount;
+
+    // 4. 見積番号生成
+    const year = new Date().getFullYear();
+    const estimateNumber = `AI-${year}-${String(Date.now()).slice(-4)}`;
+
+    // 5. estimatesテーブルにINSERT（全NOT NULLカラムを含む）
+    const insertResult = await env.DB.prepare(`
+      INSERT INTO estimates (
+        customer_id, project_id, estimate_number,
+        delivery_address, delivery_postal_code, delivery_area,
+        vehicle_type, operation_type, vehicle_cost,
+        supervisor_count, leader_count, m2_staff_half_day, m2_staff_full_day,
+        temp_staff_half_day, temp_staff_full_day, staff_cost,
+        parking_officer_hours, parking_officer_cost,
+        transport_vehicles, transport_cost,
+        waste_disposal_size, waste_disposal_cost,
+        protection_work, protection_floors, protection_cost,
+        material_collection_size, material_collection_cost,
+        construction_m2_staff, construction_cost,
+        work_time_type, work_time_multiplier,
+        parking_fee, highway_fee,
+        subtotal, tax_rate, tax_amount, total_amount,
+        user_id, notes,
+        vehicle_2t_count, vehicle_4t_count,
+        external_contractor_cost, uses_multiple_vehicles,
+        created_by_name, customer_contact_person,
+        estimate_type, discount_amount
+      ) VALUES (
+        ?, ?, ?,
+        ?, ?, ?,
+        ?, ?, ?,
+        ?, ?, ?, ?,
+        ?, ?, ?,
+        ?, ?,
+        ?, ?,
+        ?, ?,
+        ?, ?, ?,
+        ?, ?,
+        ?, ?,
+        ?, ?,
+        ?, ?,
+        ?, ?, ?, ?,
+        ?, ?,
+        ?, ?,
+        ?, ?,
+        ?, ?,
+        ?, ?
+      )
+    `).bind(
+      quoteRequest.customer_id,
+      projectId,
+      estimateNumber,
+      quoteRequest.delivery_postal_code || '', // delivery_address (NOT NULL)
+      quoteRequest.delivery_postal_code || '',
+      areaRank,
+      aiResult.vehicle_type === '4t車' ? '4t_truck' : '2t_truck',
+      aiResult.service_type === 'mixed' ? 'shared' : 'standard',
+      vehicleCost,
+      supervisorCount,
+      leaderCount,
+      0, // m2_staff_half_day
+      aiResult.m2_staff_count || 0,
+      isHalfDay ? tempStaffCount : 0,
+      isHalfDay ? 0 : tempStaffCount,
+      staffCost,
+      parkingOfficerHours,
+      parkingOfficerCost,
+      transportVehicles,
+      transportCost,
+      aiResult.waste_disposal_size || 'none',
+      wasteDisposalCost,
+      protectionWork,
+      protectionFloors,
+      protectionCost,
+      'none',
+      0,
+      0,
+      0,
+      aiResult.work_time_type || 'normal',
+      workTimeMultiplier,
+      0,
+      0,
+      subtotal,
+      taxRate,
+      taxAmount,
+      totalAmount,
+      'ai-system',
+      `【AI自動見積】${aiResult.overall_summary || ''}\n依頼ID: ${quoteRequest.id}`,
+      aiResult.vehicle_type === '2t車' ? vehicleCount : 0,
+      aiResult.vehicle_type === '4t車' ? vehicleCount : 0,
+      0, // external_contractor_cost
+      vehicleCount > 1 ? 1 : 0, // uses_multiple_vehicles
+      'AI自動見積',
+      quoteRequest.contact_person || '',
+      'standard_a',
+      0 // discount_amount
+    ).run();
+
+    return { success: true, estimateId: insertResult.meta.last_row_id };
+  } catch (error: any) {
+    console.error('AI見積→見積履歴自動作成エラー:', error);
+    return { success: false, error: error.message || '不明なエラー' };
+  }
+}
+
 // ==========================================
 // 見積依頼フォーム（顧客向け）API
 // ==========================================
@@ -21333,6 +21540,20 @@ app.post('/api/quote-requests', async (c) => {
           SET ai_estimate_json = ?, ai_estimate_generated_at = datetime('now')
           WHERE id = ?
         `).bind(JSON.stringify(aiResponse.result), quoteRequestId).run()
+
+        // AI見積結果を見積履歴に自動追加
+        try {
+          const quoteReqData = {
+            id: quoteRequestId,
+            customer_id: body.customer_id,
+            project_name: body.project_name,
+            delivery_postal_code: body.delivery_postal_code,
+            contact_person: body.contact_person
+          }
+          await createEstimateFromAI(env, quoteReqData, aiResponse.result)
+        } catch (autoEstErr: any) {
+          console.error('AI見積→見積履歴自動作成エラー:', autoEstErr)
+        }
       } else {
         // エラーを記録
         await env.DB.prepare(`
@@ -21482,6 +21703,13 @@ app.post('/api/quote-requests/:id/ai-estimate', async (c) => {
         WHERE id = ?
       `).bind(JSON.stringify(aiResponse.result), id).run()
       
+      // AI見積結果を見積履歴に自動追加
+      try {
+        await createEstimateFromAI(env, request, aiResponse.result)
+      } catch (autoEstErr: any) {
+        console.error('AI再見積→見積履歴自動作成エラー:', autoEstErr)
+      }
+
       return c.json({ success: true, data: aiResponse.result, message: 'AI見積を再生成しました' })
     } else {
       await env.DB.prepare(`
@@ -22212,11 +22440,22 @@ app.get('/quote-request', (c) => {
   }
 
   // 送信処理
+  let isSubmitting = false;
   async function submitQuoteRequest() {
+    if (isSubmitting) return; // 二重送信防止
+    
     const errors = validateForm();
     if (errors.length > 0) {
       alert('以下の必須項目を入力してください:\\n\\n' + errors.join('\\n'));
       return;
+    }
+    
+    isSubmitting = true;
+    const submitBtn = document.querySelector('[onclick="submitQuoteRequest()"]');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.style.opacity = '0.5';
+      submitBtn.style.pointerEvents = 'none';
     }
     
     const items = collectItems();
@@ -22262,10 +22501,24 @@ app.get('/quote-request', (c) => {
       if (data.success) {
         document.getElementById('successOverlay').style.display = 'flex';
       } else {
+        isSubmitting = false;
+        const submitBtn = document.querySelector('[onclick="submitQuoteRequest()"]');
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.style.opacity = '1';
+          submitBtn.style.pointerEvents = 'auto';
+        }
         alert('エラー: ' + data.message);
       }
     } catch (e) {
       document.getElementById('loadingOverlay').style.display = 'none';
+      isSubmitting = false;
+      const submitBtn = document.querySelector('[onclick="submitQuoteRequest()"]');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.style.opacity = '1';
+        submitBtn.style.pointerEvents = 'auto';
+      }
       alert('通信エラーが発生しました。再度お試しください。');
     }
   }
