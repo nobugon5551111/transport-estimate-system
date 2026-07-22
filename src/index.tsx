@@ -21286,76 +21286,94 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
       areaRank = getDefaultAreaRank(quoteRequest.delivery_postal_code);
     }
 
-    // 3. マスター設定から単価取得
-    const getPrice = async (category: string, subcategory: string): Promise<number> => {
-      const result = await env.DB.prepare(
-        'SELECT value FROM master_settings WHERE category = ? AND subcategory = ? AND key = ? ORDER BY id DESC LIMIT 1'
-      ).bind(category, subcategory, 'price').first();
-      return result ? parseInt(result.value) : 0;
+    // 3. マスター設定から単価取得（全てDBから動的に取得、管理画面で変更時に自動反映）
+    const planType = 'A'; // デフォルトプラン
+    
+    // 汎用単価取得関数（category, subcategory, key で検索）
+    const getMasterValue = async (category: string, subcategory: string, key: string, defaultValue: number = 0): Promise<number> => {
+      try {
+        const result = await env.DB.prepare(
+          'SELECT value FROM master_settings WHERE category = ? AND subcategory = ? AND key = ? AND plan_type = ? ORDER BY updated_at DESC LIMIT 1'
+        ).bind(category, subcategory, key, planType).first();
+        if (result) return parseFloat(result.value) || defaultValue;
+        // plan_type指定なしでも検索（互換性）
+        const result2 = await env.DB.prepare(
+          'SELECT value FROM master_settings WHERE category = ? AND subcategory = ? AND key = ? ORDER BY updated_at DESC LIMIT 1'
+        ).bind(category, subcategory, key).first();
+        return result2 ? (parseFloat(result2.value) || defaultValue) : defaultValue;
+      } catch (e) {
+        return defaultValue;
+      }
     };
 
-    const getStaffRate = async (key: string): Promise<number> => {
-      const result = await env.DB.prepare(
-        'SELECT value FROM master_settings WHERE category = ? AND subcategory = ? AND key = ? ORDER BY id DESC LIMIT 1'
-      ).bind('staff', 'daily_rate', key).first();
-      return result ? parseInt(result.value) : 0;
-    };
-
-    // 便種に応じた車両タイプとオペレーション判定
+    // --- 車両コスト計算 ---
     const vehicleType = aiResult.vehicle_type === '4t車' ? '4t' : '2t';
     let operationType = 'full_day';
     if (aiResult.service_type === 'mixed') {
       operationType = 'shared';
     }
     const vehicleSubcategory = `${vehicleType}_${operationType}_${areaRank}`;
-    
-    // 車両単価取得
-    const vehicleUnitPrice = await getPrice('vehicle', vehicleSubcategory);
+    const vehicleUnitPrice = await getMasterValue('vehicle', vehicleSubcategory, 'price', 
+      operationType === 'shared' ? 16000 : 35000); // デフォルト: 混載16000, 終日35000
     const vehicleCount = aiResult.vehicle_count || 1;
     const vehicleCost = vehicleUnitPrice * vehicleCount;
 
-    // スタッフ単価取得
-    const svRate = await getStaffRate('supervisor');
-    const leaderRate = await getStaffRate('leader');
-    const tempFullRate = await getStaffRate('temp_full_day');
-    const tempHalfRate = await getStaffRate('temp_half_day');
+    // --- スタッフコスト計算 ---
+    const svRate = await getMasterValue('staff', 'daily_rate', 'supervisor', 50000);
+    const leaderRate = await getMasterValue('staff', 'daily_rate', 'leader', 33000);
+    const m2FullRate = await getMasterValue('staff', 'daily_rate', 'm2_full_day', 20000);
+    const m2HalfRate = await getMasterValue('staff', 'daily_rate', 'm2_half_day', 20000);
+    const tempFullRate = await getMasterValue('staff', 'daily_rate', 'temp_full_day', 18000);
+    const tempHalfRate = await getMasterValue('staff', 'daily_rate', 'temp_half_day', 10000);
 
     const supervisorCount = aiResult.supervisor_count || 0;
     const leaderCount = aiResult.leader_count || 0;
+    const m2StaffCount = aiResult.m2_staff_count || 0;
     const tempStaffCount = aiResult.temp_staff_count || 0;
     
     const isHalfDay = aiResult.service_type === 'mixed';
     const staffCost = (supervisorCount * svRate) + 
                       (leaderCount * leaderRate) + 
+                      (m2StaffCount * (isHalfDay ? m2HalfRate : m2FullRate)) +
                       (tempStaffCount * (isHalfDay ? tempHalfRate : tempFullRate));
 
-    // 駐禁対策員コスト
+    // --- 駐禁対策員コスト（マスター単価参照） ---
+    const parkingOfficerHourlyRate = await getMasterValue('service', 'parking_officer', 'hourly_rate', 2800);
     const parkingOfficerHours = aiResult.parking_officer_needed ? 2 : 0;
-    const parkingOfficerCost = parkingOfficerHours * 2000;
+    const parkingOfficerCost = parkingOfficerHours * parkingOfficerHourlyRate;
 
-    // 人員輸送車両コスト
+    // --- 人員輸送車両コスト（マスター単価参照） ---
+    const transportBaseRate = await getMasterValue('service', 'transport_vehicle', 'base_rate_20km', 5000);
     const transportVehicles = aiResult.transport_vehicles || 0;
-    const transportCost = transportVehicles * 10000;
+    const transportCost = transportVehicles * transportBaseRate;
 
-    // 養生コスト（フォームの設置階を反映）
+    // --- 養生コスト（基本料金 + フロア数 × フロア単価）---
+    const protectionBaseRate = await getMasterValue('service', 'protection_work', 'base_rate', 5000);
+    const protectionFloorRate = await getMasterValue('service', 'protection_work', 'floor_rate', 3000);
     const protectionWork = aiResult.protection_work_needed ? 1 : 0;
-    // 設置階の数値を取得（"3階" → 3）。養生が必要な場合、実際の階数をフロア数として使用
     const actualFloorNumber = extractFloorNumber(quoteRequest.installation_floor || '');
     const protectionFloors = aiResult.protection_work_needed ? actualFloorNumber : 0;
-    const protectionCost = protectionFloors * 15000;
+    // 養生コスト = 基本料金 + (フロア数 × フロア単価)
+    const protectionCost = aiResult.protection_work_needed 
+      ? (protectionBaseRate + protectionFloors * protectionFloorRate) 
+      : 0;
 
-    // 廃棄サイズコスト
+    // --- 廃棄コスト（マスター単価参照） ---
+    const wasteSmallRate = await getMasterValue('service', 'waste_disposal', 'small', 5000);
+    const wasteMediumRate = await getMasterValue('service', 'waste_disposal', 'medium', 10000);
+    const wasteLargeRate = await getMasterValue('service', 'waste_disposal', 'large', 20000);
     let wasteDisposalCost = 0;
-    if (aiResult.waste_disposal_size === 'small') wasteDisposalCost = 5000;
-    else if (aiResult.waste_disposal_size === 'medium') wasteDisposalCost = 10000;
-    else if (aiResult.waste_disposal_size === 'large') wasteDisposalCost = 20000;
+    if (aiResult.waste_disposal_size === 'small') wasteDisposalCost = wasteSmallRate;
+    else if (aiResult.waste_disposal_size === 'medium') wasteDisposalCost = wasteMediumRate;
+    else if (aiResult.waste_disposal_size === 'large') wasteDisposalCost = wasteLargeRate;
 
-    // 時間帯割増
-    const workTimeMultiplier = aiResult.work_time_type === 'overtime' ? 1.25 : 1;
+    // --- 時間帯割増（マスター単価参照） ---
+    const overtimeMultiplier = await getMasterValue('service', 'work_time', 'overtime', 1.25);
+    const workTimeMultiplier = aiResult.work_time_type === 'overtime' ? overtimeMultiplier : 1;
 
-    // 小計計算
+    // --- 小計・税額計算（税率もマスターから動的取得） ---
     const subtotal = Math.round((vehicleCost + staffCost + parkingOfficerCost + transportCost + protectionCost + wasteDisposalCost) * workTimeMultiplier);
-    const taxRate = 0.1;
+    const taxRate = await getMasterValue('system', 'tax', 'rate', 0.1);
     const taxAmount = Math.round(subtotal * taxRate);
     const totalAmount = subtotal + taxAmount;
 
@@ -21418,8 +21436,8 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
       vehicleCost,
       supervisorCount,
       leaderCount,
-      0, // m2_staff_half_day
-      aiResult.m2_staff_count || 0,
+      isHalfDay ? m2StaffCount : 0, // m2_staff_half_day
+      isHalfDay ? 0 : m2StaffCount, // m2_staff_full_day
       isHalfDay ? tempStaffCount : 0,
       isHalfDay ? 0 : tempStaffCount,
       staffCost,
