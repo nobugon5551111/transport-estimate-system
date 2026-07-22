@@ -5,7 +5,7 @@ export interface Bindings {
   AI: Ai;
   RESEND_API_KEY: string;
   RESEND_FROM_EMAIL: string;
-  GEMINI_API_KEY: string;
+  OPENAI_API_KEY: string;
 }
 
 export interface Customer {

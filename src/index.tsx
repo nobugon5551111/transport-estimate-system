@@ -21000,9 +21000,9 @@ interface AIEstimateResult {
 }
 
 async function generateAIEstimate(env: any, input: AIEstimateInput): Promise<{ success: boolean; result?: AIEstimateResult; error?: string }> {
-  const GEMINI_API_KEY = env.GEMINI_API_KEY;
-  if (!GEMINI_API_KEY) {
-    return { success: false, error: 'GEMINI_API_KEY が設定されていません' };
+  const OPENAI_API_KEY = env.OPENAI_API_KEY;
+  if (!OPENAI_API_KEY) {
+    return { success: false, error: 'OPENAI_API_KEY が設定されていません' };
   }
 
   // エリア判定（郵便番号から）
@@ -21144,31 +21144,42 @@ ${input.notes || 'なし'}
 
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+      'https://api.openai.com/v1/chat/completions',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENAI_API_KEY}`
+        },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.2,
-            responseMimeType: 'application/json'
-          }
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: 'あなたは大阪の家具搬入・配送会社の見積担当AIです。指定されたルールに従い、JSON形式のみで回答してください。'
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          temperature: 0.2,
+          response_format: { type: 'json_object' }
         })
       }
     );
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Gemini API error:', response.status, errorText);
-      return { success: false, error: `Gemini API エラー (${response.status}): ${errorText.substring(0, 200)}` };
+      console.error('OpenAI API error:', response.status, errorText);
+      return { success: false, error: `OpenAI API エラー (${response.status}): ${errorText.substring(0, 200)}` };
     }
 
     const data: any = await response.json();
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const text = data?.choices?.[0]?.message?.content;
     
     if (!text) {
-      return { success: false, error: 'Gemini APIからの応答が空です' };
+      return { success: false, error: 'OpenAI APIからの応答が空です' };
     }
 
     // JSONパース
