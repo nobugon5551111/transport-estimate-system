@@ -21828,15 +21828,113 @@ app.get('/quote-request', (c) => {
     </div>
   </div>
 
-  <!-- 送信完了オーバーレイ -->
-  <div id="successOverlay" class="success-overlay" style="display:none;">
-    <div class="success-card">
-      <i class="fas fa-check-circle text-5xl text-green-500 mb-4"></i>
-      <h2 class="text-xl font-bold text-gray-800 mb-2">送信完了</h2>
-      <p class="text-gray-600 mb-6">見積依頼を受け付けました。<br>担当者より折り返しご連絡いたします。</p>
-      <button onclick="resetForm()" class="btn-primary">新しい依頼を作成</button>
+  <!-- 送信中ローディングオーバーレイ -->
+  <div id="loadingOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px); z-index:9999; display:none; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:20px; padding:48px 40px; text-align:center; box-shadow:0 25px 60px rgba(0,0,0,0.3); max-width:360px; width:90%;">
+      <div class="loading-spinner-container" style="margin-bottom:24px;">
+        <div class="loading-ring">
+          <div></div><div></div><div></div><div></div>
+        </div>
+      </div>
+      <h2 style="font-size:1.2rem; font-weight:700; color:#1f2937; margin-bottom:8px;">送信中...</h2>
+      <p style="color:#6b7280; font-size:0.9rem; line-height:1.6;">AI見積を生成しています。<br>少々お待ちください。</p>
+      <div class="loading-dots" style="margin-top:16px;">
+        <span></span><span></span><span></span>
+      </div>
     </div>
   </div>
+
+  <!-- 送信完了オーバーレイ -->
+  <div id="successOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:20px; padding:48px 40px; text-align:center; box-shadow:0 25px 60px rgba(0,0,0,0.3); max-width:400px; width:90%; animation: successPop 0.4s cubic-bezier(0.175,0.885,0.32,1.275);">
+      <div class="success-checkmark" style="margin-bottom:20px;">
+        <svg viewBox="0 0 52 52" style="width:64px; height:64px; margin:0 auto; display:block;">
+          <circle class="checkmark-circle" cx="26" cy="26" r="25" fill="none" stroke="#22c55e" stroke-width="2"/>
+          <path class="checkmark-check" fill="none" stroke="#22c55e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+        </svg>
+      </div>
+      <h2 style="font-size:1.3rem; font-weight:700; color:#1f2937; margin-bottom:8px;">送信完了</h2>
+      <p style="color:#6b7280; font-size:0.95rem; line-height:1.7; margin-bottom:24px;">見積依頼を受け付けました。<br>担当者より折り返しご連絡いたします。</p>
+      <button onclick="location.reload()" style="background:linear-gradient(135deg,#3b82f6,#2563eb); color:white; border:none; padding:12px 32px; border-radius:10px; font-size:1rem; font-weight:600; cursor:pointer; transition:transform 0.2s, box-shadow 0.2s; box-shadow:0 4px 12px rgba(37,99,235,0.3);" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(37,99,235,0.4)'" onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 12px rgba(37,99,235,0.3)'">
+        <i class="fas fa-plus mr-2"></i>新しい依頼を作成
+      </button>
+    </div>
+  </div>
+
+  <style>
+    /* ローディングリングアニメーション */
+    .loading-ring {
+      display: inline-block;
+      position: relative;
+      width: 56px;
+      height: 56px;
+    }
+    .loading-ring div {
+      box-sizing: border-box;
+      display: block;
+      position: absolute;
+      width: 48px;
+      height: 48px;
+      margin: 4px;
+      border: 4px solid transparent;
+      border-radius: 50%;
+      border-top-color: #3b82f6;
+      animation: loadingRing 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+    }
+    .loading-ring div:nth-child(1) { animation-delay: -0.45s; border-top-color: #3b82f6; }
+    .loading-ring div:nth-child(2) { animation-delay: -0.3s; border-top-color: #60a5fa; }
+    .loading-ring div:nth-child(3) { animation-delay: -0.15s; border-top-color: #93c5fd; }
+    .loading-ring div:nth-child(4) { border-top-color: #bfdbfe; }
+
+    @keyframes loadingRing {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* ドットアニメーション */
+    .loading-dots span {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      margin: 0 4px;
+      background: #3b82f6;
+      border-radius: 50%;
+      animation: dotBounce 1.4s ease-in-out infinite both;
+    }
+    .loading-dots span:nth-child(1) { animation-delay: -0.32s; }
+    .loading-dots span:nth-child(2) { animation-delay: -0.16s; }
+    .loading-dots span:nth-child(3) { animation-delay: 0s; }
+
+    @keyframes dotBounce {
+      0%, 80%, 100% { transform: scale(0.4); opacity: 0.4; }
+      40% { transform: scale(1); opacity: 1; }
+    }
+
+    /* 成功チェックマークアニメーション */
+    .checkmark-circle {
+      stroke-dasharray: 166;
+      stroke-dashoffset: 166;
+      animation: circleStroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+      animation-delay: 0.1s;
+    }
+    .checkmark-check {
+      stroke-dasharray: 48;
+      stroke-dashoffset: 48;
+      animation: checkStroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+      animation-delay: 0.5s;
+    }
+
+    @keyframes circleStroke {
+      100% { stroke-dashoffset: 0; }
+    }
+    @keyframes checkStroke {
+      100% { stroke-dashoffset: 0; }
+    }
+    @keyframes successPop {
+      0% { transform: scale(0.8); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+  </style>
 
   <script>
   // 品名×材質マッピング
@@ -22147,6 +22245,9 @@ app.get('/quote-request', (c) => {
       notes: document.getElementById('notes').value.trim()
     };
     
+    // ローディング表示
+    document.getElementById('loadingOverlay').style.display = 'flex';
+    
     try {
       const res = await fetch('/api/quote-requests', {
         method: 'POST',
@@ -22155,12 +22256,16 @@ app.get('/quote-request', (c) => {
       });
       const data = await res.json();
       
+      // ローディング非表示
+      document.getElementById('loadingOverlay').style.display = 'none';
+      
       if (data.success) {
         document.getElementById('successOverlay').style.display = 'flex';
       } else {
         alert('エラー: ' + data.message);
       }
     } catch (e) {
+      document.getElementById('loadingOverlay').style.display = 'none';
       alert('通信エラーが発生しました。再度お試しください。');
     }
   }
