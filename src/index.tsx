@@ -21035,7 +21035,13 @@ async function generateAIEstimate(env: any, input: AIEstimateInput): Promise<{ s
 
   // 品目情報の整形
   const itemsSummary = input.items_json.map((item: any, idx: number) => {
-    return `品目${idx + 1}: ${item.product}（材質: ${item.material}）× ${item.quantity}台${item.size ? `、3辺計${item.size}cm` : ''}${item.weight ? `、重量${item.weight}kg` : ''}${item.notes ? `、備考: ${item.notes}` : ''}`;
+    const sizeParts = [];
+    if (item.height || item.width || item.depth) {
+      sizeParts.push(`縦${item.height || 0}cm×横${item.width || 0}cm×高さ${item.depth || 0}cm（3辺計${(item.height || 0) + (item.width || 0) + (item.depth || 0)}cm）`);
+    } else if (item.size) {
+      sizeParts.push(`3辺計${item.size}cm`);
+    }
+    return `品目${idx + 1}: ${item.product}（材質: ${item.material}）× ${item.quantity}台${sizeParts.length ? `、${sizeParts[0]}` : ''}${item.weight ? `、重量${item.weight}kg` : ''}${item.notes ? `、備考: ${item.notes}` : ''}`;
   }).join('\n');
 
   // 廃棄家具情報
@@ -21061,6 +21067,11 @@ async function generateAIEstimate(env: any, input: AIEstimateInput): Promise<{ s
 - 2t車の積載量は8.7㎥が目安
 - 品目の体積合計から台数を算出
 - 2台目以降は基本的にワンマン（1人配送）で割引適用
+
+### エレベーター搬入可否の判定
+- エレベーター内寸（間口×奥行き×高さ）が提供された場合、家具サイズと比較して搬入可否を判断する
+- 家具のいずれかの辺がエレベーター間口を超える場合、エレベーター搬入不可 → 階段搬入 or 吊り上げ推奨
+- エレベーター搬入不可の場合、設置階が2階以上なら追加人員を考慮する
 
 ### スタッフ人数の判定
 - スーパーバイザー(SV): 通常見積もりでは0人。ただし建物種別が「ホテル・旅館」の場合は1名必須
@@ -22076,14 +22087,21 @@ app.get('/quote-request', (c) => {
             </select>
           </div>
           <div id="elevatorSizeGroup" style="display:none;">
-            <label class="block text-sm font-medium text-gray-700 mb-1">エレベーターサイズ</label>
-            <select id="elevatorSize" class="form-select">
-              <option value="">選択してください</option>
-              <option value="9人乗り以下">9人乗り以下</option>
-              <option value="11人乗り">11人乗り</option>
-              <option value="13人乗り以上">13人乗り以上</option>
-              <option value="荷物用">荷物用</option>
-            </select>
+            <label class="block text-sm font-medium text-gray-700 mb-1">エレベーター内寸（cm）</label>
+            <div class="grid grid-cols-3 gap-2 mt-1">
+              <div>
+                <label class="block text-xs text-gray-500 mb-1">間口（幅）</label>
+                <input type="number" id="elevatorWidth" class="form-input" min="0" placeholder="例: 90">
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-1">奥行き</label>
+                <input type="number" id="elevatorDepth" class="form-input" min="0" placeholder="例: 130">
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-1">高さ</label>
+                <input type="number" id="elevatorHeight" class="form-input" min="0" placeholder="例: 230">
+              </div>
+            </div>
           </div>
         </div>
         <div class="grid grid-cols-2 gap-4 mb-4">
@@ -22350,19 +22368,30 @@ app.get('/quote-request', (c) => {
           </select>
         </div>
       </div>
-      <div class="grid grid-cols-3 gap-3 mb-3">
+      <div class="grid grid-cols-5 gap-2 mb-3">
         <div>
           <label class="block text-xs font-medium text-gray-600 mb-1"><span class="required-mark">※</span>数量</label>
           <input type="number" class="form-input item-quantity" min="1" value="1" data-item="\${itemCount}">
         </div>
         <div>
-          <label class="block text-xs font-medium text-gray-600 mb-1">サイズ（3辺計cm）</label>
-          <input type="number" class="form-input item-size" placeholder="例: 250" data-item="\${itemCount}">
+          <label class="block text-xs font-medium text-gray-600 mb-1">縦 (cm)</label>
+          <input type="number" class="form-input item-height" min="0" placeholder="0" data-item="\${itemCount}" oninput="calcItemTotal(\${itemCount})">
         </div>
         <div>
-          <label class="block text-xs font-medium text-gray-600 mb-1">重量（kg）</label>
-          <input type="number" class="form-input item-weight" placeholder="例: 30" data-item="\${itemCount}">
+          <label class="block text-xs font-medium text-gray-600 mb-1">横 (cm)</label>
+          <input type="number" class="form-input item-width" min="0" placeholder="0" data-item="\${itemCount}" oninput="calcItemTotal(\${itemCount})">
         </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">高さ (cm)</label>
+          <input type="number" class="form-input item-depth" min="0" placeholder="0" data-item="\${itemCount}" oninput="calcItemTotal(\${itemCount})">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">重量 (kg)</label>
+          <input type="number" class="form-input item-weight" min="0" placeholder="0" data-item="\${itemCount}">
+        </div>
+      </div>
+      <div class="mb-3">
+        <span class="text-xs text-gray-500">3辺合計: <span class="item-size-total font-bold text-indigo-600" data-item="\${itemCount}">0</span> cm</span>
       </div>
       <div>
         <label class="block text-xs font-medium text-gray-600 mb-1">備考</label>
@@ -22400,6 +22429,17 @@ app.get('/quote-request', (c) => {
   function toggleElevatorSize() {
     const has = document.getElementById('hasElevator').value;
     document.getElementById('elevatorSizeGroup').style.display = has === '有' ? 'block' : 'none';
+  }
+
+  // 品目の3辺合計を計算
+  function calcItemTotal(itemId) {
+    const card = document.getElementById('item-' + itemId);
+    if (!card) return;
+    const h = parseInt(card.querySelector('.item-height')?.value) || 0;
+    const w = parseInt(card.querySelector('.item-width')?.value) || 0;
+    const d = parseInt(card.querySelector('.item-depth')?.value) || 0;
+    const totalEl = card.querySelector('.item-size-total');
+    if (totalEl) totalEl.textContent = (h + w + d).toString();
   }
 
   // 養生範囲表示切替
@@ -22490,16 +22530,24 @@ app.get('/quote-request', (c) => {
       const product = card.querySelector('.item-product')?.value;
       const material = card.querySelector('.item-material')?.value;
       const quantity = card.querySelector('.item-quantity')?.value;
-      const size = card.querySelector('.item-size')?.value;
+      const height = card.querySelector('.item-height')?.value;
+      const width = card.querySelector('.item-width')?.value;
+      const depth = card.querySelector('.item-depth')?.value;
       const weight = card.querySelector('.item-weight')?.value;
       const notes = card.querySelector('.item-notes')?.value;
       
       if (product) {
+        const h = parseInt(height) || 0;
+        const w = parseInt(width) || 0;
+        const d = parseInt(depth) || 0;
         items.push({
           product: product,
           material: material || '',
           quantity: parseInt(quantity) || 1,
-          size: size ? parseInt(size) : null,
+          height: h,
+          width: w,
+          depth: d,
+          size: h + w + d,
           weight: weight ? parseFloat(weight) : null,
           notes: notes || ''
         });
@@ -22563,7 +22611,12 @@ app.get('/quote-request', (c) => {
       building_type: document.getElementById('buildingType').value,
       installation_floor: document.getElementById('installationFloor').value,
       has_elevator: document.getElementById('hasElevator').value,
-      elevator_size: document.getElementById('elevatorSize').value,
+      elevator_size: document.getElementById('hasElevator').value === '有' 
+        ? \`間口\${document.getElementById('elevatorWidth').value || 0}cm×奥行\${document.getElementById('elevatorDepth').value || 0}cm×高さ\${document.getElementById('elevatorHeight').value || 0}cm\`
+        : '',
+      elevator_width: parseInt(document.getElementById('elevatorWidth').value) || 0,
+      elevator_depth: parseInt(document.getElementById('elevatorDepth').value) || 0,
+      elevator_height: parseInt(document.getElementById('elevatorHeight').value) || 0,
       has_parking: document.getElementById('hasParking').value,
       has_protection_work: document.getElementById('hasProtectionWork').value,
       protection_scope: document.getElementById('protectionScope').value.trim(),
@@ -22626,7 +22679,9 @@ app.get('/quote-request', (c) => {
     document.getElementById('buildingType').value = '';
     document.getElementById('installationFloor').value = '';
     document.getElementById('hasElevator').value = '無';
-    document.getElementById('elevatorSize').value = '';
+    document.getElementById('elevatorWidth').value = '';
+    document.getElementById('elevatorDepth').value = '';
+    document.getElementById('elevatorHeight').value = '';
     document.getElementById('elevatorSizeGroup').style.display = 'none';
     document.getElementById('hasParking').value = '無';
     document.getElementById('hasProtectionWork').value = '無';
@@ -23178,8 +23233,8 @@ app.get('/admin/quote-requests', (c) => {
             <hr>
             <h3 class="font-bold">家具情報（\${items.length}品目）</h3>
             <table class="w-full border text-xs">
-              <thead><tr class="bg-gray-100"><th class="border p-1">品名</th><th class="border p-1">材質</th><th class="border p-1">数量</th><th class="border p-1">サイズ</th><th class="border p-1">重量</th><th class="border p-1">備考</th></tr></thead>
-              <tbody>\${items.map(i => \`<tr><td class="border p-1">\${i.product}</td><td class="border p-1">\${i.material}</td><td class="border p-1">\${i.quantity}</td><td class="border p-1">\${i.size || '-'}</td><td class="border p-1">\${i.weight ? i.weight+'kg' : '-'}</td><td class="border p-1">\${i.notes || '-'}</td></tr>\`).join('')}</tbody>
+              <thead><tr class="bg-gray-100"><th class="border p-1">品名</th><th class="border p-1">材質</th><th class="border p-1">数量</th><th class="border p-1">縦</th><th class="border p-1">横</th><th class="border p-1">高さ</th><th class="border p-1">3辺計</th><th class="border p-1">重量</th><th class="border p-1">備考</th></tr></thead>
+              <tbody>\${items.map(i => \`<tr><td class="border p-1">\${i.product}</td><td class="border p-1">\${i.material}</td><td class="border p-1">\${i.quantity}</td><td class="border p-1">\${i.height ? i.height+'cm' : '-'}</td><td class="border p-1">\${i.width ? i.width+'cm' : '-'}</td><td class="border p-1">\${i.depth ? i.depth+'cm' : '-'}</td><td class="border p-1">\${i.size || ((i.height||0)+(i.width||0)+(i.depth||0)) || '-'}cm</td><td class="border p-1">\${i.weight ? i.weight+'kg' : '-'}</td><td class="border p-1">\${i.notes || '-'}</td></tr>\`).join('')}</tbody>
             </table>
             \${disposalSection}
             <hr>
