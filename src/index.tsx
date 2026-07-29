@@ -15731,9 +15731,8 @@ app.get('/api/estimates/:id/pdf', async (c) => {
         (estimateResult.temp_staff_half_day || 0) * tempHalfDayRate +
         (estimateResult.temp_staff_full_day || 0) * tempFullDayRate;
     } else {
-      const maxReasonableStaffCost = 200000;
-      calculatedStaffCost = (estimateResult.staff_cost && estimateResult.staff_cost <= maxReasonableStaffCost) 
-        ? estimateResult.staff_cost : 88000;
+      // スタッフ人数が0の場合: DB保存値のstaff_costをそのまま使用（0も正常値）
+      calculatedStaffCost = (estimateResult.staff_cost != null) ? estimateResult.staff_cost : 0;
     }
 
     // 基本設定（ロゴ含む）をD1から取得（全ユーザー共通なのでuser_id不要）
@@ -21392,7 +21391,127 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
     const year = new Date().getFullYear();
     const estimateNumber = `AI-${year}-${String(Date.now()).slice(-4)}`;
 
-    // 5. estimatesテーブルにINSERT（全NOT NULLカラムを含む）
+    // 5. line_items_json を構築（PDF生成で正確な金額表示のため）
+    const lineItemsJson: any = {
+      vehicle: {
+        section_name: '車両費用',
+        items: [],
+        subtotal: vehicleCost
+      },
+      staff: {
+        section_name: 'スタッフ費用',
+        items: [],
+        subtotal: staffCost
+      },
+      services: {
+        section_name: 'その他サービス費用',
+        items: [],
+        subtotal: parkingOfficerCost + transportCost + protectionCost + wasteDisposalCost
+      }
+    };
+
+    // 車両明細
+    const vehicleDesc = operationType === 'shared' ? '混載便' : 'チャーター便';
+    lineItemsJson.vehicle.items.push({
+      description: `${vehicleDesc} ${vehicleCount}台（${areaRank}ランク）`,
+      detail: `@ ¥${vehicleUnitPrice.toLocaleString()}`,
+      quantity: vehicleCount,
+      unit_price: vehicleUnitPrice,
+      amount: vehicleCost
+    });
+
+    // スタッフ明細
+    if (supervisorCount > 0) {
+      lineItemsJson.staff.items.push({
+        description: 'スーパーバイザー（SV）',
+        detail: '',
+        quantity: supervisorCount,
+        unit_price: svRate,
+        amount: supervisorCount * svRate
+      });
+    }
+    if (leaderCount > 0) {
+      lineItemsJson.staff.items.push({
+        description: 'リーダー',
+        detail: '',
+        quantity: leaderCount,
+        unit_price: leaderRate,
+        amount: leaderCount * leaderRate
+      });
+    }
+    if (m2StaffCount > 0) {
+      const rate = isHalfDay ? m2HalfRate : m2FullRate;
+      lineItemsJson.staff.items.push({
+        description: `M2スタッフ（${isHalfDay ? '半日' : '全日'}）`,
+        detail: '',
+        quantity: m2StaffCount,
+        unit_price: rate,
+        amount: m2StaffCount * rate
+      });
+    }
+    if (tempStaffCount > 0) {
+      const rate = isHalfDay ? tempHalfRate : tempFullRate;
+      lineItemsJson.staff.items.push({
+        description: `派遣スタッフ（${isHalfDay ? '半日' : '全日'}）`,
+        detail: '',
+        quantity: tempStaffCount,
+        unit_price: rate,
+        amount: tempStaffCount * rate
+      });
+    }
+
+    // サービス明細
+    if (parkingOfficerCost > 0) {
+      lineItemsJson.services.items.push({
+        description: `駐禁対策員（${parkingOfficerHours}時間）`,
+        detail: `@ ¥${parkingOfficerHourlyRate.toLocaleString()}/h`,
+        quantity: 1,
+        unit_price: parkingOfficerCost,
+        amount: parkingOfficerCost
+      });
+    }
+    if (transportCost > 0) {
+      lineItemsJson.services.items.push({
+        description: `人員輸送車両（${transportVehicles}台）`,
+        detail: '',
+        quantity: transportVehicles,
+        unit_price: transportBaseRate,
+        amount: transportCost
+      });
+    }
+    if (protectionCost > 0) {
+      lineItemsJson.services.items.push({
+        description: `養生作業（${protectionFloors}階）`,
+        detail: `基本¥${protectionBaseRate.toLocaleString()} + ${protectionFloors}階×¥${protectionFloorRate.toLocaleString()}`,
+        quantity: 1,
+        unit_price: protectionCost,
+        amount: protectionCost
+      });
+    }
+    if (wasteDisposalCost > 0) {
+      lineItemsJson.services.items.push({
+        description: `引き取り廃棄（${aiResult.waste_disposal_size}）`,
+        detail: '',
+        quantity: 1,
+        unit_price: wasteDisposalCost,
+        amount: wasteDisposalCost
+      });
+    }
+
+    // 時間帯割増がある場合はサービスに追加
+    if (workTimeMultiplier > 1) {
+      const premiumAmount = Math.round((vehicleCost + staffCost + parkingOfficerCost + transportCost + protectionCost + wasteDisposalCost) * (workTimeMultiplier - 1));
+      lineItemsJson.services.items.push({
+        description: `時間外割増（${Math.round((workTimeMultiplier - 1) * 100)}%）`,
+        detail: '',
+        quantity: 1,
+        unit_price: premiumAmount,
+        amount: premiumAmount
+      });
+      lineItemsJson.services.subtotal += premiumAmount;
+    }
+
+    // 6. estimatesテーブルにINSERT（全NOT NULLカラムを含む）
     const insertResult = await env.DB.prepare(`
       INSERT INTO estimates (
         customer_id, project_id, estimate_number,
@@ -21413,7 +21532,8 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
         vehicle_2t_count, vehicle_4t_count,
         external_contractor_cost, uses_multiple_vehicles,
         created_by_name, customer_contact_person,
-        estimate_type, discount_amount
+        estimate_type, discount_amount,
+        line_items_json
       ) VALUES (
         ?, ?, ?,
         ?, ?, ?,
@@ -21433,7 +21553,8 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
         ?, ?,
         ?, ?,
         ?, ?,
-        ?, ?
+        ?, ?,
+        ?
       )
     `).bind(
       quoteRequest.customer_id,
@@ -21482,7 +21603,8 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
       'AI自動見積',
       quoteRequest.contact_person || '',
       'standard_a',
-      0 // discount_amount
+      0, // discount_amount
+      JSON.stringify(lineItemsJson) // line_items_json
     ).run();
 
     return { success: true, estimateId: insertResult.meta.last_row_id };
