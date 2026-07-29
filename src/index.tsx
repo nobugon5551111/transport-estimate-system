@@ -6489,6 +6489,52 @@ app.get('/estimate/step4', (c) => {
               </div>
             </div>
 
+            {/* 重量加算スタッフ（自動計算） */}
+            <div id="weightAdditionalStaffSection" className="mb-8 p-4 bg-amber-50 border border-amber-200 rounded-lg" style="display: none;">
+              <h4 className="text-md font-medium text-amber-800 mb-3">
+                <i className="fas fa-weight-hanging mr-2"></i>
+                重量加算スタッフ（派遣）
+              </h4>
+              <p className="text-xs text-amber-700 mb-3">
+                ※ 1品目あたりの最大重量に基づき自動計算されます（100〜150kg: +2名、150〜200kg: +4名、200kg以上: +6名）
+              </p>
+              <div className="flex items-center justify-between p-3 bg-white border border-amber-200 rounded">
+                <div className="flex items-center">
+                  <i className="fas fa-dumbbell mr-2 text-amber-600"></i>
+                  <span className="text-sm font-medium text-gray-700">重量加算追加人員</span>
+                  <span id="weightAdditionalStaffDetails" className="text-xs text-gray-500 ml-2"></span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <input 
+                    type="number" 
+                    id="weight_additional_staff" 
+                    className="form-input w-20" 
+                    min="0" 
+                    max="20" 
+                    value="0"
+                    onChange="updateStaffCost()"
+                  />
+                  <span className="text-sm text-gray-600">人</span>
+                  <span className="text-xs text-gray-500 ml-2">×</span>
+                  <input 
+                    type="number" 
+                    id="weight_additional_staff_rate" 
+                    className="form-input w-28 text-sm" 
+                    min="0" 
+                    step="500"
+                    placeholder="派遣単価"
+                    onChange="updateStaffCost()"
+                  />
+                  <span className="text-xs text-gray-500">/日</span>
+                  <span className="text-xs text-gray-400 ml-1">（空欄=マスター単価）</span>
+                  <span id="weightAdditionalStaffCost" className="text-lg font-semibold text-amber-700 ml-4">¥0</span>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                <i className="fas fa-info-circle mr-1"></i>自動計算値から変更可能です（手動上書き）。単価を空欄にするとマスターの派遣スタッフ終日単価を使用します。
+              </p>
+            </div>
+
             {/* スタッフ費用詳細表示（JavaScript制御・初期状態で非表示） */}
             <div id="staffPricingInfo" className="mb-8 p-4 bg-green-50 rounded-lg" style="display: none;">
               <h3 className="text-lg font-medium text-gray-900 mb-4">
@@ -21047,7 +21093,7 @@ async function generateAIEstimate(env: any, input: AIEstimateInput): Promise<{ s
   let disposalSummary = '引取家具（廃棄）: なし';
   if (input.furniture_disposal === '有' && input.furniture_disposal_items && input.furniture_disposal_items.length > 0) {
     disposalSummary = '引取家具（廃棄）: あり\n' + input.furniture_disposal_items.map((item: any, idx: number) => {
-      return `  廃棄${idx + 1}: ${item.name || '不明'}（縦${item.height || 0}cm × 横${item.width || 0}cm × 奥行${item.depth || 0}cm）`;
+      return `  廃棄${idx + 1}: ${item.name || '不明'}（縦${item.height || 0}cm × 横${item.width || 0}cm × 奥行${item.depth || 0}cm）${item.weight ? `、重量${item.weight}kg` : ''}`;
     }).join('\n');
   }
 
@@ -21063,8 +21109,9 @@ async function generateAIEstimate(env: any, input: AIEstimateInput): Promise<{ s
 - 大理石材質は重量大、チャーター便推奨
 
 ### 車両台数の判定
+- 1台目は必ず2t車の2マン（ドライバー＋作業員1名）
 - 2t車の積載量は8.7㎥が目安
-- 品目の体積合計から台数を算出
+- 品目の体積合計が8.7㎥を超える場合は2台目が必要
 - 2台目以降は基本的にワンマン（1人配送）で割引適用
 
 ### エレベーター搬入可否の判定
@@ -21076,35 +21123,40 @@ async function generateAIEstimate(env: any, input: AIEstimateInput): Promise<{ s
 - スーパーバイザー(SV): 通常見積もりでは0人。ただし建物種別が「ホテル・旅館」の場合は1名必須
 - リーダー: 組立が必要な商品数が10台毎に1名追加。基本は1名
 - M2スタッフ（一般社員）: 指定がない限り0人
-- 派遣スタッフ: 品目の数量・サイズ・重量から判断
-  - 1～2名が必要な基準: 品目合計5台以上、または重量50kg超の品目あり
-  - 3名以上: 大規模案件（品目10台以上等）
+- 派遣スタッフ（追加人員）の判定:
+  - ★チャーター便のデフォルト: 追加人員は0名（1台目の2マンで対応）
+  - 2台目以降: 1台につき派遣+2名
+  - 1品目あたりの最大重量による増員（納品品目・引取家具の両方で判定、最大重量を適用）:
+    - 100kg以上150kg未満 → +2名
+    - 150kg以上200kg未満 → +4名
+    - 200kg以上 → +6名
   - 5階以上でエレベーター無しの場合は追加+1名
 
 ### 駐禁対策員の判定
-- 戸建て以外（マンション/ビル/ホテル/店舗等）かつ駐車スペースが「無」→ 必要
+- 戸建て以外（マンション/ビル/ホテル/店舗等）で駐車スペースが「無」→ 必要
 - 戸建ての場合は基本不要
-- エリアA（都市部）で駐車スペース無は必ず必要
 
 ### 人員輸送車両の判定
-- 追加スタッフ合計が4名以上の場合、4名毎に1台必要
+- 追加スタッフ（派遣）の人数が4名以上の場合、4名毎に1台必要
 
 ### 養生作業の判定
 - フォームで「有」が選択されていれば必要
-- マンション3階以上は共有部養生が推奨
-- ホテル案件は養生推奨
+- 詳細はヒアリング後に確定（初回見積では有無のみ判定）
 
-### 引き取り廃棄サイズの判定
-- 廃棄家具のサイズ（3辺合計）から判断:
-  - 小: 3辺合計200cm以下
-  - 中: 3辺合計200〜400cm
-  - 大: 3辺合計400cm超
-- 廃棄家具が複数ある場合は最も大きいサイズを基準にする
+### 引き取り廃棄費用の判定
+- 廃棄家具がある場合、各家具の「縦(m) × 横(m) × 高さ(m) × 7,500円」で計算
+- 廃棄家具が複数ある場合は各家具の費用を合計する
+- フォームでは縦・横・奥行をcm単位で入力されるので、m単位に変換して計算
+- waste_disposal_costフィールドに合計金額（円）を出力すること
 
 ### 作業時間帯の判定
 - 希望納品時間が「定時間帯（9:00-18:00）」→ 通常 (normal)
 - 希望納品時間が「時間外（18:00-翌9:00）」→ 時間外割増 (overtime)
 - 希望納品時間が「指定なし」→ 通常 (normal)
+
+### 高速道路料金の判定
+- エリアB以遠（エリアC, D, E）は高速代が発生する
+- エリアA, Bは高速代なし
 
 ---
 
@@ -21160,9 +21212,12 @@ ${input.notes || 'なし'}
   "protection_work_needed": true/false,
   "protection_reason": "判定理由",
   "waste_disposal_size": "none" or "small" or "medium" or "large",
-  "waste_disposal_reason": "判定理由",
+  "waste_disposal_cost": 数値（縦m×横m×高さm×7500円の合計。廃棄なしなら0）,
+  "waste_disposal_reason": "判定理由（計算根拠含む）",
   "work_time_type": "normal" or "overtime",
   "work_time_reason": "判定理由",
+  "highway_fee": 数値（エリアB以遠の高速代。不要なら0）,
+  "highway_fee_reason": "判定理由",
   "overall_summary": "この見積の全体的な判断サマリー"
 }`;
 
@@ -21339,7 +21394,51 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
     const supervisorCount = aiResult.supervisor_count || 0;
     const leaderCount = aiResult.leader_count || 0;
     const m2StaffCount = aiResult.m2_staff_count || 0;
-    const tempStaffCount = aiResult.temp_staff_count || 0;
+    let tempStaffCount = aiResult.temp_staff_count || 0;
+    
+    // --- 重量加算スタッフ（派遣）の判定 ---
+    // 1品目あたりの最大重量で判定: 100-150kg→+2名、150-200kg→+4名、200kg以上→+6名
+    let weightAdditionalStaff = 0;
+    let weightAdditionalReason = '';
+    
+    // 納品品目の最大重量を取得
+    const itemsData = Array.isArray(quoteRequest.items_json) 
+      ? quoteRequest.items_json 
+      : (typeof quoteRequest.items_json === 'string' ? JSON.parse(quoteRequest.items_json || '[]') : []);
+    let maxItemWeight = 0;
+    itemsData.forEach((item: any) => {
+      const w = parseFloat(item.weight) || 0;
+      if (w > maxItemWeight) maxItemWeight = w;
+    });
+    
+    // 引取家具の最大重量も確認（同じルール適用）
+    const disposalItems = Array.isArray(quoteRequest.furniture_disposal_items) 
+      ? quoteRequest.furniture_disposal_items 
+      : (typeof quoteRequest.furniture_disposal_items === 'string' ? JSON.parse(quoteRequest.furniture_disposal_items || '[]') : []);
+    let maxDisposalWeight = 0;
+    if (quoteRequest.furniture_disposal === '有') {
+      disposalItems.forEach((item: any) => {
+        const w = parseFloat(item.weight) || 0;
+        if (w > maxDisposalWeight) maxDisposalWeight = w;
+      });
+    }
+    
+    // 納品品目と引取家具の中で最大の重量を使用
+    const maxWeight = Math.max(maxItemWeight, maxDisposalWeight);
+    
+    if (maxWeight >= 200) {
+      weightAdditionalStaff = 6;
+      weightAdditionalReason = `最大重量${maxWeight}kg（200kg以上）→ +6名`;
+    } else if (maxWeight >= 150) {
+      weightAdditionalStaff = 4;
+      weightAdditionalReason = `最大重量${maxWeight}kg（150〜200kg）→ +4名`;
+    } else if (maxWeight >= 100) {
+      weightAdditionalStaff = 2;
+      weightAdditionalReason = `最大重量${maxWeight}kg（100〜150kg）→ +2名`;
+    }
+    
+    // 重量加算スタッフをtempStaffCountに加算（AI判定分 + 重量加算分）
+    tempStaffCount = tempStaffCount + weightAdditionalStaff;
     
     const isHalfDay = aiResult.service_type === 'mixed';
     const staffCost = (supervisorCount * svRate) + 
@@ -21368,21 +21467,50 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
       ? (protectionBaseRate + protectionFloors * protectionFloorRate) 
       : 0;
 
-    // --- 廃棄コスト（マスター単価参照） ---
-    const wasteSmallRate = await getMasterValue('service', 'waste_disposal', 'small', 5000);
-    const wasteMediumRate = await getMasterValue('service', 'waste_disposal', 'medium', 10000);
-    const wasteLargeRate = await getMasterValue('service', 'waste_disposal', 'large', 20000);
+    // --- 廃棄コスト（縦m × 横m × 高さm × 7,500円） ---
     let wasteDisposalCost = 0;
-    if (aiResult.waste_disposal_size === 'small') wasteDisposalCost = wasteSmallRate;
-    else if (aiResult.waste_disposal_size === 'medium') wasteDisposalCost = wasteMediumRate;
-    else if (aiResult.waste_disposal_size === 'large') wasteDisposalCost = wasteLargeRate;
+    let wasteDisposalSize = 'none';
+    if (quoteRequest.furniture_disposal === '有' && Array.isArray(quoteRequest.furniture_disposal_items) && quoteRequest.furniture_disposal_items.length > 0) {
+      // フォーム入力の三辺(cm)から計算: 縦(m) × 横(m) × 高さ(m) × 7,500円
+      quoteRequest.furniture_disposal_items.forEach((item: any) => {
+        const h = (item.height || 0) / 100; // cm → m
+        const w = (item.width || 0) / 100;
+        const d = (item.depth || 0) / 100;
+        const volume = h * w * d;
+        wasteDisposalCost += Math.round(volume * 7500);
+      });
+      if (wasteDisposalCost > 0) {
+        // AI出力のwaste_disposal_costがある場合はそちらも参照（フォールバック）
+        if (aiResult.waste_disposal_cost && aiResult.waste_disposal_cost > 0) {
+          wasteDisposalCost = aiResult.waste_disposal_cost;
+        }
+        wasteDisposalSize = aiResult.waste_disposal_size || 'medium';
+      }
+    } else if (aiResult.waste_disposal_cost && aiResult.waste_disposal_cost > 0) {
+      // フォームに廃棄データがない場合はAI判定値を使用
+      wasteDisposalCost = aiResult.waste_disposal_cost;
+      wasteDisposalSize = aiResult.waste_disposal_size || 'medium';
+    } else if (aiResult.waste_disposal_size && aiResult.waste_disposal_size !== 'none') {
+      wasteDisposalSize = aiResult.waste_disposal_size;
+    }
+
+    // --- 高速道路料金（エリアB以遠で発生） ---
+    let highwayFee = 0;
+    if (['C', 'D', 'E', 'F', 'G', 'H', 'I'].includes(areaRank)) {
+      // AIが高速代を出力している場合はそれを使用、なければマスター値
+      if (aiResult.highway_fee && aiResult.highway_fee > 0) {
+        highwayFee = aiResult.highway_fee;
+      } else {
+        highwayFee = await getMasterValue('service', 'highway_fee', areaRank, 3000);
+      }
+    }
 
     // --- 時間帯割増（マスター単価参照） ---
     const overtimeMultiplier = await getMasterValue('service', 'work_time', 'overtime', 1.25);
     const workTimeMultiplier = aiResult.work_time_type === 'overtime' ? overtimeMultiplier : 1;
 
     // --- 小計・税額計算（税率もマスターから動的取得） ---
-    const subtotal = Math.round((vehicleCost + staffCost + parkingOfficerCost + transportCost + protectionCost + wasteDisposalCost) * workTimeMultiplier);
+    const subtotal = Math.round((vehicleCost + staffCost + parkingOfficerCost + transportCost + protectionCost + wasteDisposalCost + highwayFee) * workTimeMultiplier);
     const taxRate = await getMasterValue('system', 'tax', 'rate', 0.1);
     const taxAmount = Math.round(subtotal * taxRate);
     const totalAmount = subtotal + taxAmount;
@@ -21406,7 +21534,7 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
       services: {
         section_name: 'その他サービス費用',
         items: [],
-        subtotal: parkingOfficerCost + transportCost + protectionCost + wasteDisposalCost
+        subtotal: 0 // recalculated below
       }
     };
 
@@ -21451,13 +21579,34 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
     }
     if (tempStaffCount > 0) {
       const rate = isHalfDay ? tempHalfRate : tempFullRate;
-      lineItemsJson.staff.items.push({
-        description: `派遣スタッフ（${isHalfDay ? '半日' : '全日'}）`,
-        detail: '',
-        quantity: tempStaffCount,
-        unit_price: rate,
-        amount: tempStaffCount * rate
-      });
+      if (weightAdditionalStaff > 0) {
+        // 重量加算分と通常分を分けて表示
+        const normalTempCount = tempStaffCount - weightAdditionalStaff;
+        if (normalTempCount > 0) {
+          lineItemsJson.staff.items.push({
+            description: `派遣スタッフ（${isHalfDay ? '半日' : '全日'}）`,
+            detail: '',
+            quantity: normalTempCount,
+            unit_price: rate,
+            amount: normalTempCount * rate
+          });
+        }
+        lineItemsJson.staff.items.push({
+          description: `追加スタッフ・重量加算（${isHalfDay ? '半日' : '全日'}）`,
+          detail: weightAdditionalReason,
+          quantity: weightAdditionalStaff,
+          unit_price: rate,
+          amount: weightAdditionalStaff * rate
+        });
+      } else {
+        lineItemsJson.staff.items.push({
+          description: `派遣スタッフ（${isHalfDay ? '半日' : '全日'}）`,
+          detail: '',
+          quantity: tempStaffCount,
+          unit_price: rate,
+          amount: tempStaffCount * rate
+        });
+      }
     }
 
     // サービス明細
@@ -21490,17 +21639,29 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
     }
     if (wasteDisposalCost > 0) {
       lineItemsJson.services.items.push({
-        description: `引き取り廃棄（${aiResult.waste_disposal_size}）`,
-        detail: '',
+        description: `引き取り廃棄`,
+        detail: `体積×7,500円（${aiResult.waste_disposal_reason || ''})`,
         quantity: 1,
         unit_price: wasteDisposalCost,
         amount: wasteDisposalCost
       });
     }
+    if (highwayFee > 0) {
+      lineItemsJson.services.items.push({
+        description: `高速道路料金（エリア${areaRank}）`,
+        detail: aiResult.highway_fee_reason || '',
+        quantity: 1,
+        unit_price: highwayFee,
+        amount: highwayFee
+      });
+    }
+
+    // サービス小計を再計算
+    lineItemsJson.services.subtotal = parkingOfficerCost + transportCost + protectionCost + wasteDisposalCost + highwayFee;
 
     // 時間帯割増がある場合はサービスに追加
     if (workTimeMultiplier > 1) {
-      const premiumAmount = Math.round((vehicleCost + staffCost + parkingOfficerCost + transportCost + protectionCost + wasteDisposalCost) * (workTimeMultiplier - 1));
+      const premiumAmount = Math.round((vehicleCost + staffCost + parkingOfficerCost + transportCost + protectionCost + wasteDisposalCost + highwayFee) * (workTimeMultiplier - 1));
       lineItemsJson.services.items.push({
         description: `時間外割増（${Math.round((workTimeMultiplier - 1) * 100)}%）`,
         detail: '',
@@ -21577,7 +21738,7 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
       parkingOfficerCost,
       transportVehicles,
       transportCost,
-      aiResult.waste_disposal_size || 'none',
+      wasteDisposalSize,
       wasteDisposalCost,
       protectionWork,
       protectionFloors,
@@ -21588,8 +21749,8 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
       0,
       aiResult.work_time_type || 'normal',
       workTimeMultiplier,
-      0,
-      0,
+      0, // parking_fee
+      highwayFee,
       subtotal,
       taxRate,
       taxAmount,
@@ -22596,7 +22757,7 @@ app.get('/quote-request', (c) => {
         <span class="font-bold text-sm text-amber-700"><i class="fas fa-trash-alt mr-1"></i>廃棄家具 #\${disposalItemCount}</span>
         <button onclick="removeDisposalItem(\${disposalItemCount})" class="btn-danger"><i class="fas fa-times mr-1"></i>削除</button>
       </div>
-      <div class="grid grid-cols-4 gap-3">
+      <div class="grid grid-cols-5 gap-3">
         <div>
           <label class="block text-xs font-medium text-gray-600 mb-1">家具名</label>
           <input type="text" class="form-input disposal-name" placeholder="例: ソファ" data-disposal="\${disposalItemCount}">
@@ -22612,6 +22773,10 @@ app.get('/quote-request', (c) => {
         <div>
           <label class="block text-xs font-medium text-gray-600 mb-1">奥行 (cm)</label>
           <input type="number" class="form-input disposal-depth" min="0" placeholder="0" data-disposal="\${disposalItemCount}">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">重量 (kg)</label>
+          <input type="number" class="form-input disposal-weight" min="0" placeholder="0" data-disposal="\${disposalItemCount}">
         </div>
       </div>
     \`;
@@ -22636,8 +22801,9 @@ app.get('/quote-request', (c) => {
       const height = parseInt(card.querySelector('.disposal-height')?.value) || 0;
       const width = parseInt(card.querySelector('.disposal-width')?.value) || 0;
       const depth = parseInt(card.querySelector('.disposal-depth')?.value) || 0;
+      const weight = parseFloat(card.querySelector('.disposal-weight')?.value) || 0;
       if (name || height || width || depth) {
-        items.push({ name, height, width, depth });
+        items.push({ name, height, width, depth, weight });
       }
     });
     return items;

@@ -2357,7 +2357,9 @@ const Step4Implementation = {
         'm2_staff_half_day',
         'm2_staff_full_day',
         'temp_staff_half_day',
-        'temp_staff_full_day'
+        'temp_staff_full_day',
+        'weight_additional_staff',
+        'weight_additional_staff_rate'
       ];
 
       // 編集モードの場合は既存スタッフデータをプリフィル
@@ -2394,6 +2396,56 @@ const Step4Implementation = {
       console.error('❌ イベントリスナー設定エラー:', listenerError);
     }
     
+    // 重量加算スタッフの自動計算（品目の最大重量から）
+    try {
+      const weightSection = document.getElementById('weightAdditionalStaffSection');
+      if (weightSection && flowData.project && flowData.project.items) {
+        const items = flowData.project.items || [];
+        let maxWeight = 0;
+        items.forEach(item => {
+          const w = parseFloat(item.weight) || 0;
+          if (w > maxWeight) maxWeight = w;
+        });
+        
+        // 引取家具の重量も確認
+        if (flowData.services && flowData.services.furniture_disposal_items) {
+          flowData.services.furniture_disposal_items.forEach(item => {
+            const w = parseFloat(item.weight) || 0;
+            if (w > maxWeight) maxWeight = w;
+          });
+        }
+        
+        let weightStaff = 0;
+        let weightReason = '';
+        if (maxWeight >= 200) {
+          weightStaff = 6;
+          weightReason = `最大重量${maxWeight}kg（200kg以上）→ +6名`;
+        } else if (maxWeight >= 150) {
+          weightStaff = 4;
+          weightReason = `最大重量${maxWeight}kg（150〜200kg）→ +4名`;
+        } else if (maxWeight >= 100) {
+          weightStaff = 2;
+          weightReason = `最大重量${maxWeight}kg（100〜150kg）→ +2名`;
+        }
+        
+        if (weightStaff > 0) {
+          weightSection.style.display = 'block';
+          const weightInput = document.getElementById('weight_additional_staff');
+          if (weightInput && !flowData.editMode) {
+            weightInput.value = weightStaff;
+          }
+          const detailsEl = document.getElementById('weightAdditionalStaffDetails');
+          if (detailsEl) detailsEl.textContent = weightReason;
+          console.log('⚖️ 重量加算スタッフ自動計算:', weightReason);
+        } else {
+          // 重量条件に該当しなくてもセクションを表示（手動入力可能にする）
+          weightSection.style.display = 'block';
+        }
+      }
+    } catch (weightError) {
+      console.error('❌ 重量加算スタッフ計算エラー:', weightError);
+    }
+
     // 初期化完了後に既存の入力値があれば自動計算
     setTimeout(() => {
       console.log('🔄 初期化後の自動スタッフ費用計算');
@@ -2417,13 +2469,18 @@ const Step4Implementation = {
     const m2FullDay = parseInt(document.getElementById('m2_staff_full_day')?.value) || 0;
     const tempHalfDay = parseInt(document.getElementById('temp_staff_half_day')?.value) || 0;
     const tempFullDay = parseInt(document.getElementById('temp_staff_full_day')?.value) || 0;
+    const weightAdditionalStaff = parseInt(document.getElementById('weight_additional_staff')?.value) || 0;
 
     console.log('📋 スタッフ人数:', {
-      supervisorCount, leaderCount, m2HalfDay, m2FullDay, tempHalfDay, tempFullDay
+      supervisorCount, leaderCount, m2HalfDay, m2FullDay, tempHalfDay, tempFullDay, weightAdditionalStaff
     });
 
     // 各費用計算（resolveStaffRatesでAPIキー名の違いを吸収）
     const rates = resolveStaffRates(Step4Implementation.staffRates);
+
+    // 重量加算スタッフの単価（カスタム単価入力があればそれを使用、なければマスターの派遣終日単価）
+    const customWeightRate = parseFloat(document.getElementById('weight_additional_staff_rate')?.value) || 0;
+    const weightStaffRate = customWeightRate > 0 ? customWeightRate : rates.temp_full_day;
 
     const costs = {
       supervisor: supervisorCount * rates.supervisor,
@@ -2431,17 +2488,30 @@ const Step4Implementation = {
       m2_half_day: m2HalfDay * rates.m2_half_day,
       m2_full_day: m2FullDay * rates.m2_full_day,
       temp_half_day: tempHalfDay * rates.temp_half_day,
-      temp_full_day: tempFullDay * rates.temp_full_day
+      temp_full_day: tempFullDay * rates.temp_full_day,
+      weight_additional: weightAdditionalStaff * weightStaffRate
     };
 
     const totalCost = Object.values(costs).reduce((sum, cost) => sum + cost, 0);
-    const totalStaff = supervisorCount + leaderCount + m2HalfDay + m2FullDay + tempHalfDay + tempFullDay;
+    const totalStaff = supervisorCount + leaderCount + m2HalfDay + m2FullDay + tempHalfDay + tempFullDay + weightAdditionalStaff;
 
     console.log('💰 スタッフ費用計算結果:', { costs, totalCost, totalStaff });
 
+    // 重量加算スタッフのUI更新
+    const weightSection = document.getElementById('weightAdditionalStaffSection');
+    const weightCostEl = document.getElementById('weightAdditionalStaffCost');
+    const weightDetailsEl = document.getElementById('weightAdditionalStaffDetails');
+    if (weightAdditionalStaff > 0) {
+      if (weightSection) weightSection.style.display = 'block';
+      if (weightCostEl) weightCostEl.textContent = Utils.formatCurrency(costs.weight_additional);
+      if (weightDetailsEl) weightDetailsEl.textContent = `${weightAdditionalStaff}人 × ¥${weightStaffRate.toLocaleString()}/日`;
+    } else {
+      if (weightCostEl) weightCostEl.textContent = '¥0';
+    }
+
     // 詳細表示を更新
     Step4Implementation.updateStaffPricingDisplay(costs, rates, {
-      supervisorCount, leaderCount, m2HalfDay, m2FullDay, tempHalfDay, tempFullDay
+      supervisorCount, leaderCount, m2HalfDay, m2FullDay, tempHalfDay, tempFullDay, weightAdditionalStaff
     }, totalCost, totalStaff);
 
     // データを保存
@@ -2452,6 +2522,7 @@ const Step4Implementation = {
       m2_staff_full_day: m2FullDay,
       temp_staff_half_day: tempHalfDay,
       temp_staff_full_day: tempFullDay,
+      weight_additional_staff: weightAdditionalStaff,
       total_cost: totalCost
     };
     
@@ -2702,11 +2773,16 @@ const Step4Implementation = {
       m2_staff_half_day: parseInt(document.getElementById('m2_staff_half_day')?.value) || 0,
       m2_staff_full_day: parseInt(document.getElementById('m2_staff_full_day')?.value) || 0,
       temp_staff_half_day: parseInt(document.getElementById('temp_staff_half_day')?.value) || 0,
-      temp_staff_full_day: parseInt(document.getElementById('temp_staff_full_day')?.value) || 0
+      temp_staff_full_day: parseInt(document.getElementById('temp_staff_full_day')?.value) || 0,
+      weight_additional_staff: parseInt(document.getElementById('weight_additional_staff')?.value) || 0
     };
     
     // 現在の入力値から費用を再計算（統一された正しい単価を使用）
     const rates = resolveStaffRates(Step4Implementation.staffRates);
+    
+    // 重量加算スタッフのカスタム単価チェック
+    const customWeightRateForStep5 = parseFloat(document.getElementById('weight_additional_staff_rate')?.value) || 0;
+    const weightRateForStep5 = customWeightRateForStep5 > 0 ? customWeightRateForStep5 : rates.temp_full_day;
     
     const calculatedTotalCost = 
       currentInputValues.supervisor_count * rates.supervisor +
@@ -2714,7 +2790,8 @@ const Step4Implementation = {
       currentInputValues.m2_staff_half_day * rates.m2_half_day +
       currentInputValues.m2_staff_full_day * rates.m2_full_day +
       currentInputValues.temp_staff_half_day * rates.temp_half_day +
-      currentInputValues.temp_staff_full_day * rates.temp_full_day;
+      currentInputValues.temp_staff_full_day * rates.temp_full_day +
+      currentInputValues.weight_additional_staff * weightRateForStep5;
     
     // 完全なスタッフ情報オブジェクトを構築（total_costとstaff_costの両方を設定）
     const completeStaffInfo = {
@@ -3682,7 +3759,7 @@ function addFurnitureDisposalItem() {
   itemDiv.className = 'flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg';
   itemDiv.id = `furniture-item-${furnitureDisposalCounter}`;
   itemDiv.innerHTML = `
-    <div class="flex-1 grid grid-cols-1 md:grid-cols-4 gap-3">
+    <div class="flex-1 grid grid-cols-1 md:grid-cols-5 gap-3">
       <div>
         <label class="block text-xs font-medium text-gray-600 mb-1">家具名</label>
         <input type="text" class="form-input w-full text-sm furniture-name" placeholder="例: ソファ" />
@@ -3698,6 +3775,10 @@ function addFurnitureDisposalItem() {
       <div>
         <label class="block text-xs font-medium text-gray-600 mb-1">奥行 (cm)</label>
         <input type="number" class="form-input w-full text-sm furniture-depth" min="0" placeholder="0" />
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">重量 (kg)</label>
+        <input type="number" class="form-input w-full text-sm furniture-weight" min="0" placeholder="0" />
       </div>
     </div>
     <button type="button" onclick="removeFurnitureDisposalItem('furniture-item-${furnitureDisposalCounter}')" class="mt-5 text-red-500 hover:text-red-700 text-sm" title="削除">
@@ -3733,8 +3814,9 @@ function getFurnitureDisposalData() {
     const height = parseInt(itemEl.querySelector('.furniture-height')?.value) || 0;
     const width = parseInt(itemEl.querySelector('.furniture-width')?.value) || 0;
     const depth = parseInt(itemEl.querySelector('.furniture-depth')?.value) || 0;
+    const weight = parseFloat(itemEl.querySelector('.furniture-weight')?.value) || 0;
     if (name || height || width || depth) {
-      items.push({ name, height, width, depth });
+      items.push({ name, height, width, depth, weight });
     }
   });
   return items;
@@ -4172,6 +4254,11 @@ const Step6Implementation = {
       const cost = staff.temp_staff_full_day * staffRates.temp_full_day;
       totalCalculatedCost += cost;
       details.push(`<div class="flex justify-between px-4 py-2"><span>派遣スタッフ（終日）${staff.temp_staff_full_day}人 (¥${staffRates.temp_full_day.toLocaleString()}/人)</span><span>${Utils.formatCurrency(cost)}</span></div>`);
+    }
+    if (staff.weight_additional_staff > 0) {
+      const cost = staff.weight_additional_staff * staffRates.temp_full_day;
+      totalCalculatedCost += cost;
+      details.push(`<div class="flex justify-between px-4 py-2"><span><i class="fas fa-dumbbell mr-1 text-amber-600"></i>追加スタッフ・重量加算 ${staff.weight_additional_staff}人 (¥${staffRates.temp_full_day.toLocaleString()}/人)</span><span>${Utils.formatCurrency(cost)}</span></div>`);
     }
     
     // スタッフ総額を表示
@@ -4736,6 +4823,17 @@ const Step6Implementation = {
           amount: staff.temp_staff_full_day * staffRates.temp_full_day
         });
       }
+      
+      // 重量加算スタッフ（派遣）
+      if (staff.weight_additional_staff > 0) {
+        lineItems.staff.items.push({
+          description: `追加スタッフ・重量加算 ${staff.weight_additional_staff}名`,
+          detail: `@ ¥${staffRates.temp_full_day.toLocaleString()}`,
+          quantity: staff.weight_additional_staff,
+          unit_price: staffRates.temp_full_day,
+          amount: staff.weight_additional_staff * staffRates.temp_full_day
+        });
+      }
     });
     
     lineItems.staff.subtotal = finalStaffCost;
@@ -4967,7 +5065,8 @@ const Step6Implementation = {
         (staff.m2_staff_half_day || 0) * (rates.m2_half_day || d.m2_half_day) +
         (staff.m2_staff_full_day || 0) * (rates.m2_full_day || d.m2_full_day) +
         (staff.temp_staff_half_day || 0) * (rates.temp_half_day || d.temp_half_day) +
-        (staff.temp_staff_full_day || 0) * (rates.temp_full_day || d.temp_full_day);
+        (staff.temp_staff_full_day || 0) * (rates.temp_full_day || d.temp_full_day) +
+        (staff.weight_additional_staff || 0) * (rates.temp_full_day || d.temp_full_day);
       console.log('✅ スタッフ費用（修正済み単価使用）:', finalStaffCost);
     } else {
       // マスターから取得
@@ -4980,7 +5079,8 @@ const Step6Implementation = {
           (staff.m2_staff_half_day || 0) * staffRates.m2_half_day +
           (staff.m2_staff_full_day || 0) * staffRates.m2_full_day +
           (staff.temp_staff_half_day || 0) * staffRates.temp_half_day +
-          (staff.temp_staff_full_day || 0) * staffRates.temp_full_day;
+          (staff.temp_staff_full_day || 0) * staffRates.temp_full_day +
+          (staff.weight_additional_staff || 0) * staffRates.temp_full_day;
           
         console.log('✅ スタッフ費用再計算完了:', finalStaffCost);
       } catch (error) {
@@ -5251,7 +5351,8 @@ const Step6Implementation = {
                     (Step6Implementation.estimateData.staff.m2_staff_half_day || 0) * 8500 +
                     (Step6Implementation.estimateData.staff.m2_staff_full_day || 0) * 15000 +
                     (Step6Implementation.estimateData.staff.temp_staff_half_day || 0) * 7500 +
-                    (Step6Implementation.estimateData.staff.temp_staff_full_day || 0) * 13500),
+                    (Step6Implementation.estimateData.staff.temp_staff_full_day || 0) * 13500 +
+                    (Step6Implementation.estimateData.staff.weight_additional_staff || 0) * 13500),
         
         // サービス情報
         ...(Step6Implementation.estimateData.services || {}),
