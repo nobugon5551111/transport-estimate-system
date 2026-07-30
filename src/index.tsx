@@ -21157,11 +21157,37 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
     };
 
     // --- 車両コスト計算 ---
-    const vehicleType = aiResult.vehicle_type === '4t車' ? '4t' : '2t';
     // 見積依頼フォーム経由は全てチャーター便（終日貸切）で計算（混載便は提供しない）
-    const operationType = 'full_day';
-    const vehicleSubcategory = `${vehicleType}_${operationType}_${areaRank}`;
-    const vehicleUnitPrice = await getMasterValue('vehicle', vehicleSubcategory, 'price', 35000); // デフォルト: 終日35000
+    // 単価はマスター管理画面と同じ vehicle_pricing テーブルから取得（master_settingsは使わない）
+    // 2t → 2tチャーター/終日（専属便と同一単価）、4t → 4t車/終日
+    const vehicleType = aiResult.vehicle_type === '4t車' ? '4t車' : '2tチャーター';
+    let vehicleUnitPrice = 0;
+    try {
+      const vpResult = await env.DB.prepare(
+        'SELECT price FROM vehicle_pricing WHERE vehicle_type = ? AND operation_type = ? AND area = ? ORDER BY updated_at DESC LIMIT 1'
+      ).bind(vehicleType, '終日', areaRank).first();
+      if (vpResult && vpResult.price) {
+        vehicleUnitPrice = parseFloat(vpResult.price) || 0;
+        console.log(`✅ vehicle_pricingから単価取得: ${vehicleType}/終日/${areaRank} = ${vehicleUnitPrice}円`);
+      }
+    } catch (e) {
+      console.error('vehicle_pricing取得エラー:', e);
+    }
+    // フォールバック: 専属便/終日の単価を参照（2tチャーターと同一単価体系）
+    if (!vehicleUnitPrice) {
+      try {
+        const fallback = await env.DB.prepare(
+          'SELECT price FROM vehicle_pricing WHERE vehicle_type = ? AND operation_type = ? AND area = ? ORDER BY updated_at DESC LIMIT 1'
+        ).bind('専属便', '終日', areaRank).first();
+        if (fallback && fallback.price) {
+          vehicleUnitPrice = parseFloat(fallback.price) || 0;
+          console.log(`⚠️ フォールバック（専属便/終日/${areaRank}）: ${vehicleUnitPrice}円`);
+        }
+      } catch (e) {
+        console.error('vehicle_pricingフォールバック取得エラー:', e);
+      }
+    }
+    if (!vehicleUnitPrice) vehicleUnitPrice = 35000; // 最終デフォルト
     const vehicleCount = aiResult.vehicle_count || 1;
     const vehicleCost = vehicleUnitPrice * vehicleCount;
 
