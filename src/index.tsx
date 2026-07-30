@@ -21340,8 +21340,8 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
       }
     };
 
-    // 車両明細
-    const vehicleDesc = operationType === 'shared' ? '混載便' : 'チャーター便';
+    // 車両明細（見積依頼フォーム経由は全てチャーター便）
+    const vehicleDesc = 'チャーター便';
     lineItemsJson.vehicle.items.push({
       description: `${vehicleDesc} ${vehicleCount}台（${areaRank}ランク）`,
       detail: `@ ¥${vehicleUnitPrice.toLocaleString()}`,
