@@ -20865,32 +20865,26 @@ async function generateAIEstimate(env: any, input: AIEstimateInput): Promise<{ s
     return { success: false, error: 'OPENAI_API_KEY が設定されていません' };
   }
 
-  // エリア判定（郵便番号から）
+  // エリア判定（郵便番号から）- 手入力見積と同じ詳細判定ロジック(getAreaFromPostalCode)を使用
   let areaInfo = '不明';
   try {
-    const prefix = input.delivery_postal_code.replace('-', '').substring(0, 3);
+    const postalCodeClean = input.delivery_postal_code.replace(/[^0-9]/g, '');
+    const prefix = postalCodeClean.substring(0, 3);
     const areaResult = await env.DB.prepare(
       'SELECT area_rank, area_name FROM area_settings WHERE postal_code_prefix = ? LIMIT 1'
     ).bind(prefix).first();
     if (areaResult) {
       areaInfo = `エリア${areaResult.area_rank}（${areaResult.area_name}）`;
     } else {
-      // area_settingsが空の場合、デフォルトマッピングを使用
-      const defaultRank = getDefaultAreaRank(input.delivery_postal_code);
-      const areaNames: Record<string, string> = {
-        'A': '大阪市内中心部', 'B': '近畿圏', 'C': '中距離圏',
-        'D': '遠距離圏', 'E': '長距離圏'
-      };
-      areaInfo = `エリア${defaultRank}（${areaNames[defaultRank] || '不明'}）`;
+      // area_settingsにない場合、詳細判定（手入力見積と同一ロジック: 滋賀=D等）を使用
+      const detailedArea = getAreaFromPostalCode(postalCodeClean);
+      areaInfo = `エリア${detailedArea.area_rank}（${detailedArea.area_name}）`;
     }
   } catch (e) {
-    // エリア判定できない場合もデフォルトマッピングを試行
-    const defaultRank = getDefaultAreaRank(input.delivery_postal_code);
-    const areaNames: Record<string, string> = {
-      'A': '大阪市内中心部', 'B': '近畿圏', 'C': '中距離圏',
-      'D': '遠距離圏', 'E': '長距離圏'
-    };
-    areaInfo = `エリア${defaultRank}（${areaNames[defaultRank] || '不明'}）`;
+    // エラー時も詳細判定を使用
+    const postalCodeClean = input.delivery_postal_code.replace(/[^0-9]/g, '');
+    const detailedArea = getAreaFromPostalCode(postalCodeClean);
+    areaInfo = `エリア${detailedArea.area_rank}（${detailedArea.area_name}）`;
   }
 
   // 品目情報の整形
@@ -20917,11 +20911,10 @@ async function generateAIEstimate(env: any, input: AIEstimateInput): Promise<{ s
 
 ## 暗黙知・決まり事ルール（必ず従ってください）
 
-### 便種（チャーター便 vs 混載便）の判定
-- 品目の3辺合計が500cm以下、かつ品目数が2点以下 → 混載便
-- 品目の3辺合計が500cm超、または品目数3点以上、または総重量100kg超 → チャーター便
-- ガラス材質のテーブルは必ず立て積み・専用チャーター（混載不可）
-- 大理石材質は重量大、チャーター便推奨
+### 便種の判定（最重要ルール）
+- 見積依頼フォームからの見積は【全てチャーター便（貸切便）】です。混載便は一切提供しません
+- service_type は必ず "charter" を出力してください（"mixed" は絶対に出力しないでください）
+- service_type_reason には「フォーム経由の見積は全てチャーター便のため」と記載してください
 
 ### 車両台数の判定
 - 1台目は必ず2t車の2マン（ドライバー＋作業員1名）
@@ -21009,7 +21002,7 @@ ${input.notes || 'なし'}
 以下のJSONフォーマットで出力してください。JSONのみ出力し、それ以外のテキストは含めないでください。
 
 {
-  "service_type": "charter" or "mixed",
+  "service_type": "charter",
   "service_type_reason": "判定理由",
   "vehicle_count": 数値,
   "vehicle_type": "2t車" or "4t車",
@@ -21083,41 +21076,6 @@ ${input.notes || 'なし'}
     console.error('AI見積生成エラー:', error);
     return { success: false, error: `AI見積生成エラー: ${error.message || '不明なエラー'}` };
   }
-}
-
-// 郵便番号プレフィックスからエリアランクを判定するデフォルトマッピング
-// area_settingsテーブルが空の場合のフォールバック
-function getDefaultAreaRank(postalCode: string): string {
-  const prefix = (postalCode || '').replace('-', '').substring(0, 3);
-  if (!prefix) return 'B';
-  const num = parseInt(prefix);
-  
-  // エリアA: 大阪市内中心部（530-559）
-  if (num >= 530 && num <= 559) return 'A';
-  
-  // エリアB: 大阪府内その他（560-599）、京都（600-629）、兵庫・神戸（650-679）、奈良（630-639）
-  if (num >= 560 && num <= 599) return 'B';
-  if (num >= 600 && num <= 629) return 'B';
-  if (num >= 650 && num <= 679) return 'B';
-  if (num >= 630 && num <= 639) return 'B';
-  
-  // エリアC: 滋賀（520-529）、和歌山（640-649）、三重（510-519）
-  if (num >= 520 && num <= 529) return 'C';
-  if (num >= 640 && num <= 649) return 'C';
-  if (num >= 510 && num <= 519) return 'C';
-  
-  // エリアD: 中国地方（680-739）、四国（760-799）
-  if (num >= 680 && num <= 739) return 'D';
-  if (num >= 760 && num <= 799) return 'D';
-  
-  // エリアE: 東海・関東（400-509）、北陸（910-939）、東北・北海道（000-399）、九州（800-899）
-  if (num >= 400 && num <= 509) return 'E';
-  if (num >= 910 && num <= 939) return 'E';
-  if (num >= 0 && num <= 399) return 'E';
-  if (num >= 800 && num <= 899) return 'E';
-  
-  // その他: デフォルトC
-  return 'C';
 }
 
 // 設置階文字列から数値を抽出する関数
@@ -21198,13 +21156,10 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
 
     // --- 車両コスト計算 ---
     const vehicleType = aiResult.vehicle_type === '4t車' ? '4t' : '2t';
-    let operationType = 'full_day';
-    if (aiResult.service_type === 'mixed') {
-      operationType = 'shared';
-    }
+    // 見積依頼フォーム経由は全てチャーター便（終日貸切）で計算（混載便は提供しない）
+    const operationType = 'full_day';
     const vehicleSubcategory = `${vehicleType}_${operationType}_${areaRank}`;
-    const vehicleUnitPrice = await getMasterValue('vehicle', vehicleSubcategory, 'price', 
-      operationType === 'shared' ? 16000 : 35000); // デフォルト: 混載16000, 終日35000
+    const vehicleUnitPrice = await getMasterValue('vehicle', vehicleSubcategory, 'price', 35000); // デフォルト: 終日35000
     const vehicleCount = aiResult.vehicle_count || 1;
     const vehicleCost = vehicleUnitPrice * vehicleCount;
 
@@ -21265,7 +21220,7 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
     // 重量加算スタッフをtempStaffCountに加算（AI判定分 + 重量加算分）
     tempStaffCount = tempStaffCount + weightAdditionalStaff;
     
-    const isHalfDay = aiResult.service_type === 'mixed';
+    const isHalfDay = false; // フォーム経由は全てチャーター便（終日）のため常に全日計算
     const staffCost = (supervisorCount * svRate) + 
                       (leaderCount * leaderRate) + 
                       (m2StaffCount * (isHalfDay ? m2HalfRate : m2FullRate)) +
@@ -21571,7 +21526,7 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
       quoteRequest.delivery_postal_code || '',
       areaRank,
       aiResult.vehicle_type === '4t車' ? '4t_truck' : '2t_truck',
-      aiResult.service_type === 'mixed' ? 'shared' : 'standard',
+      'standard', // フォーム経由は全てチャーター便
       vehicleCost,
       supervisorCount,
       leaderCount,
