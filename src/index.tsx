@@ -22311,7 +22311,7 @@ app.get('/quote-request', (c) => {
       </div>
       <h2 style="font-size:1.3rem; font-weight:700; color:#1f2937; margin-bottom:8px;">送信完了</h2>
       <p style="color:#6b7280; font-size:0.95rem; line-height:1.7; margin-bottom:24px;">見積依頼を受け付けました。<br>担当者より折り返しご連絡いたします。</p>
-      <button onclick="location.reload()" style="background:linear-gradient(135deg,#3b82f6,#2563eb); color:white; border:none; padding:12px 32px; border-radius:10px; font-size:1rem; font-weight:600; cursor:pointer; transition:transform 0.2s, box-shadow 0.2s; box-shadow:0 4px 12px rgba(37,99,235,0.3);" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(37,99,235,0.4)'" onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 12px rgba(37,99,235,0.3)'">
+      <button onclick="resetForm()" style="background:linear-gradient(135deg,#3b82f6,#2563eb); color:white; border:none; padding:12px 32px; border-radius:10px; font-size:1rem; font-weight:600; cursor:pointer; transition:transform 0.2s, box-shadow 0.2s; box-shadow:0 4px 12px rgba(37,99,235,0.3);" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(37,99,235,0.4)'" onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 12px rgba(37,99,235,0.3)'">
         <i class="fas fa-plus mr-2"></i>新しい依頼を作成
       </button>
     </div>
@@ -22794,6 +22794,13 @@ app.get('/quote-request', (c) => {
   // フォームリセット
   function resetForm() {
     document.getElementById('successOverlay').style.display = 'none';
+    isSubmitting = false;
+    const submitBtn = document.querySelector('[onclick="submitQuoteRequest()"]');
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.style.opacity = '1';
+      submitBtn.style.pointerEvents = 'auto';
+    }
     document.getElementById('contactPerson').value = '';
     document.getElementById('projectName').value = '';
     document.getElementById('deliveryDate').value = '';
@@ -22815,6 +22822,12 @@ app.get('/quote-request', (c) => {
     document.getElementById('hasCrane').value = '無';
     document.getElementById('deliveryRouteInfo').value = '';
     document.getElementById('notes').value = '';
+    // 引取家具リセット
+    const furnitureNone = document.querySelector('input[name="furnitureDisposal"][value="無"]');
+    if (furnitureNone) furnitureNone.checked = true;
+    const furnitureSection = document.getElementById('furnitureDisposalSection');
+    if (furnitureSection) furnitureSection.style.display = 'none';
+    // 品目リセット
     document.getElementById('itemsContainer').innerHTML = '';
     itemCount = 0;
     addItem();
