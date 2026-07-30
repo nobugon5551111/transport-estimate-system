@@ -21146,24 +21146,34 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
       projectId = projectResult.meta.last_row_id;
     }
 
-    // 2. エリア判定（area_settingsテーブル → デフォルトマッピングのフォールバック）
-    let areaRank = 'B'; // デフォルトをBに変更（大阪拠点の配送会社なので近畿圏がメイン）
+    // 2. エリア判定（getAreaFromPostalCodeを使用 - 手入力見積と同じ詳細判定ロジック）
+    let areaRank = 'B'; // デフォルト
     try {
-      const prefix = (quoteRequest.delivery_postal_code || '').replace('-', '').substring(0, 3);
-      if (prefix) {
+      const postalCodeClean = (quoteRequest.delivery_postal_code || '').replace(/[^0-9]/g, '');
+      if (postalCodeClean.length >= 3) {
+        // まずarea_settingsテーブルを確認（管理画面で個別設定されている場合を優先）
+        const prefix = postalCodeClean.substring(0, 3);
         const areaResult = await env.DB.prepare(
           'SELECT area_rank FROM area_settings WHERE postal_code_prefix = ? LIMIT 1'
         ).bind(prefix).first();
         if (areaResult) {
           areaRank = areaResult.area_rank;
+          console.log(`✅ area_settingsからエリア判定: ${prefix} → ${areaRank}`);
         } else {
-          // area_settingsにデータがない場合、デフォルトマッピングを使用
-          areaRank = getDefaultAreaRank(quoteRequest.delivery_postal_code);
+          // area_settingsにない場合、getAreaFromPostalCode（詳細判定）を使用
+          const areaInfo = getAreaFromPostalCode(postalCodeClean);
+          areaRank = areaInfo.area_rank;
+          console.log(`✅ getAreaFromPostalCodeでエリア判定: ${postalCodeClean} → ${areaRank}（${areaInfo.area_name}）`);
         }
       }
     } catch (e) {
-      // エラー時もデフォルトマッピングを使用
-      areaRank = getDefaultAreaRank(quoteRequest.delivery_postal_code);
+      // エラー時もgetAreaFromPostalCodeを使用
+      const postalCodeClean = (quoteRequest.delivery_postal_code || '').replace(/[^0-9]/g, '');
+      if (postalCodeClean.length >= 3) {
+        const areaInfo = getAreaFromPostalCode(postalCodeClean);
+        areaRank = areaInfo.area_rank;
+      }
+      console.error('エリア判定エラー（フォールバック使用）:', e);
     }
 
     // 3. マスター設定から単価取得（全てDBから動的に取得、管理画面で変更時に自動反映）
