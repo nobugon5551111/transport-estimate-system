@@ -20952,10 +20952,12 @@ async function generateAIEstimate(env: any, input: AIEstimateInput): Promise<{ s
 - 詳細はヒアリング後に確定（初回見積では有無のみ判定）
 
 ### 引き取り廃棄費用の判定
-- 廃棄家具がある場合、各家具の「縦(m) × 横(m) × 高さ(m) × 7,500円」で計算
+- 廃棄家具がある場合、各家具の「三辺合計(m) × 7,500円」で計算
+- 三辺合計(m) = 縦(m) + 横(m) + 高さ(m)（体積ではありません。掛け算ではなく足し算です）
+- 例: 縦1.0m×横1.8m×高さ1.5mのソファ → 三辺合計4.3m × 7,500円 = 32,250円
 - 廃棄家具が複数ある場合は各家具の費用を合計する
 - フォームでは縦・横・奥行をcm単位で入力されるので、m単位に変換して計算
-- waste_disposal_costフィールドに合計金額（円）を出力すること
+- waste_disposal_costフィールドに合計金額（円）を出力すること（ただし最終金額はサーバー側で再計算されます）
 
 ### 作業時間帯の判定
 - 希望納品時間が「定時間帯（9:00-18:00）」→ 通常 (normal)
@@ -21020,7 +21022,7 @@ ${input.notes || 'なし'}
   "protection_work_needed": true/false,
   "protection_reason": "判定理由",
   "waste_disposal_size": "none" or "small" or "medium" or "large",
-  "waste_disposal_cost": 数値（縦m×横m×高さm×7500円の合計。廃棄なしなら0）,
+  "waste_disposal_cost": 数値（三辺合計(m)×7,500円の合計。廃棄なしなら0）,
   "waste_disposal_reason": "判定理由（計算根拠含む）",
   "work_time_type": "normal" or "overtime",
   "work_time_reason": "判定理由",
@@ -21247,30 +21249,24 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
       ? (protectionBaseRate + protectionFloors * protectionFloorRate) 
       : 0;
 
-    // --- 廃棄コスト（縦m × 横m × 高さm × 7,500円） ---
+    // --- 廃棄コスト（三辺合計(m) × 7,500円） ---
+    // ※体積ではなく三辺の合計（縦m + 横m + 高さm）× 7,500円
+    // ※AIの計算ミス防止のため、金額は必ずサーバー側で計算し、AI出力値は使用しない
     let wasteDisposalCost = 0;
     let wasteDisposalSize = 'none';
-    if (quoteRequest.furniture_disposal === '有' && Array.isArray(quoteRequest.furniture_disposal_items) && quoteRequest.furniture_disposal_items.length > 0) {
-      // フォーム入力の三辺(cm)から計算: 縦(m) × 横(m) × 高さ(m) × 7,500円
-      quoteRequest.furniture_disposal_items.forEach((item: any) => {
+    if (quoteRequest.furniture_disposal === '有' && disposalItems.length > 0) {
+      disposalItems.forEach((item: any) => {
         const h = (item.height || 0) / 100; // cm → m
         const w = (item.width || 0) / 100;
         const d = (item.depth || 0) / 100;
-        const volume = h * w * d;
-        wasteDisposalCost += Math.round(volume * 7500);
+        const sideSum = h + w + d; // 三辺合計(m)
+        wasteDisposalCost += Math.round(sideSum * 7500);
       });
       if (wasteDisposalCost > 0) {
-        // AI出力のwaste_disposal_costがある場合はそちらも参照（フォールバック）
-        if (aiResult.waste_disposal_cost && aiResult.waste_disposal_cost > 0) {
-          wasteDisposalCost = aiResult.waste_disposal_cost;
-        }
         wasteDisposalSize = aiResult.waste_disposal_size || 'medium';
       }
-    } else if (aiResult.waste_disposal_cost && aiResult.waste_disposal_cost > 0) {
-      // フォームに廃棄データがない場合はAI判定値を使用
-      wasteDisposalCost = aiResult.waste_disposal_cost;
-      wasteDisposalSize = aiResult.waste_disposal_size || 'medium';
     } else if (aiResult.waste_disposal_size && aiResult.waste_disposal_size !== 'none') {
+      // フォームに廃棄データがない場合はサイズ区分のみAI判定値を使用（金額は0）
       wasteDisposalSize = aiResult.waste_disposal_size;
     }
 
@@ -21424,13 +21420,13 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
           const h = (item.height || 0) / 100;
           const w = (item.width || 0) / 100;
           const d = (item.depth || 0) / 100;
-          const volume = h * w * d;
-          const itemCost = Math.round(volume * 7500);
+          const sideSum = h + w + d; // 三辺合計(m)
+          const itemCost = Math.round(sideSum * 7500);
           if (itemCost > 0) {
             const itemName = item.name || `引取家具${idx + 1}`;
             lineItemsJson.services.items.push({
               description: `廃棄引取: ${itemName}`,
-              detail: `${item.height || 0}×${item.width || 0}×${item.depth || 0}cm (${volume.toFixed(2)}㎥×¥7,500)`,
+              detail: `${item.height || 0}×${item.width || 0}×${item.depth || 0}cm (三辺合計${sideSum.toFixed(1)}m×¥7,500)`,
               quantity: 1,
               unit_price: itemCost,
               amount: itemCost
@@ -21440,7 +21436,7 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
       } else {
         lineItemsJson.services.items.push({
           description: `引き取り廃棄`,
-          detail: `体積×7,500円（${aiResult.waste_disposal_reason || ''})`,
+          detail: `三辺合計(m)×7,500円`,
           quantity: 1,
           unit_price: wasteDisposalCost,
           amount: wasteDisposalCost
