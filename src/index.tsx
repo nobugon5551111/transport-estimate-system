@@ -2901,6 +2901,7 @@ app.put('/api/estimates/:id', async (c) => {
         parking_fee = ?,
         highway_fee = ?,
         subtotal = ?,
+        discount_amount = ?,
         tax_rate = ?,
         tax_amount = ?,
         total_amount = ?,
@@ -2909,6 +2910,7 @@ app.put('/api/estimates/:id', async (c) => {
         additional_truck_count = ?,
         additional_truck_unit_price = ?,
         additional_truck_cost = ?,
+        line_items_json = ?,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).bind(
@@ -2955,59 +2957,20 @@ app.put('/api/estimates/:id', async (c) => {
       data.work_time_multiplier || 1.0,
       data.parking_fee || 0,
       data.highway_fee || 0,
-      (() => {
-        const vehicleCost = data.vehicle_cost || 0;
-        const staffCost = data.staff_cost || 0;
-        const servicesCost = (data.parking_officer_cost || 0) + 
-                           (data.transport_cost || 0) + 
-                           (data.waste_disposal_cost || 0) + 
-                           (data.protection_cost || 0) + 
-                           (data.material_collection_cost || 0) + 
-                           (data.construction_cost || 0) + 
-                           (data.parking_fee || 0) + 
-                           (data.highway_fee || 0) +
-                           (data.additional_truck_cost || 0);
-        return vehicleCost + staffCost + servicesCost;
-      })(),
+      // ✅ クライアントから送信された値をそのまま保存（再計算しない）
+      // STEP6で正確に計算された小計・値引き・税・合計を信頼する
+      data.subtotal || 0,
+      data.discount_amount || 0,
       data.tax_rate || 0.1,
-      (() => {
-        const vehicleCost = data.vehicle_cost || 0;
-        const staffCost = data.staff_cost || 0;
-        const servicesCost = (data.parking_officer_cost || 0) + 
-                           (data.transport_cost || 0) + 
-                           (data.waste_disposal_cost || 0) + 
-                           (data.protection_cost || 0) + 
-                           (data.material_collection_cost || 0) + 
-                           (data.construction_cost || 0) + 
-                           (data.parking_fee || 0) + 
-                           (data.highway_fee || 0) +
-                           (data.additional_truck_cost || 0);
-        const calculatedSubtotal = vehicleCost + staffCost + servicesCost;
-        const taxRate = data.tax_rate || 0.1;
-        return Math.floor(calculatedSubtotal * taxRate);
-      })(),
-      (() => {
-        const vehicleCost = data.vehicle_cost || 0;
-        const staffCost = data.staff_cost || 0;
-        const servicesCost = (data.parking_officer_cost || 0) + 
-                           (data.transport_cost || 0) + 
-                           (data.waste_disposal_cost || 0) + 
-                           (data.protection_cost || 0) + 
-                           (data.material_collection_cost || 0) + 
-                           (data.construction_cost || 0) + 
-                           (data.parking_fee || 0) + 
-                           (data.highway_fee || 0) +
-                           (data.additional_truck_cost || 0);
-        const calculatedSubtotal = vehicleCost + staffCost + servicesCost;
-        const taxRate = data.tax_rate || 0.1;
-        const calculatedTaxAmount = Math.floor(calculatedSubtotal * taxRate);
-        return calculatedSubtotal + calculatedTaxAmount;
-      })(),
+      data.tax_amount || 0,
+      data.total_amount || 0,
       data.notes || '',
       data.customer_contact_person || '',
       data.additional_truck_count || 0,
       data.additional_truck_unit_price || 0,
       data.additional_truck_cost || 0,
+      // ✅ line_items_json を保存（PDF/印刷の正確性の源泉）
+      data.line_items_json || null,
       estimateId
     ).run()
 
@@ -16666,6 +16629,46 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
     }
   }
   
+  // ✅ 統一計算方式: lineItemsが存在する場合はそこから小計を計算（DB列に依存しない）
+  // これによりPDF/印刷/編集モードで金額が完全一致する
+  let pdfSubtotal = 0;
+  let pdfDiscountAmount = estimate.discount_amount || 0;
+  let pdfTaxRate = estimate.tax_rate || 0.1;
+  let pdfTaxAmount = 0;
+  let pdfTotalAmount = 0;
+  
+  if (lineItems) {
+    // lineItemsから小計を直接計算（これが唯一の正）
+    pdfSubtotal = (lineItems.vehicle?.subtotal || 0) + (lineItems.staff?.subtotal || 0) + (lineItems.services?.subtotal || 0);
+    // DB保存値が存在し妥当であればそれを使用、なければlineItemsから再計算
+    if (estimate.subtotal > 0) {
+      pdfSubtotal = estimate.subtotal;
+    }
+    const pdfDiscountedSubtotal = Math.max(0, pdfSubtotal - pdfDiscountAmount);
+    pdfTaxAmount = (estimate.tax_amount > 0) ? estimate.tax_amount : Math.floor(pdfDiscountedSubtotal * pdfTaxRate);
+    pdfTotalAmount = (estimate.total_amount > 0) ? estimate.total_amount : (pdfDiscountedSubtotal + pdfTaxAmount);
+  } else {
+    // フォールバック：DB列から再計算
+    const vc = estimate.vehicle_cost || 0;
+    const sc = calculatedStaffCost;
+    const dc = (estimate.vehicle_dedicated_unit_price || 0) * (estimate.vehicle_dedicated_count || 0);
+    const cc = (estimate.vehicle_charter_unit_price || 0) * (estimate.vehicle_charter_count || 0);
+    const tvf = estimate.transport_vehicle_fee || 0;
+    const rpf = estimate.road_permit_fee || 0;
+    const sf = estimate.survey_fee || 0;
+    const svc = (estimate.site_survey_cost || 0) + (estimate.parking_officer_cost || 0) + (estimate.transport_cost || 0) + (estimate.waste_disposal_cost || 0) + (estimate.protection_cost || 0) + (estimate.material_collection_cost || 0) + (estimate.construction_cost || 0) + (estimate.parking_fee || 0) + (estimate.highway_fee || 0) + (estimate.external_contractor_cost || 0);
+    let wtp = 0;
+    if (estimate.work_time_type && estimate.work_time_type !== 'normal' && estimate.work_time_multiplier > 1) {
+      wtp = Math.round((vc + sc) * (estimate.work_time_multiplier - 1));
+    }
+    pdfSubtotal = Math.round(vc + sc + svc + wtp + dc + cc + tvf + rpf + sf);
+    const pdfDiscountedSubtotal = Math.max(0, pdfSubtotal - pdfDiscountAmount);
+    pdfTaxAmount = Math.floor(pdfDiscountedSubtotal * pdfTaxRate);
+    pdfTotalAmount = pdfDiscountedSubtotal + pdfTaxAmount;
+  }
+  
+  console.log('📊 PDF統一計算結果:', { pdfSubtotal, pdfDiscountAmount, pdfTaxAmount, pdfTotalAmount, hasLineItems: !!lineItems });
+  
   return `
 <!DOCTYPE html>
 <html lang="ja">
@@ -16983,80 +16986,10 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
             </div>
             <div class="top-total-box">
                 <div class="top-total-label">お見積金額（税込）</div>
-                <div class="top-total-amount">¥${(() => {
-          // 小計を計算
-          let subtotal = 0;
-          if (lineItems && estimate.subtotal > 0) {
-            subtotal = estimate.subtotal;
-          } else {
-            const vc = estimate.vehicle_cost || 0;
-            const sc = calculatedStaffCost;
-            const dc = (estimate.vehicle_dedicated_unit_price || 0) * (estimate.vehicle_dedicated_count || 0);
-            const cc = (estimate.vehicle_charter_unit_price || 0) * (estimate.vehicle_charter_count || 0);
-            const tvf = estimate.transport_vehicle_fee || 0;
-            const rpf = estimate.road_permit_fee || 0;
-            const sf = estimate.survey_fee || 0;
-            const svc = (estimate.site_survey_cost || 0) + (estimate.parking_officer_cost || 0) + (estimate.transport_cost || 0) + (estimate.waste_disposal_cost || 0) + (estimate.protection_cost || 0) + (estimate.material_collection_cost || 0) + (estimate.construction_cost || 0) + (estimate.parking_fee || 0) + (estimate.highway_fee || 0) + (estimate.external_contractor_cost || 0);
-            let wtp = 0;
-            if (estimate.work_time_type && estimate.work_time_type !== 'normal' && estimate.work_time_multiplier > 1) {
-              wtp = Math.round((vc + sc) * (estimate.work_time_multiplier - 1));
-            }
-            subtotal = Math.round(vc + sc + svc + wtp + dc + cc + tvf + rpf + sf);
-          }
-          // 値引き適用
-          const discounted = Math.max(0, subtotal - (estimate.discount_amount || 0));
-          // 税額計算
-          const taxRate = estimate.tax_rate || 0.1;
-          const tax = (lineItems && estimate.tax_amount > 0) ? estimate.tax_amount : Math.floor(discounted * taxRate);
-          const total = (lineItems && estimate.total_amount > 0) ? estimate.total_amount : (discounted + tax);
-          return total.toLocaleString();
-        })()}-</div>
+                <div class="top-total-amount">¥${pdfTotalAmount.toLocaleString()}-</div>
         <div class="top-total-sub">
-            <span>本体 ¥${(() => {
-              let subtotal = 0;
-              if (lineItems && estimate.subtotal > 0) {
-                subtotal = estimate.subtotal;
-              } else {
-                const vc = estimate.vehicle_cost || 0;
-                const sc = calculatedStaffCost;
-                const dc = (estimate.vehicle_dedicated_unit_price || 0) * (estimate.vehicle_dedicated_count || 0);
-                const cc = (estimate.vehicle_charter_unit_price || 0) * (estimate.vehicle_charter_count || 0);
-                const tvf = estimate.transport_vehicle_fee || 0;
-                const rpf = estimate.road_permit_fee || 0;
-                const sf = estimate.survey_fee || 0;
-                const svc = (estimate.site_survey_cost || 0) + (estimate.parking_officer_cost || 0) + (estimate.transport_cost || 0) + (estimate.waste_disposal_cost || 0) + (estimate.protection_cost || 0) + (estimate.material_collection_cost || 0) + (estimate.construction_cost || 0) + (estimate.parking_fee || 0) + (estimate.highway_fee || 0) + (estimate.external_contractor_cost || 0);
-                let wtp = 0;
-                if (estimate.work_time_type && estimate.work_time_type !== 'normal' && estimate.work_time_multiplier > 1) {
-                  wtp = Math.round((vc + sc) * (estimate.work_time_multiplier - 1));
-                }
-                subtotal = Math.round(vc + sc + svc + wtp + dc + cc + tvf + rpf + sf);
-              }
-              return Math.max(0, subtotal - (estimate.discount_amount || 0)).toLocaleString();
-            })()}</span>
-            <span>税 ¥${(() => {
-              let subtotal = 0;
-              if (lineItems && estimate.subtotal > 0) {
-                subtotal = estimate.subtotal;
-              } else {
-                const vc = estimate.vehicle_cost || 0;
-                const sc = calculatedStaffCost;
-                const dc = (estimate.vehicle_dedicated_unit_price || 0) * (estimate.vehicle_dedicated_count || 0);
-                const cc = (estimate.vehicle_charter_unit_price || 0) * (estimate.vehicle_charter_count || 0);
-                const tvf = estimate.transport_vehicle_fee || 0;
-                const rpf = estimate.road_permit_fee || 0;
-                const sf = estimate.survey_fee || 0;
-                const svc = (estimate.site_survey_cost || 0) + (estimate.parking_officer_cost || 0) + (estimate.transport_cost || 0) + (estimate.waste_disposal_cost || 0) + (estimate.protection_cost || 0) + (estimate.material_collection_cost || 0) + (estimate.construction_cost || 0) + (estimate.parking_fee || 0) + (estimate.highway_fee || 0) + (estimate.external_contractor_cost || 0);
-                let wtp = 0;
-                if (estimate.work_time_type && estimate.work_time_type !== 'normal' && estimate.work_time_multiplier > 1) {
-                  wtp = Math.round((vc + sc) * (estimate.work_time_multiplier - 1));
-                }
-                subtotal = Math.round(vc + sc + svc + wtp + dc + cc + tvf + rpf + sf);
-              }
-              const discounted = Math.max(0, subtotal - (estimate.discount_amount || 0));
-              const taxRate = estimate.tax_rate || 0.1;
-              if (lineItems && estimate.tax_amount > 0) return estimate.tax_amount.toLocaleString();
-              return Math.floor(discounted * taxRate).toLocaleString();
-            })()}</span>
+            <span>本体 ¥${Math.max(0, pdfSubtotal - pdfDiscountAmount).toLocaleString()}</span>
+            <span>税 ¥${pdfTaxAmount.toLocaleString()}</span>
         </div>
     </div>
         </div>
@@ -17490,142 +17423,24 @@ function generatePdfHTML(estimate: any, staffRates: any, vehiclePricing: any = {
         <table class="total-table">
             <tr>
                 <th>小計</th>
-                <td>¥${(() => {
-                  // 実際の項目費用を計算（チャーター便・付帯費用含む）
-                  const vehicleCost = estimate.vehicle_cost || 0;
-                  const staffCost = calculatedStaffCost;
-                  
-                  // チャーター便費用
-                  const dedicatedCost = (estimate.vehicle_dedicated_unit_price || 0) * (estimate.vehicle_dedicated_count || 0);
-                  const charterCost = (estimate.vehicle_charter_unit_price || 0) * (estimate.vehicle_charter_count || 0);
-                  const transportVehicleFee = estimate.transport_vehicle_fee || 0;
-                  const roadPermitFee = estimate.road_permit_fee || 0;
-                  const surveyFee = estimate.survey_fee || 0;
-                  
-                  const servicesCost = (estimate.site_survey_cost || 0) +
-                                     (estimate.parking_officer_cost || 0) + 
-                                     (estimate.transport_cost || 0) + 
-                                     (estimate.waste_disposal_cost || 0) + 
-                                     (estimate.protection_cost || 0) + 
-                                     (estimate.material_collection_cost || 0) + 
-                                     (estimate.construction_cost || 0) + 
-                                     (estimate.parking_fee || 0) + 
-                                     (estimate.highway_fee || 0) +
-                                     (estimate.external_contractor_cost || 0);
-                  
-                  let workTimePremium = 0;
-                  if (estimate.work_time_type && estimate.work_time_type !== 'normal' && estimate.work_time_multiplier > 1) {
-                    const baseAmount = vehicleCost + staffCost;
-                    workTimePremium = Math.round(baseAmount * (estimate.work_time_multiplier - 1));
-                  }
-                  
-                  const calculatedSubtotal = Math.round(vehicleCost + staffCost + servicesCost + workTimePremium + dedicatedCost + charterCost + transportVehicleFee + roadPermitFee + surveyFee);
-                  
-                  // line_items_jsonがある場合はDB保存値を使用（STEP6で計算済み）
-                  if (lineItems && estimate.subtotal > 0) {
-                    return estimate.subtotal.toLocaleString();
-                  }
-                  return calculatedSubtotal.toLocaleString();
-                })()}</td>
+                <td>¥${pdfSubtotal.toLocaleString()}</td>
             </tr>
-            ${(estimate.discount_amount > 0) ? `
+            ${(pdfDiscountAmount > 0) ? `
             <tr>
                 <th>値引き</th>
-                <td style="color: #dc2626;">-¥${(estimate.discount_amount || 0).toLocaleString()}</td>
+                <td style="color: #dc2626;">-¥${pdfDiscountAmount.toLocaleString()}</td>
             </tr>
             <tr>
                 <th>値引き後小計</th>
-                <td>¥${(() => {
-                  if (lineItems && estimate.subtotal > 0) {
-                    return Math.max(0, estimate.subtotal - (estimate.discount_amount || 0)).toLocaleString();
-                  }
-                  const vehicleCost = estimate.vehicle_cost || 0;
-                  const staffCost = calculatedStaffCost;
-                  const dedicatedCost = (estimate.vehicle_dedicated_unit_price || 0) * (estimate.vehicle_dedicated_count || 0);
-                  const charterCost = (estimate.vehicle_charter_unit_price || 0) * (estimate.vehicle_charter_count || 0);
-                  const transportVehicleFee = estimate.transport_vehicle_fee || 0;
-                  const roadPermitFee = estimate.road_permit_fee || 0;
-                  const surveyFee = estimate.survey_fee || 0;
-                  const servicesCost = (estimate.parking_officer_cost || 0) + 
-                                     (estimate.transport_cost || 0) + 
-                                     (estimate.waste_disposal_cost || 0) + 
-                                     (estimate.protection_cost || 0) + 
-                                     (estimate.material_collection_cost || 0) + 
-                                     (estimate.construction_cost || 0) + 
-                                     (estimate.parking_fee || 0) + 
-                                     (estimate.highway_fee || 0);
-                  let workTimePremium = 0;
-                  if (estimate.work_time_type && estimate.work_time_type !== 'normal' && estimate.work_time_multiplier > 1) {
-                    workTimePremium = Math.round((vehicleCost + staffCost) * (estimate.work_time_multiplier - 1));
-                  }
-                  const sub = Math.round(vehicleCost + staffCost + servicesCost + workTimePremium + dedicatedCost + charterCost + transportVehicleFee + roadPermitFee + surveyFee);
-                  return Math.max(0, sub - (estimate.discount_amount || 0)).toLocaleString();
-                })()}</td>
+                <td>¥${Math.max(0, pdfSubtotal - pdfDiscountAmount).toLocaleString()}</td>
             </tr>` : ''}
             <tr>
-                <th>消費税（${Math.round((estimate.tax_rate || 0.1) * 100)}%）</th>
-                <td>¥${(() => {
-                  if (lineItems && estimate.tax_amount > 0) {
-                    return estimate.tax_amount.toLocaleString();
-                  }
-                  const vehicleCost = estimate.vehicle_cost || 0;
-                  const staffCost = calculatedStaffCost;
-                  const dedicatedCost = (estimate.vehicle_dedicated_unit_price || 0) * (estimate.vehicle_dedicated_count || 0);
-                  const charterCost = (estimate.vehicle_charter_unit_price || 0) * (estimate.vehicle_charter_count || 0);
-                  const transportVehicleFee = estimate.transport_vehicle_fee || 0;
-                  const roadPermitFee = estimate.road_permit_fee || 0;
-                  const surveyFee = estimate.survey_fee || 0;
-                  const servicesCost = (estimate.site_survey_cost || 0) +
-                                     (estimate.parking_officer_cost || 0) + 
-                                     (estimate.transport_cost || 0) + 
-                                     (estimate.waste_disposal_cost || 0) + 
-                                     (estimate.protection_cost || 0) + 
-                                     (estimate.material_collection_cost || 0) + 
-                                     (estimate.construction_cost || 0) + 
-                                     (estimate.parking_fee || 0) + 
-                                     (estimate.highway_fee || 0) +
-                                     (estimate.external_contractor_cost || 0);
-                  let workTimePremium = 0;
-                  if (estimate.work_time_type && estimate.work_time_type !== 'normal' && estimate.work_time_multiplier > 1) {
-                    workTimePremium = Math.round((vehicleCost + staffCost) * (estimate.work_time_multiplier - 1));
-                  }
-                  const sub = Math.round(vehicleCost + staffCost + servicesCost + workTimePremium + dedicatedCost + charterCost + transportVehicleFee + roadPermitFee + surveyFee);
-                  const discounted = Math.max(0, sub - (estimate.discount_amount || 0));
-                  return Math.floor(discounted * (estimate.tax_rate || 0.1)).toLocaleString();
-                })()}</td>
+                <th>消費税（${Math.round(pdfTaxRate * 100)}%）</th>
+                <td>¥${pdfTaxAmount.toLocaleString()}</td>
             </tr>
             <tr class="grand-total">
                 <th>合計金額</th>
-                <td>¥${(() => {
-                  if (lineItems && estimate.total_amount > 0) {
-                    return estimate.total_amount.toLocaleString();
-                  }
-                  const vehicleCost = estimate.vehicle_cost || 0;
-                  const staffCost = calculatedStaffCost;
-                  const dedicatedCost = (estimate.vehicle_dedicated_unit_price || 0) * (estimate.vehicle_dedicated_count || 0);
-                  const charterCost = (estimate.vehicle_charter_unit_price || 0) * (estimate.vehicle_charter_count || 0);
-                  const transportVehicleFee = estimate.transport_vehicle_fee || 0;
-                  const roadPermitFee = estimate.road_permit_fee || 0;
-                  const surveyFee = estimate.survey_fee || 0;
-                  const servicesCost = (estimate.site_survey_cost || 0) +
-                                     (estimate.parking_officer_cost || 0) + 
-                                     (estimate.transport_cost || 0) + 
-                                     (estimate.waste_disposal_cost || 0) + 
-                                     (estimate.protection_cost || 0) + 
-                                     (estimate.material_collection_cost || 0) + 
-                                     (estimate.construction_cost || 0) + 
-                                     (estimate.parking_fee || 0) + 
-                                     (estimate.highway_fee || 0) +
-                                     (estimate.external_contractor_cost || 0);
-                  let workTimePremium = 0;
-                  if (estimate.work_time_type && estimate.work_time_type !== 'normal' && estimate.work_time_multiplier > 1) {
-                    workTimePremium = Math.round((vehicleCost + staffCost) * (estimate.work_time_multiplier - 1));
-                  }
-                  const sub = Math.round(vehicleCost + staffCost + servicesCost + workTimePremium + dedicatedCost + charterCost + transportVehicleFee + roadPermitFee + surveyFee);
-                  const discounted = Math.max(0, sub - (estimate.discount_amount || 0));
-                  const tax = Math.floor(discounted * (estimate.tax_rate || 0.1));
-                  return (discounted + tax).toLocaleString();
-                })()}</td>
+                <td>¥${pdfTotalAmount.toLocaleString()}</td>
             </tr>
         </table>
     </div>
@@ -21638,13 +21453,34 @@ async function createEstimateFromAI(env: any, quoteRequest: any, aiResult: any):
       });
     }
     if (wasteDisposalCost > 0) {
-      lineItemsJson.services.items.push({
-        description: `引き取り廃棄`,
-        detail: `体積×7,500円（${aiResult.waste_disposal_reason || ''})`,
-        quantity: 1,
-        unit_price: wasteDisposalCost,
-        amount: wasteDisposalCost
-      });
+      // 個別引取家具アイテムがある場合は明細表示
+      if (quoteRequest.furniture_disposal === '有' && disposalItems.length > 0) {
+        disposalItems.forEach((item: any, idx: number) => {
+          const h = (item.height || 0) / 100;
+          const w = (item.width || 0) / 100;
+          const d = (item.depth || 0) / 100;
+          const volume = h * w * d;
+          const itemCost = Math.round(volume * 7500);
+          if (itemCost > 0) {
+            const itemName = item.name || `引取家具${idx + 1}`;
+            lineItemsJson.services.items.push({
+              description: `廃棄引取: ${itemName}`,
+              detail: `${item.height || 0}×${item.width || 0}×${item.depth || 0}cm (${volume.toFixed(2)}㎥×¥7,500)`,
+              quantity: 1,
+              unit_price: itemCost,
+              amount: itemCost
+            });
+          }
+        });
+      } else {
+        lineItemsJson.services.items.push({
+          description: `引き取り廃棄`,
+          detail: `体積×7,500円（${aiResult.waste_disposal_reason || ''})`,
+          quantity: 1,
+          unit_price: wasteDisposalCost,
+          amount: wasteDisposalCost
+        });
+      }
     }
     if (highwayFee > 0) {
       lineItemsJson.services.items.push({

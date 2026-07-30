@@ -4891,6 +4891,31 @@ const Step6Implementation = {
       });
     }
     
+    // 引取家具（廃棄）個別アイテム（furniture_disposal_items）
+    if (services.furniture_disposal_items && services.furniture_disposal_items.length > 0) {
+      let furnitureDisposalTotal = 0;
+      services.furniture_disposal_items.forEach((item, idx) => {
+        const h = (parseFloat(item.height) || 0) / 100; // cm → m
+        const w = (parseFloat(item.width) || 0) / 100;
+        const d = (parseFloat(item.depth) || 0) / 100;
+        const volume = h * w * d;
+        const itemCost = Math.round(volume * 7500);
+        if (itemCost > 0) {
+          const itemName = item.name || `引取家具${idx + 1}`;
+          const dimText = `${item.height || 0}×${item.width || 0}×${item.depth || 0}cm`;
+          lineItems.services.items.push({
+            description: `廃棄引取: ${itemName}`,
+            detail: `${dimText} (${volume.toFixed(2)}㎥×¥7,500)`,
+            quantity: 1,
+            unit_price: itemCost,
+            amount: itemCost
+          });
+          furnitureDisposalTotal += itemCost;
+        }
+      });
+      console.log('♻️ 引取家具明細追加:', services.furniture_disposal_items.length, '件, 合計:', furnitureDisposalTotal);
+    }
+    
     if (services.protection_cost > 0) {
       // 養生作業：基本料金を1行目、フロア単価を別行で表示
       const baseRate = Step5Implementation.serviceRates?.protection_work_base || 5000;
@@ -5095,10 +5120,21 @@ const Step6Implementation = {
     
     if (services) {
       // 基本サービス費用（割増を除く）
+      let furnitureDisposalItemsCost = 0;
+      if (services.furniture_disposal_items && services.furniture_disposal_items.length > 0) {
+        services.furniture_disposal_items.forEach(item => {
+          const h = (parseFloat(item.height) || 0) / 100;
+          const w = (parseFloat(item.width) || 0) / 100;
+          const d = (parseFloat(item.depth) || 0) / 100;
+          furnitureDisposalItemsCost += Math.round(h * w * d * 7500);
+        });
+      }
+      
       const baseServicesCost = (services.site_survey_cost || 0) +
                                (services.parking_officer_cost || 0) + 
                                (services.transport_cost || 0) + 
                                (services.waste_disposal_cost || 0) + 
+                               furnitureDisposalItemsCost +
                                (services.protection_cost || 0) + 
                                (services.material_collection_cost || 0) + 
                                (services.construction_cost || 0) + 
