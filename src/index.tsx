@@ -21756,7 +21756,11 @@ app.post('/api/quote-requests', async (c) => {
             has_parking: body.has_parking || '無',
             has_protection_work: body.has_protection_work || '無',
             has_hoisting: body.has_hoisting || '無',
-            has_crane: body.has_crane || '無'
+            has_crane: body.has_crane || '無',
+            // 引取家具（廃棄）データも渡す（三辺合計×7,500円のサーバー側計算に必要）
+            furniture_disposal: furnitureDisposal,
+            furniture_disposal_items: Array.isArray(body.furniture_disposal_items) ? body.furniture_disposal_items : [],
+            items_json: items
           }
           await createEstimateFromAI(env, quoteReqData, aiResponse.result)
         } catch (autoEstErr: any) {
